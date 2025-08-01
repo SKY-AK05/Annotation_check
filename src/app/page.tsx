@@ -32,21 +32,24 @@ export default function Home() {
       let gtAnnotations, studentAnnotations;
 
       try {
-         if (data.toolType === 'cvat_xml' || (gtFile.name.endsWith('.xml') && studentFile.name.endsWith('.xml'))) {
+         if (data.toolType === 'cvat_xml') {
             gtAnnotations = parseCvatXml(gtAnnotationsText);
             studentAnnotations = parseCvatXml(studentAnnotationsText);
             toast({
               title: "CVAT XML Parsed",
               description: "Successfully parsed CVAT XML files.",
             });
-        } else {
+        } else if (data.toolType === 'bounding_box') {
             gtAnnotations = JSON.parse(gtAnnotationsText);
             studentAnnotations = JSON.parse(studentAnnotationsText);
+        } else {
+             // For polygon and keypoints, we'll use the AI fallback directly for now.
+             throw new Error(`Tool type '${data.toolType}' requires AI Fallback for evaluation.`);
         }
       } catch (e) {
         toast({
-          title: "File Parsing Error",
-          description: "One of the files is not valid or in the expected format. Using AI to attempt evaluation.",
+          title: "File Parsing or Evaluation Error",
+          description: (e as Error).message.includes('AI Fallback') ? (e as Error).message : "One of the files is not valid or in the expected format. Using AI to attempt evaluation.",
           variant: "destructive",
         });
 
@@ -54,7 +57,7 @@ export default function Home() {
           gtAnnotations: gtAnnotationsText,
           studentAnnotations: studentAnnotationsText,
           toolType: data.toolType,
-          errorDetails: `Failed to parse file: ${(e as Error).message}`
+          errorDetails: `Failed to parse file or unsupported tool type: ${(e as Error).message}`
         };
         const aiResult = await aiScoringFallback(aiInput);
         setResults({ ...aiResult, source: 'ai_fallback' });
