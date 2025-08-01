@@ -50,7 +50,7 @@ export function EvaluationForm({ onEvaluate, isLoading }: EvaluationFormProps) {
   const gtFileRef = form.register("gtFile");
   const studentFileRef = form.register("studentFile");
 
-  function onSubmit(values: z.infer<typeof formSchema>>) {
+  function onSubmit(values: z.infer<typeof formSchema>) {
     onEvaluate({
       gtFile: values.gtFile[0],
       studentFile: values.studentFile[0],
