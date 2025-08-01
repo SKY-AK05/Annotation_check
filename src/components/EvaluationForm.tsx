@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -78,7 +79,7 @@ export function EvaluationForm({ onEvaluate, isLoading }: EvaluationFormProps) {
                       <Input type="file" className="pl-10" {...gtFileRef} />
                     </div>
                   </FormControl>
-                  <FormDescription>Upload the expert-reviewed file (e.g., COCO JSON).</FormDescription>
+                  <FormDescription>Upload the expert-reviewed file (e.g., COCO JSON, CVAT XML).</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -105,17 +106,18 @@ export function EvaluationForm({ onEvaluate, isLoading }: EvaluationFormProps) {
               name="toolType"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Annotation Tool Type</FormLabel>
+                  <FormLabel>Annotation File Format</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select an annotation type" />
+                        <SelectValue placeholder="Select an annotation format" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="bounding_box">Bounding Box</SelectItem>
-                      <SelectItem value="polygon">Polygon</SelectItem>
-                      <SelectItem value="keypoints">Keypoints</SelectItem>
+                      <SelectItem value="bounding_box">COCO JSON</SelectItem>
+                      <SelectItem value="cvat_xml">CVAT XML 1.1</SelectItem>
+                      <SelectItem value="polygon">Polygon (AI Fallback)</SelectItem>
+                      <SelectItem value="keypoints">Keypoints (AI Fallback)</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />

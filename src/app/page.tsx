@@ -10,6 +10,7 @@ import { AnnotatorAiLogo } from '@/components/AnnotatorAiLogo';
 import { aiScoringFallback, type AiScoringFallbackInput } from '@/ai/flows/ai-scoring-fallback';
 import type { EvaluationResult } from '@/lib/types';
 import { evaluateAnnotations } from '@/lib/evaluator';
+import { parseCvatXml } from '@/lib/cvat-xml-parser';
 
 
 export default function Home() {
@@ -22,77 +23,52 @@ export default function Home() {
     setResults(null);
   
     try {
-      const gtAnnotationsText = await data.gtFile.text();
-      const studentAnnotationsText = await data.studentFile.text();
+      const gtFile = data.gtFile;
+      const studentFile = data.studentFile;
 
-      if (data.toolType === 'polygon') {
-        toast({
-          title: "Using AI Fallback",
-          description: "Polygon evaluation is not yet implemented. Using AI-assisted scoring.",
-          variant: "default",
-        });
-        const aiInput: AiScoringFallbackInput = {
-          gtAnnotations: gtAnnotationsText,
-          studentAnnotations: studentAnnotationsText,
-          toolType: data.toolType,
-          errorDetails: "Manual evaluation for polygons is not yet implemented."
-        };
-        const aiResult = await aiScoringFallback(aiInput);
-        setResults({ ...aiResult, source: 'ai_fallback' });
-        setIsLoading(false);
-        return;
-      }
-
+      const gtAnnotationsText = await gtFile.text();
+      const studentAnnotationsText = await studentFile.text();
 
       let gtAnnotations, studentAnnotations;
+
       try {
-        gtAnnotations = JSON.parse(gtAnnotationsText);
-        studentAnnotations = JSON.parse(studentAnnotationsText);
+         if (data.toolType === 'cvat_xml' || (gtFile.name.endsWith('.xml') && studentFile.name.endsWith('.xml'))) {
+            gtAnnotations = parseCvatXml(gtAnnotationsText);
+            studentAnnotations = parseCvatXml(studentAnnotationsText);
+            toast({
+              title: "CVAT XML Parsed",
+              description: "Successfully parsed CVAT XML files.",
+            });
+        } else {
+            gtAnnotations = JSON.parse(gtAnnotationsText);
+            studentAnnotations = JSON.parse(studentAnnotationsText);
+        }
       } catch (e) {
         toast({
-          title: "JSON Parsing Error",
-          description: "One of the files is not valid JSON. Using AI to attempt evaluation.",
-          variant: "default",
+          title: "File Parsing Error",
+          description: "One of the files is not valid or in the expected format. Using AI to attempt evaluation.",
+          variant: "destructive",
         });
 
         const aiInput: AiScoringFallbackInput = {
           gtAnnotations: gtAnnotationsText,
           studentAnnotations: studentAnnotationsText,
           toolType: data.toolType,
-          errorDetails: `Failed to parse JSON: ${(e as Error).message}`
+          errorDetails: `Failed to parse file: ${(e as Error).message}`
         };
         const aiResult = await aiScoringFallback(aiInput);
         setResults({ ...aiResult, source: 'ai_fallback' });
         setIsLoading(false);
         return;
       }
+      
+      const manualResult = evaluateAnnotations(gtAnnotations, studentAnnotations);
+      setResults(manualResult);
+      toast({
+        title: "Evaluation Complete",
+        description: "Standard evaluation logic was successful.",
+      });
 
-      // Simulate a structured error that would trigger the AI fallback
-      if (data.toolType === 'keypoints' && studentAnnotations?.unsupported_keypoint_format) {
-         toast({
-          title: "Using AI Fallback",
-          description: "Unsupported keypoint format. Using AI-assisted scoring.",
-          variant: "default",
-        });
-  
-        const aiInput: AiScoringFallbackInput = {
-          gtAnnotations: gtAnnotationsText,
-          studentAnnotations: studentAnnotationsText,
-          toolType: data.toolType,
-          errorDetails: "Traceback: \n File 'evaluator.py', line 152, in 'calculate_oks' \n UnsupportedKeypointFormatError: Student annotations use an outdated keypoint format."
-        };
-        
-        const aiResult = await aiScoringFallback(aiInput);
-        setResults({ ...aiResult, source: 'ai_fallback' });
-      } else {
-        // Standard evaluation logic using the new evaluator
-        const manualResult = evaluateAnnotations(gtAnnotations, studentAnnotations);
-        setResults(manualResult);
-        toast({
-          title: "Evaluation Complete",
-          description: "Standard evaluation logic was successful.",
-        });
-      }
     } catch (e) {
       console.error(e);
       const error = e as Error;
