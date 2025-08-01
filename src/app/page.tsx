@@ -25,6 +25,25 @@ export default function Home() {
       const gtAnnotationsText = await data.gtFile.text();
       const studentAnnotationsText = await data.studentFile.text();
 
+      if (data.toolType === 'polygon') {
+        toast({
+          title: "Using AI Fallback",
+          description: "Polygon evaluation is not yet implemented. Using AI-assisted scoring.",
+          variant: "default",
+        });
+        const aiInput: AiScoringFallbackInput = {
+          gtAnnotations: gtAnnotationsText,
+          studentAnnotations: studentAnnotationsText,
+          toolType: data.toolType,
+          errorDetails: "Manual evaluation for polygons is not yet implemented."
+        };
+        const aiResult = await aiScoringFallback(aiInput);
+        setResults({ ...aiResult, source: 'ai_fallback' });
+        setIsLoading(false);
+        return;
+      }
+
+
       let gtAnnotations, studentAnnotations;
       try {
         gtAnnotations = JSON.parse(gtAnnotationsText);
