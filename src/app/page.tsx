@@ -20,16 +20,57 @@ export default function Home() {
     setResults(null);
   
     try {
-      const gtAnnotations = await data.gtFile.text();
-      const studentAnnotations = await data.studentFile.text();
+      const gtAnnotationsText = await data.gtFile.text();
+      const studentAnnotationsText = await data.studentFile.text();
 
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Simulate parsing
+      let gtAnnotations, studentAnnotations;
+      try {
+        gtAnnotations = JSON.parse(gtAnnotationsText);
+        studentAnnotations = JSON.parse(studentAnnotationsText);
+      } catch (e) {
+        toast({
+          title: "JSON Parsing Error",
+          description: "One of the files is not valid JSON. Using AI to attempt evaluation.",
+          variant: "default",
+        });
+
+        const aiInput: AiScoringFallbackInput = {
+          gtAnnotations: gtAnnotationsText,
+          studentAnnotations: studentAnnotationsText,
+          toolType: data.toolType,
+          errorDetails: `Failed to parse JSON: ${(e as Error).message}`
+        };
+        const aiResult = await aiScoringFallback(aiInput);
+        setResults({ ...aiResult, source: 'ai_fallback' });
+        setIsLoading(false);
+        return;
+      }
+
+      // Simulate a structured error that would trigger the AI fallback
+      if (data.toolType === 'keypoints' && studentAnnotations?.unsupported_keypoint_format) {
+         toast({
+          title: "Using AI Fallback",
+          description: "Unsupported keypoint format. Using AI-assisted scoring.",
+          variant: "default",
+        });
   
-      if (Math.random() > 0.4) { // 60% chance of standard evaluation success
+        const aiInput: AiScoringFallbackInput = {
+          gtAnnotations: gtAnnotationsText,
+          studentAnnotations: studentAnnotationsText,
+          toolType: data.toolType,
+          errorDetails: "Traceback: \n File 'evaluator.py', line 152, in 'calculate_oks' \n UnsupportedKeypointFormatError: Student annotations use an outdated keypoint format."
+        };
+        
+        const aiResult = await aiScoringFallback(aiInput);
+        setResults({ ...aiResult, source: 'ai_fallback' });
+      } else {
+        // Standard evaluation logic
         const mockSuccessResult: ManualEvaluationResult = {
           source: 'manual',
           score: Math.floor(70 + Math.random() * 25), // 70-95
           feedback: [
+            "All annotations were successfully checked.",
             "Bounding box for 'cat' is well-aligned. IoU: 0.92.",
             "Bounding box for 'dog' is slightly off. IoU: 0.75.",
             "Student successfully identified all critical objects in the frame."
@@ -45,32 +86,12 @@ export default function Home() {
           label_accuracy: { correct: 3, total: 4, accuracy: 75 },
           critical_issues: ["Extra annotation 'bird' was found that was not in the ground truth."]
         };
+        await new Promise(resolve => setTimeout(resolve, 1500));
         setResults(mockSuccessResult);
         toast({
           title: "Evaluation Complete",
           description: "Standard evaluation logic was successful.",
         });
-      } else { // 40% chance of AI fallback
-        toast({
-          title: "Using AI Fallback",
-          description: "Primary evaluation failed. Using AI-assisted scoring.",
-          variant: "default",
-        });
-  
-        const aiInput: AiScoringFallbackInput = {
-          gtAnnotations,
-          studentAnnotations,
-          toolType: data.toolType,
-          errorDetails: "Traceback: \n File 'evaluator.py', line 52, in 'calculate_iou' \n KeyError: 'bbox'"
-        };
-        
-        const aiResult = await aiScoringFallback(aiInput);
-        
-        const resultWithSource: AiEvaluationResult = {
-          ...aiResult,
-          source: 'ai_fallback'
-        };
-        setResults(resultWithSource);
       }
     } catch (e) {
       console.error(e);
