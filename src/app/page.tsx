@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -7,7 +8,8 @@ import { EvaluationForm } from '@/components/EvaluationForm';
 import { ResultsDashboard } from '@/components/ResultsDashboard';
 import { AnnotatorAiLogo } from '@/components/AnnotatorAiLogo';
 import { aiScoringFallback, type AiScoringFallbackInput } from '@/ai/flows/ai-scoring-fallback';
-import type { EvaluationResult, ManualEvaluationResult, AiEvaluationResult } from '@/lib/types';
+import type { EvaluationResult } from '@/lib/types';
+import { evaluateAnnotations } from '@/lib/evaluator';
 
 
 export default function Home() {
@@ -23,7 +25,6 @@ export default function Home() {
       const gtAnnotationsText = await data.gtFile.text();
       const studentAnnotationsText = await data.studentFile.text();
 
-      // Simulate parsing
       let gtAnnotations, studentAnnotations;
       try {
         gtAnnotations = JSON.parse(gtAnnotationsText);
@@ -65,29 +66,9 @@ export default function Home() {
         const aiResult = await aiScoringFallback(aiInput);
         setResults({ ...aiResult, source: 'ai_fallback' });
       } else {
-        // Standard evaluation logic
-        const mockSuccessResult: ManualEvaluationResult = {
-          source: 'manual',
-          score: Math.floor(70 + Math.random() * 25), // 70-95
-          feedback: [
-            "All annotations were successfully checked.",
-            "Bounding box for 'cat' is well-aligned. IoU: 0.92.",
-            "Bounding box for 'dog' is slightly off. IoU: 0.75.",
-            "Student successfully identified all critical objects in the frame."
-          ],
-          matched: [
-            { gt: "cat", student: "cat", iou: 0.92 },
-            { gt: "dog", student: "dog", iou: 0.75 },
-            { gt: "person", student: "person", iou: 0.88 },
-          ],
-          missed: [ { gt: "bicycle" } ],
-          extra: [{ student: "bird" }],
-          average_iou: 0.85,
-          label_accuracy: { correct: 3, total: 4, accuracy: 75 },
-          critical_issues: ["Extra annotation 'bird' was found that was not in the ground truth."]
-        };
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        setResults(mockSuccessResult);
+        // Standard evaluation logic using the new evaluator
+        const manualResult = evaluateAnnotations(gtAnnotations, studentAnnotations);
+        setResults(manualResult);
         toast({
           title: "Evaluation Complete",
           description: "Standard evaluation logic was successful.",
@@ -95,11 +76,32 @@ export default function Home() {
       }
     } catch (e) {
       console.error(e);
+      const error = e as Error;
       toast({
         title: "Error",
-        description: "An unexpected error occurred during evaluation.",
+        description: `An unexpected error occurred: ${error.message}. Trying AI fallback.`,
         variant: "destructive",
       });
+      // AI fallback on unexpected error
+      try {
+        const gtAnnotationsText = await data.gtFile.text();
+        const studentAnnotationsText = await data.studentFile.text();
+        const aiInput: AiScoringFallbackInput = {
+          gtAnnotations: gtAnnotationsText,
+          studentAnnotations: studentAnnotationsText,
+          toolType: data.toolType,
+          errorDetails: `An unexpected error occurred during evaluation: ${error.stack}`
+        };
+        const aiResult = await aiScoringFallback(aiInput);
+        setResults({ ...aiResult, source: 'ai_fallback' });
+      } catch (aiError) {
+        console.error("AI Fallback failed:", aiError);
+        toast({
+          title: "AI Fallback Failed",
+          description: "The AI fallback also failed to process the request.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsLoading(false);
     }
