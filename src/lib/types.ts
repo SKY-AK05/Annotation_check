@@ -7,6 +7,56 @@ export interface FormValues {
   toolType: string;
 }
 
+export interface CocoCategory {
+    id: number;
+    name: string;
+    supercategory?: string;
+}
+
+export interface CocoImage {
+    id: number;
+    file_name: string;
+    height: number;
+    width: number;
+}
+
+export interface BboxAnnotation {
+    id: number;
+    image_id: number;
+    category_id: number;
+    bbox: [number, number, number, number]; // [x,y,width,height]
+    label?: string;
+    attribute?: string;
+    attributes?: {
+        license_plate_number?: string;
+    };
+}
+
+export interface CocoJson {
+    images: CocoImage[];
+    annotations: BboxAnnotation[];
+    categories: CocoCategory[];
+}
+
+export interface LabelAccuracy {
+    correct: number;
+    total: number;
+    accuracy: number;
+}
+
+export interface AttributeAccuracy {
+    average_similarity: number;
+    total: number;
+}
+
+export interface Match {
+    gt: BboxAnnotation;
+    student: BboxAnnotation;
+    iou: number;
+    isLabelMatch: boolean;
+    attributeSimilarity: number;
+}
+
 export interface ManualEvaluationResult {
   source: 'manual';
   score: number;
@@ -15,8 +65,14 @@ export interface ManualEvaluationResult {
   missed: { gt: string }[];
   extra: { student: string }[];
   average_iou: number;
-  label_accuracy: { correct: number; total: number; accuracy: number };
+  label_accuracy: LabelAccuracy;
+  attribute_accuracy: AttributeAccuracy;
   critical_issues: string[];
+  details?: {
+    matched: Match[];
+    missed: { gt: BboxAnnotation }[];
+    extra: { student: BboxAnnotation }[];
+  }
 }
 
 export interface AiEvaluationResult extends AiScoringFallbackOutput {
