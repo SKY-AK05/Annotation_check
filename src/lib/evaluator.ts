@@ -71,7 +71,7 @@ function getAnnotationAttribute(annotation: BboxAnnotation, key: string): string
     return annotation.attributes?.[key];
 }
 
-export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, schema: EvalSchema): EvaluationResult {
+export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, schema: EvalSchema): Omit<EvaluationResult, 'studentFilename'> {
     const IOU_THRESHOLD = 0.5;
     const matchKey = schema.matchKey;
 

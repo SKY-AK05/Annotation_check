@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { ScoreCard } from "@/components/ScoreCard";
 import type { BboxAnnotation, EvaluationResult } from "@/lib/types";
-import { AlertCircle, CheckCircle, Download, FileCog, FileQuestion, MessageSquare, ShieldAlert, User } from "lucide-react";
+import { AlertCircle, CheckCircle, Download, FileQuestion, MessageSquare, ShieldAlert, User } from "lucide-react";
 import { Badge } from "./ui/badge";
 
 interface ResultsDashboardProps {
