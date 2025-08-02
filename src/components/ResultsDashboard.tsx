@@ -8,7 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { ScoreCard } from "@/components/ScoreCard";
 import type { EvaluationResult } from "@/lib/types";
-import { AlertCircle, CheckCircle, Download, FileQuestion, MessageSquare, ShieldAlert } from "lucide-react";
+import { AlertCircle, CheckCircle, Download, FileQuestion, MessageSquare, ShieldAlert, BrainCircuit } from "lucide-react";
+import { Badge } from "./ui/badge";
 
 interface ResultsDashboardProps {
   results: EvaluationResult | null;
@@ -71,13 +72,24 @@ export function ResultsDashboard({ results, loading }: ResultsDashboardProps) {
     document.body.removeChild(link);
   }
 
+  const resultSource = results.source === 'ai' 
+    ? { label: 'AI Assisted', icon: <BrainCircuit className="h-4 w-4" />, color: 'bg-accent text-accent-foreground' } 
+    : { label: 'Rule-Based', icon: <FileCog className="h-4 w-4" />, color: 'bg-primary/10 text-primary' };
+
+
   return (
     <Card className="w-full">
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
-          <CardTitle className="text-2xl">
-            Evaluation Results
-          </CardTitle>
+            <div className="flex items-center gap-3">
+                 <CardTitle className="text-2xl">
+                    Evaluation Results
+                </CardTitle>
+                <Badge variant="outline" className={`border-0 ${resultSource.color}`}>
+                    {resultSource.icon}
+                    {resultSource.label}
+                </Badge>
+            </div>
           <CardDescription>
             Detailed breakdown of the annotation comparison.
           </CardDescription>
@@ -103,7 +115,7 @@ export function ResultsDashboard({ results, loading }: ResultsDashboardProps) {
                     </ul>
                   </CardContent>
               </Card>
-              { (results.critical_issues.length > 0) ? (
+              { (results.critical_issues && results.critical_issues.length > 0) ? (
                 <Card>
                   <CardHeader className="flex flex-row items-center space-x-3 space-y-0 pb-2">
                     <ShieldAlert className="h-5 w-5 text-destructive"/>
@@ -156,14 +168,18 @@ export function ResultsDashboard({ results, loading }: ResultsDashboardProps) {
                 </div>
             </TabsContent>
             <TabsContent value="metrics">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
                     <Card>
                         <CardHeader><CardTitle>Localization Accuracy</CardTitle></CardHeader>
                         <CardContent className="text-3xl font-bold">{results.average_iou.toFixed(3)} <span className="text-sm font-normal text-muted-foreground">Avg. IoU</span></CardContent>
                     </Card>
                     <Card>
                         <CardHeader><CardTitle>Label Accuracy</CardTitle></CardHeader>
-                        <CardContent className="text-3xl font-bold">{results.label_accuracy.accuracy}% <span className="text-sm font-normal text-muted-foreground">({results.label_accuracy.correct}/{results.label_accuracy.total} correct)</span></CardContent>
+                        <CardContent className="text-3xl font-bold">{results.label_accuracy.accuracy.toFixed(0)}% <span className="text-sm font-normal text-muted-foreground">({results.label_accuracy.correct}/{results.label_accuracy.total} correct)</span></CardContent>
+                    </Card>
+                     <Card>
+                        <CardHeader><CardTitle>Attribute Accuracy</CardTitle></CardHeader>
+                        <CardContent className="text-3xl font-bold">{results.attribute_accuracy.average_similarity.toFixed(0)}% <span className="text-sm font-normal text-muted-foreground">({results.attribute_accuracy.total} attributes)</span></CardContent>
                     </Card>
                 </div>
             </TabsContent>

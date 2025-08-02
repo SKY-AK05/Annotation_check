@@ -21,10 +21,10 @@ export type EvalSchemaInput = z.infer<typeof EvalSchemaInputSchema>;
 export const EvalSchemaSchema = z.object({
     labels: z.array(z.object({
         name: z.string().describe("The name of the object class label, e.g., 'Person' or 'licence_plates'."),
-        attributes: z.array(z.string()).describe("A list of attributes associated with this label, e.g., ['Mask', 'Age group']."),
+        attributes: z.array(z.string()).describe("A list of attributes associated with this label, e.g., ['Mask', 'Age group']. If no attributes exist, return an empty array."),
     })).describe("A list of all unique object labels found in the ground truth file and their associated attributes."),
-    matchKey: z.string().describe("The specific attribute name that should be used as a unique key to match annotations between the GT and student files. This is often 'Annotation No' or a similar unique identifier."),
-    pseudoCode: z.string().describe("Human-readable pseudocode that summarizes the evaluation logic derived from the ground truth file schema."),
+    matchKey: z.string().optional().describe("The specific attribute name that should be used as a unique key to match annotations between the GT and student files. This is often 'Annotation No' or a similar unique identifier. If no clear key exists, this can be omitted."),
+    pseudoCode: z.string().describe("Human-readable pseudocode that summarizes the evaluation logic derived from the ground truth file schema. This should be editable by a user to adjust the evaluation logic."),
 });
 export type EvalSchema = z.infer<typeof EvalSchemaSchema>;
 
@@ -36,12 +36,16 @@ const prompt = ai.definePrompt({
   name: 'extractEvalSchemaPrompt',
   input: {schema: EvalSchemaInputSchema},
   output: {schema: EvalSchemaSchema},
-  prompt: `You are an expert at analyzing annotation files (like COCO JSON or CVAT XML) to determine how they should be evaluated.
+  prompt: `You are an expert at analyzing annotation files (like COCO JSON or CVAT XML) to determine how they should be evaluated for a temporary student assessment.
 Analyze the provided ground truth file content and extract the evaluation schema.
 
-Based on the content, identify all unique labels and the attributes associated with each.
-Determine the attribute that serves as the unique key for matching annotations (e.g., "Annotation No").
-Finally, generate simple, human-readable pseudocode that describes the steps to evaluate a student's file against this GT.
+Based on the content, perform the following steps:
+1.  Identify all unique object class labels.
+2.  For each label, list the attributes associated with it. If a label has no attributes besides its bounding box, return an empty array for its attributes.
+3.  Determine if there is a specific attribute that can serve as a unique key for matching annotations (e.g., "Annotation No", "track_id"). If found, specify it as the matchKey. If not, omit the field.
+4.  Generate simple, human-readable Python-like pseudocode that describes the steps to evaluate a student's file against this GT. This pseudocode will be shown to a user and should be understandable. For example, if a label 'car' has an attribute 'license_plate_number', the pseudocode should suggest checking for a text match on that attribute. If a label has no attributes, it should only mention IoU evaluation.
+
+This entire process is for the purpose of a temporary student evaluation ('evaluate_student_annotations') and the logic should be derived solely from the file provided.
 
 Ground Truth File Content:
 {{{gtFileContent}}}

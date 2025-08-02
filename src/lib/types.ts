@@ -1,8 +1,11 @@
 
+import type { EvalSchema } from "./ai/flows/extract-eval-schema";
+
 export interface FormValues {
   gtFile: File;
   studentFile: File;
   toolType: string;
+  useAi?: boolean;
 }
 
 export interface CocoCategory {
@@ -23,11 +26,8 @@ export interface BboxAnnotation {
     image_id: number;
     category_id: number;
     bbox: [number, number, number, number]; // [x,y,width,height]
-    label?: string;
-    attribute?: string;
     attributes?: {
         [key: string]: string | undefined;
-        license_plate_number?: string;
     };
 }
 
@@ -56,8 +56,8 @@ export interface Match {
     attributeSimilarity: number;
 }
 
-export interface ManualEvaluationResult {
-  source: 'manual';
+interface BaseEvaluationResult {
+  source: 'manual' | 'ai';
   score: number;
   feedback: string[];
   matched: { gt: string; student: string; iou: number }[];
@@ -67,11 +67,15 @@ export interface ManualEvaluationResult {
   label_accuracy: LabelAccuracy;
   attribute_accuracy: AttributeAccuracy;
   critical_issues: string[];
-  details?: {
-    matched: Match[];
-    missed: { gt: BboxAnnotation }[];
-    extra: { student: BboxAnnotation }[];
-  }
 }
 
-export type EvaluationResult = ManualEvaluationResult;
+
+export interface ManualEvaluationResult extends BaseEvaluationResult {
+  source: 'manual';
+}
+
+export interface AiEvaluationResult extends BaseEvaluationResult {
+    source: 'ai';
+}
+
+export type EvaluationResult = ManualEvaluationResult | AiEvaluationResult;

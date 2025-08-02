@@ -10,6 +10,7 @@ import { RuleConfiguration } from '@/components/RuleConfiguration';
 import { AnnotatorAiLogo } from '@/components/AnnotatorAiLogo';
 import type { EvaluationResult } from '@/lib/types';
 import { evaluateAnnotations } from '@/lib/evaluator';
+import { aiScoringFallback } from '@/ai/flows/ai-scoring-fallback';
 import { parseCvatXml } from '@/lib/cvat-xml-parser';
 import { extractEvalSchema, type EvalSchema } from '@/ai/flows/extract-eval-schema';
 
@@ -27,6 +28,7 @@ export default function Home() {
     }
     
     setIsGeneratingRules(true);
+    setResults(null);
     setEvalSchema(null);
     try {
       const fileContent = await file.text();
@@ -49,39 +51,55 @@ export default function Home() {
   }
 
   const handleEvaluate = async (data: FormValues) => {
+    if (!evalSchema) {
+      toast({
+        title: "Evaluation Rules Missing",
+        description: "Please upload a Ground Truth file first to generate rules.",
+        variant: "destructive",
+      });
+      return;
+    }
     setIsLoading(true);
     setResults(null);
   
+    const gtFileContent = await data.gtFile.text();
+    const studentFileContent = await data.studentFile.text();
+
     try {
-      const gtFile = data.gtFile;
-      const studentFile = data.studentFile;
-
-      const gtAnnotationsText = await gtFile.text();
-      const studentAnnotationsText = await studentFile.text();
-
+      // AI Fallback for unsupported formats or if user explicitly requests it
+      if (data.useAi || ['polygon', 'keypoints'].includes(data.toolType)) {
+        toast({
+          title: "Using AI Assistance",
+          description: "Standard evaluation is not available for this format. Relying on AI.",
+        });
+        const aiResult = await aiScoringFallback({
+            gtFileContent,
+            studentFileContent,
+            evalRules: evalSchema,
+            purpose: "evaluate_student_annotations",
+            isTemporary: true,
+        });
+        setResults(aiResult);
+        return;
+      }
+      
+      // Standard evaluation logic
       let gtAnnotations, studentAnnotations;
-
       try {
          if (data.toolType === 'cvat_xml') {
-            gtAnnotations = parseCvatXml(gtAnnotationsText);
-            studentAnnotations = parseCvatXml(studentAnnotationsText);
-        } else if (data.toolType === 'bounding_box') {
-            gtAnnotations = JSON.parse(gtAnnotationsText);
-            studentAnnotations = JSON.parse(studentAnnotationsText);
+            gtAnnotations = parseCvatXml(gtFileContent);
+            studentAnnotations = parseCvatXml(studentFileContent);
+        } else if (data.toolType === 'bounding_box') { // Assuming COCO JSON
+            gtAnnotations = JSON.parse(gtFileContent);
+            studentAnnotations = JSON.parse(studentFileContent);
         } else {
              throw new Error(`Tool type '${data.toolType}' is not supported for manual evaluation.`);
         }
       } catch (e) {
-        toast({
-          title: "File Parsing Error",
-          description: `An error occurred while parsing the files: ${(e as Error).message}`,
-          variant: "destructive",
-        });
-        setIsLoading(false);
-        return;
+        throw new Error(`File Parsing Error: ${(e as Error).message}`);
       }
       
-      const manualResult = evaluateAnnotations(gtAnnotations, studentAnnotations);
+      const manualResult = evaluateAnnotations(gtAnnotations, studentAnnotations, evalSchema);
       setResults(manualResult);
       toast({
         title: "Evaluation Complete",
@@ -92,10 +110,33 @@ export default function Home() {
       console.error(e);
       const error = e as Error;
       toast({
-        title: "Error",
-        description: `An unexpected error occurred during evaluation: ${error.message}.`,
+        title: "Evaluation Error",
+        description: `${error.message}. Considering AI Fallback...`,
         variant: "destructive",
       });
+      // Automatic AI fallback on error
+      try {
+        const aiResult = await aiScoringFallback({
+            gtFileContent,
+            studentFileContent,
+            evalRules: evalSchema,
+            errorContext: error.stack,
+            purpose: "evaluate_student_annotations",
+            isTemporary: true,
+        });
+        setResults(aiResult);
+        toast({
+          title: "AI Fallback Successful",
+          description: "AI evaluation completed after a standard evaluation error.",
+        });
+      } catch (aiError) {
+        console.error(aiError);
+        toast({
+          title: "AI Fallback Failed",
+          description: `The AI evaluation also failed: ${(aiError as Error).message}`,
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -109,7 +150,7 @@ export default function Home() {
       </header>
       <main className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
         <div className="lg:col-span-1 flex flex-col gap-8 lg:sticky lg:top-12">
-          <EvaluationForm onEvaluate={handleEvaluate} isLoading={isLoading} onGtFileChange={handleGtFileChange} />
+          <EvaluationForm onEvaluate={handleEvaluate} isLoading={isLoading || isGeneratingRules} onGtFileChange={handleGtFileChange} />
           <RuleConfiguration schema={evalSchema} loading={isGeneratingRules} />
         </div>
         <div className="lg:col-span-2">
