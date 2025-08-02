@@ -3,7 +3,7 @@
 import type { EvalSchema } from "@/ai/flows/extract-eval-schema";
 
 export interface FormValues {
-  gtFile: File;
+  gtFile: FileList;
   studentFiles: FileList;
   toolType: string;
 }

@@ -63,7 +63,11 @@ export default function Home() {
     setResults(null);
   
     try {
-        const gtFileContent = await data.gtFile.text();
+        const gtFile = data.gtFile[0];
+        if (!gtFile) {
+            throw new Error("Ground Truth file is missing.");
+        }
+        const gtFileContent = await gtFile.text();
         const studentFileInputs = Array.from(data.studentFiles);
         const batchResults: EvaluationResult[] = [];
         
