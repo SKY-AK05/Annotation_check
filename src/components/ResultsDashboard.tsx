@@ -51,22 +51,55 @@ export function ResultsDashboard({ results, loading }: ResultsDashboardProps) {
 
   const handleDownloadCsv = () => {
     let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "Category,Detail\r\n";
-
-    results.feedback.forEach(item => {
-        csvContent += `Feedback,"${item.replace(/"/g, '""')}"\r\n`;
-    });
     
-    if (results.critical_issues) {
+    // Summary
+    csvContent += "Category,Value,Detail\r\n";
+    csvContent += `Overall Score,${results.score},\r\n`;
+    csvContent += `Average IoU,${results.average_iou.toFixed(3)},\r\n`;
+    csvContent += `Label Accuracy,${results.label_accuracy.accuracy.toFixed(1)}%,"${results.label_accuracy.correct}/${results.label_accuracy.total} correct"\r\n`;
+    csvContent += `Attribute Accuracy,${results.attribute_accuracy.average_similarity.toFixed(1)}%,"${results.attribute_accuracy.total} attributes compared"\r\n`;
+    csvContent += "\r\n";
+
+    // Matched Annotations
+    csvContent += "Matched Annotations,GT Label,Student Label,IoU\r\n";
+    results.matched.forEach(item => {
+        csvContent += `Matched,"${item.gt}","${item.student}",${item.iou.toFixed(3)}\r\n`;
+    });
+    csvContent += "\r\n";
+
+    // Missed Annotations
+    csvContent += "Missed Annotations,GT Label,,\r\n";
+    results.missed.forEach(item => {
+        csvContent += `Missed,"${item.gt}",,\r\n`;
+    });
+    csvContent += "\r\n";
+
+    // Extra Annotations
+    csvContent += "Extra Annotations,Student Label,,\r\n";
+    results.extra.forEach(item => {
+        csvContent += `Extra,"${item.student}",,\r\n`;
+    });
+    csvContent += "\r\n";
+
+    // Feedback
+    csvContent += "Feedback,Message,,\r\n";
+    results.feedback.forEach(item => {
+        csvContent += `Feedback,"${item.replace(/"/g, '""')}",,\r\n`;
+    });
+    csvContent += "\r\n";
+    
+    // Critical Issues
+    if (results.critical_issues && results.critical_issues.length > 0) {
+        csvContent += "Critical Issues,Message,,\r\n";
         results.critical_issues.forEach(item => {
-            csvContent += `Critical Issue,"${item.replace(/"/g, '""')}"\r\n`;
+            csvContent += `Critical Issue,"${item.replace(/"/g, '""')}",,\r\n`;
         });
     }
-  
+
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "evaluation_feedback.csv");
+    link.setAttribute("download", "evaluation_results.csv");
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
