@@ -56,12 +56,12 @@ export interface Match {
 }
 
 export interface EvaluationResult {
-  source: 'manual';
+  source: 'rule-based';
   score: number;
   feedback: string[];
-  matched: { gt: string; student: string; iou: number }[];
-  missed: { gt: string }[];
-  extra: { student: string }[];
+  matched: Match[];
+  missed: { gt: BboxAnnotation }[];
+  extra: { student: BboxAnnotation }[];
   average_iou: number;
   label_accuracy: LabelAccuracy;
   attribute_accuracy: AttributeAccuracy;

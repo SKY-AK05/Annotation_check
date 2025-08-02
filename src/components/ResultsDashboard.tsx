@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { ScoreCard } from "@/components/ScoreCard";
-import type { EvaluationResult } from "@/lib/types";
+import type { BboxAnnotation, EvaluationResult, Match } from "@/lib/types";
 import { AlertCircle, CheckCircle, Download, FileCog, FileQuestion, MessageSquare, ShieldAlert } from "lucide-react";
 import { Badge } from "./ui/badge";
 
@@ -52,6 +52,11 @@ export function ResultsDashboard({ results, loading }: ResultsDashboardProps) {
   const handleDownloadCsv = () => {
     let csvContent = "data:text/csv;charset=utf-8,";
     
+    // Helper to get attribute string
+    const getAttributesString = (ann: BboxAnnotation) => {
+      return ann.attributes ? Object.entries(ann.attributes).map(([key, value]) => `${key}: ${value}`).join('; ') : '';
+    }
+    
     // Summary
     csvContent += "Category,Value,Detail\r\n";
     csvContent += `Overall Score,${results.score},\r\n`;
@@ -61,52 +66,64 @@ export function ResultsDashboard({ results, loading }: ResultsDashboardProps) {
     csvContent += "\r\n";
 
     // Matched Annotations
-    csvContent += "Matched Annotations,GT Label,Student Label,IoU\r\n";
+    csvContent += "Matched Annotations\r\n";
+    csvContent += "GT Annotation ID,GT Label,GT Attributes,Student Annotation ID,Student Label,Student Attributes,IoU,Label Match\r\n";
     results.matched.forEach(item => {
-        csvContent += `Matched,"${item.gt}","${item.student}",${item.iou.toFixed(3)}\r\n`;
+        const gtLabel = item.gt.attributes?.['label'] ?? `ID ${item.gt.id}`;
+        const studentLabel = item.student.attributes?.['label'] ?? `ID ${item.student.id}`;
+        csvContent += `"${item.gt.id}","${gtLabel}","${getAttributesString(item.gt)}","${item.student.id}","${studentLabel}","${getAttributesString(item.student)}",${item.iou.toFixed(3)},${item.isLabelMatch}\r\n`;
     });
     csvContent += "\r\n";
 
     // Missed Annotations
-    csvContent += "Missed Annotations,GT Label,,\r\n";
+    csvContent += "Missed Annotations\r\n";
+    csvContent += "GT Annotation ID,GT Label,GT Attributes\r\n";
     results.missed.forEach(item => {
-        csvContent += `Missed,"${item.gt}",,\r\n`;
+        const gtLabel = item.gt.attributes?.['label'] ?? `ID ${item.gt.id}`;
+        csvContent += `"${item.gt.id}","${gtLabel}","${getAttributesString(item.gt)}"\r\n`;
     });
     csvContent += "\r\n";
 
     // Extra Annotations
-    csvContent += "Extra Annotations,Student Label,,\r\n";
+    csvContent += "Extra Annotations\r\n";
+    csvContent += "Student Annotation ID,Student Label,Student Attributes\r\n";
     results.extra.forEach(item => {
-        csvContent += `Extra,"${item.student}",,\r\n`;
+        const studentLabel = item.student.attributes?.['label'] ?? `ID ${item.student.id}`;
+        csvContent += `"${item.student.id}","${studentLabel}","${getAttributesString(item.student)}"\r\n`;
     });
     csvContent += "\r\n";
 
     // Feedback
-    csvContent += "Feedback,Message,,\r\n";
+    csvContent += "Feedback\r\n";
+    csvContent += "Message\r\n";
     results.feedback.forEach(item => {
-        csvContent += `Feedback,"${item.replace(/"/g, '""')}",,\r\n`;
+        csvContent += `"${item.replace(/"/g, '""')}"\r\n`;
     });
     csvContent += "\r\n";
     
     // Critical Issues
     if (results.critical_issues && results.critical_issues.length > 0) {
-        csvContent += "Critical Issues,Message,,\r\n";
+        csvContent += "Critical Issues\r\n";
+        csvContent += "Message\r\n";
         results.critical_issues.forEach(item => {
-            csvContent += `Critical Issue,"${item.replace(/"/g, '""')}",,\r\n`;
+            csvContent += `"${item.replace(/"/g, '""')}"\r\n`;
         });
     }
 
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "evaluation_results.csv");
+    link.setAttribute("download", "evaluation_results_detailed.csv");
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   }
 
   const resultSource = { label: 'Rule-Based', icon: <FileCog className="h-4 w-4" />, color: 'bg-primary/10 text-primary' };
-
+  
+  const getAnnotationLabel = (ann: BboxAnnotation) => {
+    return ann.attributes?.['label'] || `ID ${ann.id}`;
+  };
 
   return (
     <Card className="w-full">
@@ -174,7 +191,7 @@ export function ResultsDashboard({ results, loading }: ResultsDashboardProps) {
                         <CardContent>
                             <Table>
                                 <TableHeader><TableRow><TableHead>GT</TableHead><TableHead>Student</TableHead><TableHead>IoU</TableHead></TableRow></TableHeader>
-                                <TableBody>{results.matched.map((m, i) => <TableRow key={i}><TableCell>{m.gt}</TableCell><TableCell>{m.student}</TableCell><TableCell>{m.iou.toFixed(2)}</TableCell></TableRow>)}</TableBody>
+                                <TableBody>{results.matched.map((m, i) => <TableRow key={i}><TableCell>{getAnnotationLabel(m.gt)}</TableCell><TableCell>{getAnnotationLabel(m.student)}</TableCell><TableCell>{m.iou.toFixed(2)}</TableCell></TableRow>)}</TableBody>
                             </Table>
                         </CardContent>
                     </Card>
@@ -183,7 +200,7 @@ export function ResultsDashboard({ results, loading }: ResultsDashboardProps) {
                         <CardContent>
                             <Table>
                                 <TableHeader><TableRow><TableHead>GT Label</TableHead></TableRow></TableHeader>
-                                <TableBody>{results.missed.map((m, i) => <TableRow key={i}><TableCell>{m.gt}</TableCell></TableRow>)}</TableBody>
+                                <TableBody>{results.missed.map((m, i) => <TableRow key={i}><TableCell>{getAnnotationLabel(m.gt)}</TableCell></TableRow>)}</TableBody>
                             </Table>
                         </CardContent>
                     </Card>
@@ -192,7 +209,7 @@ export function ResultsDashboard({ results, loading }: ResultsDashboardProps) {
                         <CardContent>
                             <Table>
                                 <TableHeader><TableRow><TableHead>Student Label</TableHead></TableRow></TableHeader>
-                                <TableBody>{results.extra.map((m, i) => <TableRow key={i}><TableCell>{m.student}</TableCell></TableRow>)}</TableBody>
+                                <TableBody>{results.extra.map((m, i) => <TableRow key={i}><TableCell>{getAnnotationLabel(m.student)}</TableCell></TableRow>)}</TableBody>
                             </Table>
                         </CardContent>
                     </Card>

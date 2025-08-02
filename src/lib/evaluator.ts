@@ -67,11 +67,6 @@ function getStringSimilarity(str1: string, str2: string): number {
     return (maxLength - distance) / maxLength;
 }
 
-function getCategoryName(id: number, categories: {id: number, name: string}[]): string {
-    const category = categories.find(c => c.id === id);
-    return category ? category.name : 'unknown';
-}
-
 function getAnnotationAttribute(annotation: BboxAnnotation, key: string): string | undefined {
     return annotation.attributes?.[key];
 }
@@ -120,6 +115,7 @@ export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, sch
             });
 
             for (const gt of gtAnnotations) {
+                if (gtMatchedIds.has(gt.id)) continue;
                 const key = getAnnotationAttribute(gt, matchKey);
                 if (key && studentMap.has(key)) {
                     const student = studentMap.get(key)!;
@@ -132,8 +128,8 @@ export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, sch
                     const iou = calculateIoU(gt.bbox, student.bbox);
                     totalIou += iou;
 
-                    const gtLabel = getCategoryName(gt.category_id, gtJson.categories);
-                    const studentLabel = getCategoryName(student.category_id, studentJson.categories);
+                    const gtLabel = gtJson.categories.find(c => c.id === gt.category_id)?.name;
+                    const studentLabel = studentJson.categories.find(c => c.id === student.category_id)?.name;
                     const isLabelMatch = gtLabel === studentLabel;
                     if(isLabelMatch) correctLabelCount++;
 
@@ -152,8 +148,8 @@ export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, sch
                         }
                         if (currentAttributeComparisons > 0) {
                             attributeSimilarity = currentTotalSimilarity / currentAttributeComparisons;
-                            totalAttributeSimilarity += currentTotalSimilarity;
-                            attributeComparisons += currentAttributeComparisons;
+                            totalAttributeSimilarity += currentTotalSimilarity; // Sum of similarities for all attributes
+                            attributeComparisons += currentAttributeComparisons; // Count of all attributes
                         }
                     }
 
@@ -204,7 +200,6 @@ export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, sch
 
     const totalGt = allGtAnnotations.length;
     const totalStudent = allStudentAnnotations.length;
-    const totalPossibleMatches = Math.max(totalGt, totalStudent);
 
     const label_accuracy: LabelAccuracy = {
         correct: correctLabelCount,
@@ -243,13 +238,9 @@ export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, sch
         source: 'rule-based',
         score: Math.round(finalScore),
         feedback,
-        matched: matched.map(m => ({
-            gt: getCategoryName(m.gt.category_id, gtJson.categories),
-            student: getCategoryName(m.student.category_id, studentJson.categories),
-            iou: m.iou,
-        })),
-        missed: missed.map(m => ({ gt: getCategoryName(m.gt.category_id, gtJson.categories) })),
-        extra: extra.map(m => ({ student: getCategoryName(m.student.category_id, studentJson.categories) })),
+        matched,
+        missed,
+        extra,
         average_iou: matched.length > 0 ? totalIou / matched.length : 0,
         label_accuracy,
         attribute_accuracy,
