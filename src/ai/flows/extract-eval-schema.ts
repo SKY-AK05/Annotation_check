@@ -9,6 +9,7 @@
  */
 
 import {ai} from '@/ai/genkit';
+import { googleAI } from '@genkit-ai/googleai';
 import {z} from 'zod';
 
 const EvalSchemaInputSchema = z.object({
@@ -56,7 +57,11 @@ const extractEvalSchemaFlow = ai.defineFlow(
     outputSchema: EvalSchemaSchema,
   },
   async (input) => {
-    const {output} = await prompt(input);
+    const {output} = await ai.generate({
+        model: googleAI.model('gemini-1.5-flash'),
+        prompt: (await prompt.render(input)).prompt,
+        output: { schema: EvalSchemaSchema },
+    });
     if (!output) {
         throw new Error("The AI model failed to extract an evaluation schema. The GT file might be malformed or empty.");
     }
