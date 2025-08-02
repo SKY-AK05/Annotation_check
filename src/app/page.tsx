@@ -81,8 +81,26 @@ export default function Home() {
             const filePromises = [];
 
             for (const filename in zip.files) {
-                if (!zip.files[filename].dir && (filename.endsWith('.xml') || filename.endsWith('.json'))) {
-                    const filePromise = zip.files[filename].async('string').then(content => ({
+                const fileInZip = zip.files[filename];
+                if (fileInZip.dir) continue;
+                
+                // Handle nested zips for CVAT batch exports
+                if (filename.endsWith('.zip')) {
+                    const nestedZip = await JSZip.loadAsync(await fileInZip.async('blob'));
+                    for (const nestedFilename in nestedZip.files) {
+                        const nestedFile = nestedZip.files[nestedFilename];
+                        if (!nestedFile.dir && (nestedFilename.endsWith('.xml') || nestedFilename.endsWith('.json'))) {
+                             const filePromise = nestedFile.async('string').then(content => ({
+                                name: filename, // Use the outer zip filename as student identifier
+                                content: content
+                            }));
+                            filePromises.push(filePromise);
+                        }
+                    }
+                }
+                // Handle regular files at top level
+                else if (filename.endsWith('.xml') || filename.endsWith('.json')) {
+                    const filePromise = fileInZip.async('string').then(content => ({
                         name: filename,
                         content: content
                     }));
@@ -98,7 +116,7 @@ export default function Home() {
         }
 
         if (studentFiles.length === 0) {
-            throw new Error("No valid annotation files (.xml or .json) found in the upload.");
+            throw new Error("No valid annotation files (.xml or .json) found in the upload. Please check file formats and try again.");
         }
 
         let gtAnnotations;
