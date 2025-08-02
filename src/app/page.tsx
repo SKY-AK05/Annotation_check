@@ -74,20 +74,26 @@ export default function Home() {
           return;
       }
       
-      // Standard evaluation logic
       let gtAnnotations, studentAnnotations;
+      
+      const isXmlFile = (content: string) => content.trim().startsWith('<?xml');
+
       try {
-         if (data.toolType === 'cvat_xml') {
+        if (data.toolType === 'cvat_xml' || isXmlFile(gtFileContent)) {
             gtAnnotations = parseCvatXml(gtFileContent);
             studentAnnotations = parseCvatXml(studentFileContent);
-        } else if (data.toolType === 'bounding_box') { // Assuming COCO JSON
+        } else { // Assume COCO JSON
             gtAnnotations = JSON.parse(gtFileContent);
             studentAnnotations = JSON.parse(studentFileContent);
-        } else {
-             throw new Error(`Tool type '${data.toolType}' is not supported for manual evaluation.`);
         }
       } catch (e) {
-        throw new Error(`File Parsing Error: ${(e as Error).message}`);
+        const err = e as Error;
+        if (err.message.includes('not valid JSON') && isXmlFile(gtFileContent)) {
+             gtAnnotations = parseCvatXml(gtFileContent);
+             studentAnnotations = parseCvatXml(studentFileContent);
+        } else {
+            throw new Error(`File Parsing Error: ${err.message}`);
+        }
       }
       
       const manualResult = evaluateAnnotations(gtAnnotations, studentAnnotations, evalSchema);
