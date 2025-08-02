@@ -6,7 +6,7 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'genkit/zod';
+import { z } from 'zod';
 import type { EvaluationResult } from '@/lib/types';
 import { EvalSchemaSchema } from './extract-eval-schema';
 
