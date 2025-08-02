@@ -3,7 +3,7 @@ import type { EvalSchema } from "@/ai/flows/extract-eval-schema";
 
 export interface FormValues {
   gtFile: File;
-  studentFile: File;
+  studentFiles: FileList;
   toolType: string;
 }
 
@@ -56,6 +56,7 @@ export interface Match {
 }
 
 export interface EvaluationResult {
+  studentFilename: string;
   source: 'rule-based';
   score: number;
   feedback: string[];

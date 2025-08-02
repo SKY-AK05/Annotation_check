@@ -30,12 +30,12 @@ import type { FormValues } from '@/lib/types';
 
 const formSchema = z.object({
   gtFile: typeof window === 'undefined' ? z.any() : z.instanceof(FileList).refine((files) => files?.length === 1, "Ground Truth file is required."),
-  studentFile: typeof window === 'undefined' ? z.any() : z.instanceof(FileList).refine((files) => files?.length === 1, "Student Annotation file is required."),
+  studentFiles: typeof window === 'undefined' ? z.any() : z.instanceof(FileList).refine((files) => files?.length >= 1, "At least one Student Annotation file is required."),
   toolType: z.string({ required_error: 'Please select a tool type.' }),
 });
 
 interface EvaluationFormProps {
-  onEvaluate: (data: FormValues) => void;
+  onEvaluate: (data: { gtFile: File, studentFiles: FileList, toolType: string }) => void;
   isLoading: boolean;
   onGtFileChange: (file: File | undefined) => void;
 }
@@ -49,12 +49,12 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange }: Evalua
   });
 
   const gtFileRef = form.register("gtFile");
-  const studentFileRef = form.register("studentFile");
+  const studentFileRef = form.register("studentFiles");
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     onEvaluate({
       gtFile: values.gtFile[0],
-      studentFile: values.studentFile[0],
+      studentFiles: values.studentFiles,
       toolType: values.toolType,
     });
   }
@@ -98,17 +98,17 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange }: Evalua
             />
             <FormField
               control={form.control}
-              name="studentFile"
+              name="studentFiles"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>2. Student Annotations</FormLabel>
                   <FormControl>
                     <div className="relative">
                       <UploadCloud className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                      <Input type="file" className="pl-10" {...studentFileRef} />
+                      <Input type="file" className="pl-10" {...studentFileRef} multiple />
                     </div>
                   </FormControl>
-                  <FormDescription>Upload the student's submission file to be evaluated.</FormDescription>
+                  <FormDescription>Upload one or more student submission files.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

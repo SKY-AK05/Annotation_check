@@ -16,7 +16,7 @@ import { extractEvalSchema, type EvalSchema } from '@/ai/flows/extract-eval-sche
 export default function Home() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isGeneratingRules, setIsGeneratingRules] = useState<boolean>(false);
-  const [results, setResults] = useState<EvaluationResult | null>(null);
+  const [results, setResults] = useState<EvaluationResult[] | null>(null);
   const [evalSchema, setEvalSchema] = useState<EvalSchema | null>(null);
   const { toast } = useToast();
 
@@ -63,30 +63,40 @@ export default function Home() {
   
     try {
         const gtFileContent = await data.gtFile.text();
-        const studentFileContent = await data.studentFile.text();
+        const studentFiles = Array.from(data.studentFiles);
+        const batchResults: EvaluationResult[] = [];
 
-        let gtAnnotations, studentAnnotations;
-        
+        let gtAnnotations;
         const isXmlFile = (content: string) => content.trim().startsWith('<?xml');
 
-        // Determine file types and parse accordingly
         if (data.toolType === 'cvat_xml' || isXmlFile(gtFileContent)) {
             gtAnnotations = parseCvatXml(gtFileContent);
         } else {
             gtAnnotations = JSON.parse(gtFileContent);
         }
 
-        if (data.toolType === 'cvat_xml' || isXmlFile(studentFileContent)) {
-            studentAnnotations = parseCvatXml(studentFileContent);
-        } else {
-            studentAnnotations = JSON.parse(studentFileContent);
+        for (const studentFile of studentFiles) {
+            const studentFileContent = await studentFile.text();
+            let studentAnnotations;
+
+            if (data.toolType === 'cvat_xml' || isXmlFile(studentFileContent)) {
+                studentAnnotations = parseCvatXml(studentFileContent);
+            } else {
+                studentAnnotations = JSON.parse(studentFileContent);
+            }
+        
+            const manualResult = evaluateAnnotations(gtAnnotations, studentAnnotations, evalSchema);
+            batchResults.push({
+                ...manualResult,
+                studentFilename: studentFile.name,
+            });
         }
-      
-        const manualResult = evaluateAnnotations(gtAnnotations, studentAnnotations, evalSchema);
-        setResults(manualResult);
+        
+        setResults(batchResults);
+
         toast({
-            title: "Evaluation Complete",
-            description: "Standard evaluation logic was successful.",
+            title: "Batch Evaluation Complete",
+            description: `Successfully evaluated ${batchResults.length} student files.`,
         });
 
     } catch (e) {
