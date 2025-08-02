@@ -30,7 +30,7 @@ const EvalSchemaSchema = z.object({
 export type EvalSchema = z.infer<typeof EvalSchemaSchema>;
 
 
-const prompt = ai.definePrompt({
+const extractEvalSchemaPrompt = ai.definePrompt({
   name: 'extractEvalSchemaPrompt',
   input: {schema: EvalSchemaInputSchema},
   output: {schema: EvalSchemaSchema},
@@ -48,6 +48,7 @@ This entire process is for the purpose of a temporary student evaluation ('evalu
 Ground Truth File Content:
 {{{gtFileContent}}}
 `,
+  model: googleAI.model('gemini-1.5-flash'),
 });
 
 const extractEvalSchemaFlow = ai.defineFlow(
@@ -57,11 +58,7 @@ const extractEvalSchemaFlow = ai.defineFlow(
     outputSchema: EvalSchemaSchema,
   },
   async (input) => {
-    const {output} = await ai.generate({
-        model: googleAI.model('gemini-1.5-flash'),
-        prompt: (await prompt.render(input)).prompt,
-        output: { schema: EvalSchemaSchema },
-    });
+    const {output} = await extractEvalSchemaPrompt(input);
     if (!output) {
         throw new Error("The AI model failed to extract an evaluation schema. The GT file might be malformed or empty.");
     }

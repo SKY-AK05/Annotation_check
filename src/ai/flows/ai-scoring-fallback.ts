@@ -49,6 +49,16 @@ const AiEvaluationResultSchema = z.object({
     critical_issues: z.array(z.string()).describe("A list of critical issues found during evaluation."),
 });
 
+const fallbackPrompt = ai.definePrompt(
+    {
+        name: 'aiScoringFallbackPrompt',
+        input: { schema: AiScoringInputSchema },
+        output: { schema: AiEvaluationResultSchema },
+        prompt: `AI Scoring Fallback: Evaluate student annotations based on ground truth. Context: {{{jsonStringify input}}}`,
+        model: googleAI.model('gemini-1.5-flash'),
+    },
+);
+
 const aiScoringFallbackFlow = ai.defineFlow(
     {
         name: 'aiScoringFallbackFlow',
@@ -56,10 +66,7 @@ const aiScoringFallbackFlow = ai.defineFlow(
         outputSchema: AiEvaluationResultSchema,
     },
     async (input) => {
-        const { output } = await ai.generate({
-            model: googleAI.model('gemini-1.5-flash'),
-            prompt: `AI Scoring Fallback: Evaluate student annotations based on ground truth. Context: ${JSON.stringify(input)}`,
-        });
+        const { output } = await fallbackPrompt(input);
 
         if (!output) {
             // A simple mock result if AI fails.
