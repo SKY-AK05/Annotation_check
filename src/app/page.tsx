@@ -6,16 +6,47 @@ import type { FormValues } from '@/lib/types';
 import { useToast } from "@/hooks/use-toast";
 import { EvaluationForm } from '@/components/EvaluationForm';
 import { ResultsDashboard } from '@/components/ResultsDashboard';
+import { RuleConfiguration } from '@/components/RuleConfiguration';
 import { AnnotatorAiLogo } from '@/components/AnnotatorAiLogo';
 import type { EvaluationResult } from '@/lib/types';
 import { evaluateAnnotations } from '@/lib/evaluator';
 import { parseCvatXml } from '@/lib/cvat-xml-parser';
-
+import { extractEvalSchema, type EvalSchema } from '@/ai/flows/extract-eval-schema';
 
 export default function Home() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isGeneratingRules, setIsGeneratingRules] = useState<boolean>(false);
   const [results, setResults] = useState<EvaluationResult | null>(null);
+  const [evalSchema, setEvalSchema] = useState<EvalSchema | null>(null);
   const { toast } = useToast();
+
+  const handleGtFileChange = async (file: File | undefined) => {
+    if (!file) {
+      setEvalSchema(null);
+      return;
+    }
+    
+    setIsGeneratingRules(true);
+    setEvalSchema(null);
+    try {
+      const fileContent = await file.text();
+      const schema = await extractEvalSchema({ gtFileContent: fileContent });
+      setEvalSchema(schema);
+      toast({
+        title: "Evaluation Rules Generated",
+        description: "The evaluation schema has been extracted from your GT file.",
+      });
+    } catch (e) {
+      console.error(e);
+      toast({
+        title: "Error Generating Rules",
+        description: `Could not process the GT file: ${(e as Error).message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingRules(false);
+    }
+  }
 
   const handleEvaluate = async (data: FormValues) => {
     setIsLoading(true);
@@ -34,10 +65,6 @@ export default function Home() {
          if (data.toolType === 'cvat_xml') {
             gtAnnotations = parseCvatXml(gtAnnotationsText);
             studentAnnotations = parseCvatXml(studentAnnotationsText);
-            toast({
-              title: "CVAT XML Parsed",
-              description: "Successfully parsed CVAT XML files.",
-            });
         } else if (data.toolType === 'bounding_box') {
             gtAnnotations = JSON.parse(gtAnnotationsText);
             studentAnnotations = JSON.parse(studentAnnotationsText);
@@ -75,16 +102,19 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center p-4 sm:p-8 md:p-12">
+    <div className="min-h-screen flex flex-col items-center p-4 sm:p-8 md:p-12 bg-light-blue">
       <header className="w-full max-w-7xl flex items-center justify-start mb-8">
         <AnnotatorAiLogo className="h-10 w-10 text-primary" />
         <h1 className="text-3xl font-bold ml-4 tracking-tight">Annotator AI</h1>
       </header>
-      <main className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-        <div className="lg:sticky lg:top-12">
-          <EvaluationForm onEvaluate={handleEvaluate} isLoading={isLoading} />
+      <main className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+        <div className="lg:col-span-1 flex flex-col gap-8 lg:sticky lg:top-12">
+          <EvaluationForm onEvaluate={handleEvaluate} isLoading={isLoading} onGtFileChange={handleGtFileChange} />
+          <RuleConfiguration schema={evalSchema} loading={isGeneratingRules} />
         </div>
-        <ResultsDashboard results={results} loading={isLoading} />
+        <div className="lg:col-span-2">
+          <ResultsDashboard results={results} loading={isLoading} />
+        </div>
       </main>
     </div>
   );

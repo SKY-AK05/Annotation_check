@@ -26,6 +26,7 @@ export interface BboxAnnotation {
     label?: string;
     attribute?: string;
     attributes?: {
+        [key: string]: string | undefined;
         license_plate_number?: string;
     };
 }
