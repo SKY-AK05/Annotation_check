@@ -11,7 +11,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'zod';
 
-export const EvalSchemaInputSchema = z.object({
+const EvalSchemaInputSchema = z.object({
   gtFileContent: z
     .string()
     .describe('The full text content of the ground truth (GT) annotation file.'),

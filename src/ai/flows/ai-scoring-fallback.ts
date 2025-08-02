@@ -11,9 +11,10 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import type { EvaluationResult } from '@/lib/types';
+import type { EvalSchema } from './extract-eval-schema';
 import { EvalSchemaSchema } from './extract-eval-schema';
 
-export const AiScoringInputSchema = z.object({
+const AiScoringInputSchema = z.object({
   gtFileContent: z.string().describe("The full text content of the ground truth annotation file."),
   studentFileContent: z.string().describe("The full text content of the student's annotation file."),
   evalRules: EvalSchemaSchema.describe("The evaluation rules and schema derived from the GT file. This provides the context for how to score the submission."),
@@ -25,7 +26,7 @@ export type AiScoringInput = z.infer<typeof AiScoringInputSchema>;
 
 // This is a placeholder for the full AI-driven result schema.
 // For now, it matches the manual evaluation result.
-export const AiEvaluationResultSchema = z.object({
+const AiEvaluationResultSchema = z.object({
     source: z.literal('ai'),
     score: z.number().describe("The final score from 0 to 100."),
     feedback: z.array(z.string()).describe("A list of feedback points for the student."),

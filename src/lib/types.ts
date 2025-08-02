@@ -1,5 +1,5 @@
 
-import type { EvalSchema } from "./ai/flows/extract-eval-schema";
+import type { EvalSchema } from "@/ai/flows/extract-eval-schema";
 
 export interface FormValues {
   gtFile: File;
@@ -74,7 +74,7 @@ export interface ManualEvaluationResult extends BaseEvaluationResult {
   source: 'manual';
 }
 
-export interface AiEvaluationResult extends BaseEvaluationResult {
+export interface AiEvaluationResult extends BaseEvaluation_Result {
     source: 'ai';
 }
 
