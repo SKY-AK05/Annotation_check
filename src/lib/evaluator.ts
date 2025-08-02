@@ -75,11 +75,11 @@ export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, sch
     const IOU_THRESHOLD = 0.5;
     const matchKey = schema.matchKey;
 
-    const allGtAnnotations = gtJson.annotations;
-    const allStudentAnnotations = studentJson.annotations;
+    const allGtAnnotations = gtJson.annotations || [];
+    const allStudentAnnotations = studentJson.annotations || [];
 
-    const gtCategories = new Map(gtJson.categories.map(c => [c.id, c.name]));
-    const studentCategories = new Map(studentJson.categories.map(c => [c.id, c.name]));
+    const gtCategories = new Map((gtJson.categories || []).map(c => [c.id, c.name]));
+    const studentCategories = new Map((studentJson.categories || []).map(c => [c.id, c.name]));
 
     const matched: Match[] = [];
     
