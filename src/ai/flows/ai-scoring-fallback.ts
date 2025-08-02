@@ -54,7 +54,7 @@ const fallbackPrompt = ai.definePrompt(
         name: 'aiScoringFallbackPrompt',
         input: { schema: AiScoringInputSchema },
         output: { schema: AiEvaluationResultSchema },
-        prompt: `AI Scoring Fallback: Evaluate student annotations based on ground truth. Context: {{{jsonStringify input}}}`,
+        prompt: `AI Scoring Fallback: Evaluate student annotations based on ground truth. Context: {{json input}}`,
         model: googleAI.model('gemini-1.5-flash'),
     },
 );
