@@ -6,7 +6,7 @@ export function parseCvatXml(xmlString: string): CocoJson {
     const xmlDoc = parser.parseFromString(xmlString, "text/xml");
 
     if (xmlDoc.getElementsByTagName("parsererror").length) {
-        throw new Error("Failed to parse XML");
+        throw new Error("Failed to parse XML: The provided file is not valid XML.");
     }
 
     const images: CocoImage[] = [];
@@ -18,18 +18,18 @@ export function parseCvatXml(xmlString: string): CocoJson {
 
     const getCategoryId = (name: string): number => {
         if (!categoryMap.has(name)) {
-            categoryMap.set(name, categoryIdCounter);
-            categories.push({ id: categoryIdCounter, name: name });
-            categoryIdCounter++;
+            const newId = categoryIdCounter++;
+            categoryMap.set(name, newId);
+            categories.push({ id: newId, name: name });
         }
         return categoryMap.get(name)!;
     };
 
     xmlDoc.querySelectorAll("image").forEach(imageNode => {
-        const imageId = parseInt(imageNode.getAttribute("id") || "0");
+        const imageId = parseInt(imageNode.getAttribute("id") || "0", 10);
         const imageName = imageNode.getAttribute("name") || "";
-        const imageWidth = parseInt(imageNode.getAttribute("width") || "0");
-        const imageHeight = parseInt(imageNode.getAttribute("height") || "0");
+        const imageWidth = parseInt(imageNode.getAttribute("width") || "0", 10);
+        const imageHeight = parseInt(imageNode.getAttribute("height") || "0", 10);
 
         images.push({
             id: imageId,
@@ -49,21 +49,24 @@ export function parseCvatXml(xmlString: string): CocoJson {
             const height = ybr - ytl;
 
             const categoryId = getCategoryId(label);
+            
+            const attributes: { [key: string]: string } = { label: label };
+
+            boxNode.querySelectorAll('attribute').forEach(attributeNode => {
+                const attrName = attributeNode.getAttribute('name');
+                const attrValue = attributeNode.textContent || "";
+                if (attrName) {
+                    attributes[attrName] = attrValue;
+                }
+            });
 
             const annotation: BboxAnnotation = {
                 id: annotationIdCounter++,
                 image_id: imageId,
                 category_id: categoryId,
                 bbox: [xtl, ytl, width, height],
+                attributes: attributes,
             };
-
-            const attributeNode = boxNode.querySelector('attribute[name="licence_plate_number"]');
-            if (attributeNode) {
-                 const plateNumber = attributeNode.textContent || "";
-                 annotation.attributes = {
-                    license_plate_number: plateNumber,
-                 };
-            }
             
             annotations.push(annotation);
         });

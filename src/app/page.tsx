@@ -61,59 +61,49 @@ export default function Home() {
     setIsLoading(true);
     setResults(null);
   
-    const gtFileContent = await data.gtFile.text();
-    const studentFileContent = await data.studentFile.text();
-
     try {
-      if (['polygon', 'keypoints'].includes(data.toolType)) {
-          toast({
-              title: 'Evaluation Not Supported',
-              description: 'This tool only supports COCO JSON (Bounding Box) and CVAT XML evaluation.',
-              variant: 'destructive',
-          });
-          return;
-      }
-      
-      let gtAnnotations, studentAnnotations;
-      
-      const isXmlFile = (content: string) => content.trim().startsWith('<?xml');
+        const gtFileContent = await data.gtFile.text();
+        const studentFileContent = await data.studentFile.text();
 
-      try {
+        let gtAnnotations, studentAnnotations;
+        
+        const isXmlFile = (content: string) => content.trim().startsWith('<?xml');
+
+        // Determine file types and parse accordingly
         if (data.toolType === 'cvat_xml' || isXmlFile(gtFileContent)) {
             gtAnnotations = parseCvatXml(gtFileContent);
-            studentAnnotations = parseCvatXml(studentFileContent);
-        } else { // Assume COCO JSON
+        } else {
             gtAnnotations = JSON.parse(gtFileContent);
+        }
+
+        if (data.toolType === 'cvat_xml' || isXmlFile(studentFileContent)) {
+            studentAnnotations = parseCvatXml(studentFileContent);
+        } else {
             studentAnnotations = JSON.parse(studentFileContent);
         }
-      } catch (e) {
-        const err = e as Error;
-        if (err.message.includes('not valid JSON') && isXmlFile(gtFileContent)) {
-             gtAnnotations = parseCvatXml(gtFileContent);
-             studentAnnotations = parseCvatXml(studentFileContent);
-        } else {
-            throw new Error(`File Parsing Error: ${err.message}`);
-        }
-      }
       
-      const manualResult = evaluateAnnotations(gtAnnotations, studentAnnotations, evalSchema);
-      setResults(manualResult);
-      toast({
-        title: "Evaluation Complete",
-        description: "Standard evaluation logic was successful.",
-      });
+        const manualResult = evaluateAnnotations(gtAnnotations, studentAnnotations, evalSchema);
+        setResults(manualResult);
+        toast({
+            title: "Evaluation Complete",
+            description: "Standard evaluation logic was successful.",
+        });
 
     } catch (e) {
       console.error(e);
       const error = e as Error;
       toast({
         title: "Evaluation Error",
-        description: `${error.message}.`,
+        description: `${error.message}. Please check file formats and try again.`,
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSchemaChange = (newSchema: EvalSchema) => {
+    setEvalSchema(newSchema);
   };
 
   return (
@@ -125,7 +115,7 @@ export default function Home() {
       <main className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
         <div className="lg:col-span-1 flex flex-col gap-8 lg:sticky lg:top-12">
           <EvaluationForm onEvaluate={handleEvaluate} isLoading={isLoading || isGeneratingRules} onGtFileChange={handleGtFileChange} />
-          <RuleConfiguration schema={evalSchema} loading={isGeneratingRules} />
+          <RuleConfiguration schema={evalSchema} loading={isGeneratingRules} onSchemaChange={handleSchemaChange} />
         </div>
         <div className="lg:col-span-2">
           <ResultsDashboard results={results} loading={isLoading} />

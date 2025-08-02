@@ -1,15 +1,20 @@
 
 'use client';
 
+import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Code2, FileJson } from "lucide-react";
+import { Code2, FileJson, Save } from "lucide-react";
 import type { EvalSchema } from "@/ai/flows/extract-eval-schema";
 import { Badge } from "./ui/badge";
+import { Textarea } from './ui/textarea';
+import { Button } from './ui/button';
+import { useToast } from '@/hooks/use-toast';
 
 interface RuleConfigurationProps {
   schema: EvalSchema | null;
   loading: boolean;
+  onSchemaChange: (newSchema: EvalSchema) => void;
 }
 
 const Placeholder = () => (
@@ -29,15 +34,32 @@ const SkeletonCard = () => (
       <CardContent className="space-y-3">
         <Skeleton className="h-5 w-full" />
         <Skeleton className="h-5 w-5/6" />
-        <Skeleton className="h-5 w-full" />
-        <Skeleton className="h-5 w-4/6" />
+        <Skeleton className="h-20 w-full" />
+        <Skeleton className="h-10 w-24" />
       </CardContent>
     </Card>
   );
 
-export function RuleConfiguration({ schema, loading }: RuleConfigurationProps) {
+export function RuleConfiguration({ schema, loading, onSchemaChange }: RuleConfigurationProps) {
+  const [editableSchema, setEditableSchema] = React.useState<EvalSchema | null>(schema);
+  const { toast } = useToast();
+
+  React.useEffect(() => {
+    setEditableSchema(schema);
+  }, [schema]);
+
+  const handleSave = () => {
+    if (editableSchema) {
+      onSchemaChange(editableSchema);
+      toast({
+        title: "Rules Saved",
+        description: "Your updated evaluation logic will be used for the next run.",
+      });
+    }
+  };
+  
   if (loading) return <SkeletonCard />;
-  if (!schema) return <Placeholder />;
+  if (!editableSchema) return <Placeholder />;
 
   return (
     <Card className="w-full">
@@ -47,15 +69,14 @@ export function RuleConfiguration({ schema, loading }: RuleConfigurationProps) {
             Evaluation Rules
         </CardTitle>
         <CardDescription>
-          This pseudocode is auto-generated from your Ground Truth file.
-          The evaluation is temporary and will reset.
+          This logic is auto-generated from your GT file. You can edit it and save to customize the evaluation.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
             <h4 className="font-semibold text-sm">Labels & Attributes</h4>
             <div className="flex flex-wrap gap-2">
-            {schema.labels.map(label => (
+            {editableSchema.labels.map(label => (
                 <Badge key={label.name} variant="secondary" className="text-xs">
                     {label.name}
                     {label.attributes.length > 0 && ` (${label.attributes.join(', ')})`}
@@ -65,14 +86,20 @@ export function RuleConfiguration({ schema, loading }: RuleConfigurationProps) {
         </div>
          <div className="space-y-2">
             <h4 className="font-semibold text-sm">Matching Key</h4>
-             <Badge variant="outline" className="text-xs">{schema.matchKey || 'IoU + Label'}</Badge>
+             <Badge variant="outline" className="text-xs">{editableSchema.matchKey || 'IoU + Label'}</Badge>
         </div>
         <div className="space-y-2">
-             <h4 className="font-semibold text-sm">Logic Pseudocode</h4>
-            <pre className="bg-muted p-4 rounded-lg text-xs text-muted-foreground overflow-x-auto">
-            <code>{schema.pseudoCode}</code>
-            </pre>
+             <h4 className="font-semibold text-sm">Logic Pseudocode (Editable)</h4>
+            <Textarea 
+                className="bg-muted p-4 rounded-lg text-xs text-muted-foreground overflow-x-auto font-mono h-48"
+                value={editableSchema.pseudoCode}
+                onChange={(e) => setEditableSchema({...editableSchema, pseudoCode: e.target.value})}
+            />
         </div>
+        <Button onClick={handleSave} size="sm">
+            <Save className="mr-2 h-4 w-4" />
+            Save Changes
+        </Button>
       </CardContent>
     </Card>
   );
