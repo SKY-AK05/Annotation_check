@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { ScoreCard } from "@/components/ScoreCard";
 import type { EvaluationResult } from "@/lib/types";
-import { AlertCircle, CheckCircle, Download, FileQuestion, MessageSquare, ShieldAlert, BrainCircuit } from "lucide-react";
+import { AlertCircle, CheckCircle, Download, FileCog, FileQuestion, MessageSquare, ShieldAlert } from "lucide-react";
 import { Badge } from "./ui/badge";
 
 interface ResultsDashboardProps {
@@ -72,9 +72,7 @@ export function ResultsDashboard({ results, loading }: ResultsDashboardProps) {
     document.body.removeChild(link);
   }
 
-  const resultSource = results.source === 'ai' 
-    ? { label: 'AI Assisted', icon: <BrainCircuit className="h-4 w-4" />, color: 'bg-accent text-accent-foreground' } 
-    : { label: 'Rule-Based', icon: <FileCog className="h-4 w-4" />, color: 'bg-primary/10 text-primary' };
+  const resultSource = { label: 'Rule-Based', icon: <FileCog className="h-4 w-4" />, color: 'bg-primary/10 text-primary' };
 
 
   return (

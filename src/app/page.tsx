@@ -10,7 +10,6 @@ import { RuleConfiguration } from '@/components/RuleConfiguration';
 import { AnnotatorAiLogo } from '@/components/AnnotatorAiLogo';
 import type { EvaluationResult } from '@/lib/types';
 import { evaluateAnnotations } from '@/lib/evaluator';
-import { aiScoringFallback } from '@/ai/flows/ai-scoring-fallback';
 import { parseCvatXml } from '@/lib/cvat-xml-parser';
 import { extractEvalSchema, type EvalSchema } from '@/ai/flows/extract-eval-schema';
 
@@ -66,21 +65,13 @@ export default function Home() {
     const studentFileContent = await data.studentFile.text();
 
     try {
-      // AI Fallback for unsupported formats or if user explicitly requests it
-      if (data.useAi || ['polygon', 'keypoints'].includes(data.toolType)) {
-        toast({
-          title: "Using AI Assistance",
-          description: "Standard evaluation is not available for this format. Relying on AI.",
-        });
-        const aiResult = await aiScoringFallback({
-            gtFileContent,
-            studentFileContent,
-            evalRules: evalSchema,
-            purpose: "evaluate_student_annotations",
-            isTemporary: true,
-        });
-        setResults(aiResult);
-        return;
+      if (['polygon', 'keypoints'].includes(data.toolType)) {
+          toast({
+              title: 'Evaluation Not Supported',
+              description: 'This tool only supports COCO JSON (Bounding Box) and CVAT XML evaluation.',
+              variant: 'destructive',
+          });
+          return;
       }
       
       // Standard evaluation logic
@@ -111,32 +102,9 @@ export default function Home() {
       const error = e as Error;
       toast({
         title: "Evaluation Error",
-        description: `${error.message}. Considering AI Fallback...`,
+        description: `${error.message}.`,
         variant: "destructive",
       });
-      // Automatic AI fallback on error
-      try {
-        const aiResult = await aiScoringFallback({
-            gtFileContent,
-            studentFileContent,
-            evalRules: evalSchema,
-            errorContext: error.stack,
-            purpose: "evaluate_student_annotations",
-            isTemporary: true,
-        });
-        setResults(aiResult);
-        toast({
-          title: "AI Fallback Successful",
-          description: "AI evaluation completed after a standard evaluation error.",
-        });
-      } catch (aiError) {
-        console.error(aiError);
-        toast({
-          title: "AI Fallback Failed",
-          description: `The AI evaluation also failed: ${(aiError as Error).message}`,
-          variant: "destructive",
-        });
-      }
     } finally {
       setIsLoading(false);
     }

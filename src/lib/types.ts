@@ -5,7 +5,6 @@ export interface FormValues {
   gtFile: File;
   studentFile: File;
   toolType: string;
-  useAi?: boolean;
 }
 
 export interface CocoCategory {
@@ -56,8 +55,8 @@ export interface Match {
     attributeSimilarity: number;
 }
 
-interface BaseEvaluationResult {
-  source: 'manual' | 'ai';
+export interface EvaluationResult {
+  source: 'manual';
   score: number;
   feedback: string[];
   matched: { gt: string; student: string; iou: number }[];
@@ -68,14 +67,3 @@ interface BaseEvaluationResult {
   attribute_accuracy: AttributeAccuracy;
   critical_issues: string[];
 }
-
-
-export interface ManualEvaluationResult extends BaseEvaluationResult {
-  source: 'manual';
-}
-
-export interface AiEvaluationResult extends BaseEvaluationResult {
-    source: 'ai';
-}
-
-export type EvaluationResult = ManualEvaluationResult | AiEvaluationResult;

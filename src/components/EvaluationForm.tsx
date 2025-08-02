@@ -5,7 +5,7 @@ import * as React from 'react';
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Loader2, UploadCloud, FileCog, Sparkles } from 'lucide-react';
+import { Loader2, UploadCloud, FileCog } from 'lucide-react';
 
 import { Button } from "@/components/ui/button";
 import {
@@ -26,15 +26,12 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import type { FormValues } from '@/lib/types';
 
 const formSchema = z.object({
   gtFile: typeof window === 'undefined' ? z.any() : z.instanceof(FileList).refine((files) => files?.length === 1, "Ground Truth file is required."),
   studentFile: typeof window === 'undefined' ? z.any() : z.instanceof(FileList).refine((files) => files?.length === 1, "Student Annotation file is required."),
   toolType: z.string({ required_error: 'Please select a tool type.' }),
-  useAi: z.boolean().default(false),
 });
 
 interface EvaluationFormProps {
@@ -48,7 +45,6 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange }: Evalua
     resolver: zodResolver(formSchema),
     defaultValues: {
       toolType: "bounding_box",
-      useAi: false,
     },
   });
 
@@ -60,7 +56,6 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange }: Evalua
       gtFile: values.gtFile[0],
       studentFile: values.studentFile[0],
       toolType: values.toolType,
-      useAi: values.useAi,
     });
   }
 
@@ -118,51 +113,29 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange }: Evalua
                 </FormItem>
               )}
             />
-            <div className="grid grid-cols-2 gap-4">
-                <FormField
-                control={form.control}
-                name="toolType"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Tool Type</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Select a tool type" />
-                        </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="bounding_box">COCO JSON (Bounding Box)</SelectItem>
-                          <SelectItem value="cvat_xml">CVAT XML 1.1</SelectItem>
-                          <SelectItem value="polygon">Polygon (Requires AI)</SelectItem>
-                          <SelectItem value="keypoints">Keypoints (Requires AI)</SelectItem>
-                        </SelectContent>
-                    </Select>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
-                <FormField
-                    control={form.control}
-                    name="useAi"
-                    render={({ field }) => (
-                        <FormItem className="flex flex-col justify-center pt-2">
-                            <Label htmlFor="ai-switch" className="mb-2.5">AI Assistance</Label>
-                            <div className="flex items-center space-x-2">
-                                <Switch
-                                    id="ai-switch"
-                                    checked={field.value}
-                                    onCheckedChange={field.onChange}
-                                />
-                                <Label htmlFor="ai-switch" className="text-sm text-muted-foreground flex items-center gap-1">
-                                    <Sparkles className="w-4 h-4 text-accent" />
-                                    Force AI Fallback
-                                </Label>
-                            </div>
-                        </FormItem>
-                    )}
-                />
-            </div>
+            <FormField
+              control={form.control}
+              name="toolType"
+              render={({ field }) => (
+                  <FormItem>
+                  <FormLabel>Tool Type</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                      <SelectTrigger>
+                          <SelectValue placeholder="Select a tool type" />
+                      </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="bounding_box">COCO JSON (Bounding Box)</SelectItem>
+                        <SelectItem value="cvat_xml">CVAT XML 1.1</SelectItem>
+                        <SelectItem value="polygon" disabled>Polygon (Coming Soon)</SelectItem>
+                        <SelectItem value="keypoints" disabled>Keypoints (Coming Soon)</SelectItem>
+                      </SelectContent>
+                  </Select>
+                  <FormMessage />
+                  </FormItem>
+              )}
+            />
             <Button type="submit" disabled={isLoading} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
               {isLoading ? (
                 <>
