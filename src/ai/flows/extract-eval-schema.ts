@@ -18,7 +18,7 @@ const EvalSchemaInputSchema = z.object({
 });
 export type EvalSchemaInput = z.infer<typeof EvalSchemaInputSchema>;
 
-export const EvalSchemaSchema = z.object({
+const EvalSchemaSchema = z.object({
     labels: z.array(z.object({
         name: z.string().describe("The name of the object class label, e.g., 'Person' or 'licence_plates'."),
         attributes: z.array(z.string()).describe("A list of attributes associated with this label, e.g., ['Mask', 'Age group']. If no attributes exist, return an empty array."),
@@ -28,9 +28,6 @@ export const EvalSchemaSchema = z.object({
 });
 export type EvalSchema = z.infer<typeof EvalSchemaSchema>;
 
-export async function extractEvalSchema(input: EvalSchemaInput): Promise<EvalSchema> {
-  return extractEvalSchemaFlow(input);
-}
 
 const prompt = ai.definePrompt({
   name: 'extractEvalSchemaPrompt',
@@ -66,3 +63,7 @@ const extractEvalSchemaFlow = ai.defineFlow(
     return output;
   }
 );
+
+export async function extractEvalSchema(input: EvalSchemaInput): Promise<EvalSchema> {
+  return await extractEvalSchemaFlow(input);
+}

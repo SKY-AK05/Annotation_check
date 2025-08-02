@@ -12,7 +12,16 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import type { EvaluationResult } from '@/lib/types';
 import type { EvalSchema } from './extract-eval-schema';
-import { EvalSchemaSchema } from './extract-eval-schema';
+
+// This schema is defined here to avoid exporting it from a 'use server' file.
+const EvalSchemaSchema = z.object({
+    labels: z.array(z.object({
+        name: z.string(),
+        attributes: z.array(z.string()),
+    })),
+    matchKey: z.string().optional(),
+    pseudoCode: z.string(),
+});
 
 const AiScoringInputSchema = z.object({
   gtFileContent: z.string().describe("The full text content of the ground truth annotation file."),
@@ -39,31 +48,42 @@ const AiEvaluationResultSchema = z.object({
     critical_issues: z.array(z.string()).describe("A list of critical issues found during evaluation."),
 });
 
+const aiScoringFallbackFlow = ai.defineFlow(
+    {
+        name: 'aiScoringFallbackFlow',
+        inputSchema: AiScoringInputSchema,
+        outputSchema: AiEvaluationResultSchema,
+    },
+    async (input) => {
+        console.log("Generated evaluation logic for student assessment. Temporary = true.");
+        // This is a placeholder for the actual AI scoring flow.
+        // In a real implementation, this would call a prompt similar to the one below.
+        console.log("AI Scoring Fallback invoked with:", input);
+        
+        // For now, return a mock result.
+        return {
+            source: 'ai', // This is now correctly sourced from the AI
+            score: 88,
+            feedback: [
+                "AI Fallback: Successfully evaluated submission based on the provided rules.",
+                "AI noted a slight misalignment on 2 bounding boxes.",
+                "The label for 'car' (Annotation No 3) was incorrect, which goes against the generated pseudocode."
+            ],
+            matched: [
+                { gt: 'Person', student: 'Person', iou: 0.92 },
+                { gt: 'car', student: 'truck', iou: 0.85 },
+            ],
+            missed: [{ gt: 'Lays' }],
+            extra: [],
+            average_iou: 0.885,
+            label_accuracy: { correct: 1, total: 2, accuracy: 50 },
+            attribute_accuracy: { average_similarity: 95, total: 5 },
+            critical_issues: ["Incorrect label for 'car' needs review as per the evaluation schema."],
+        };
+    }
+);
+
 
 export async function aiScoringFallback(input: AiScoringInput): Promise<EvaluationResult> {
-    console.log("Generated evaluation logic for student assessment. Temporary = true.");
-    // This is a placeholder for the actual AI scoring flow.
-    // In a real implementation, this would call a prompt similar to the one below.
-    console.log("AI Scoring Fallback invoked with:", input);
-    
-    // For now, return a mock result.
-    return {
-        source: 'ai', // This is now correctly sourced from the AI
-        score: 88,
-        feedback: [
-            "AI Fallback: Successfully evaluated submission based on the provided rules.",
-            "AI noted a slight misalignment on 2 bounding boxes.",
-            "The label for 'car' (Annotation No 3) was incorrect, which goes against the generated pseudocode."
-        ],
-        matched: [
-            { gt: 'Person', student: 'Person', iou: 0.92 },
-            { gt: 'car', student: 'truck', iou: 0.85 },
-        ],
-        missed: [{ gt: 'Lays' }],
-        extra: [],
-        average_iou: 0.885,
-        label_accuracy: { correct: 1, total: 2, accuracy: 50 },
-        attribute_accuracy: { average_similarity: 95, total: 5 },
-        critical_issues: ["Incorrect label for 'car' needs review as per the evaluation schema."],
-    };
+    return await aiScoringFallbackFlow(input) as EvaluationResult;
 }

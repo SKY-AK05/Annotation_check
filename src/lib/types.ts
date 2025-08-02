@@ -74,7 +74,7 @@ export interface ManualEvaluationResult extends BaseEvaluationResult {
   source: 'manual';
 }
 
-export interface AiEvaluationResult extends BaseEvaluation_Result {
+export interface AiEvaluationResult extends BaseEvaluationResult {
     source: 'ai';
 }
 
