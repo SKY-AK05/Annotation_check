@@ -1,14 +1,14 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScoreCard } from "@/components/ScoreCard";
 import type { EvaluationResult } from "@/lib/types";
-import { AlertCircle, CheckCircle, Download, FileQuestion, List, MessageSquare, ShieldAlert } from "lucide-react";
+import { AlertCircle, CheckCircle, Download, FileQuestion, MessageSquare, ShieldAlert } from "lucide-react";
 
 interface ResultsDashboardProps {
   results: EvaluationResult | null;
@@ -56,13 +56,9 @@ export function ResultsDashboard({ results, loading }: ResultsDashboardProps) {
         csvContent += `Feedback,"${item.replace(/"/g, '""')}"\r\n`;
     });
     
-    if (results.source === 'manual' && results.critical_issues) {
+    if (results.critical_issues) {
         results.critical_issues.forEach(item => {
             csvContent += `Critical Issue,"${item.replace(/"/g, '""')}"\r\n`;
-        });
-    } else if (results.source === 'ai_fallback' && results.issues) {
-        results.issues.forEach(item => {
-            csvContent += `AI Identified Issue,"${item.replace(/"/g, '""')}"\r\n`;
         });
     }
   
@@ -80,10 +76,10 @@ export function ResultsDashboard({ results, loading }: ResultsDashboardProps) {
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
           <CardTitle className="text-2xl">
-            {results.source === 'ai_fallback' ? 'AI Fallback Evaluation' : 'Evaluation Results'}
+            Evaluation Results
           </CardTitle>
           <CardDescription>
-            {results.source === 'ai_fallback' ? 'An AI approximated the score due to a processing error.' : 'Detailed breakdown of the annotation comparison.'}
+            Detailed breakdown of the annotation comparison.
           </CardDescription>
         </div>
         <Button variant="outline" onClick={handleDownloadCsv}>
@@ -107,18 +103,15 @@ export function ResultsDashboard({ results, loading }: ResultsDashboardProps) {
                     </ul>
                   </CardContent>
               </Card>
-              { (results.source === 'manual' && results.critical_issues.length > 0) || (results.source === 'ai_fallback' && results.issues && results.issues.length > 0) ? (
+              { (results.critical_issues.length > 0) ? (
                 <Card>
                   <CardHeader className="flex flex-row items-center space-x-3 space-y-0 pb-2">
                     <ShieldAlert className="h-5 w-5 text-destructive"/>
-                    <h3 className="font-semibold">{results.source === 'ai_fallback' ? 'AI Identified Issues' : 'Critical Issues'}</h3>
+                    <h3 className="font-semibold">Critical Issues</h3>
                   </CardHeader>
                   <CardContent>
                     <ul className="space-y-2 text-sm text-muted-foreground">
-                       {results.source === 'manual' ? 
-                         results.critical_issues.map((item, index) => <li key={index} className="flex items-start"><AlertCircle className="h-4 w-4 text-destructive mr-2 mt-0.5 shrink-0"/><span>{item}</span></li>) :
-                         results.issues?.map((item, index) => <li key={index} className="flex items-start"><AlertCircle className="h-4 w-4 text-destructive mr-2 mt-0.5 shrink-0"/><span>{item}</span></li>)
-                       }
+                       {results.critical_issues.map((item, index) => <li key={index} className="flex items-start"><AlertCircle className="h-4 w-4 text-destructive mr-2 mt-0.5 shrink-0"/><span>{item}</span></li>)}
                     </ul>
                   </CardContent>
                 </Card>
@@ -126,8 +119,7 @@ export function ResultsDashboard({ results, loading }: ResultsDashboardProps) {
           </div>
         </div>
 
-        {results.source === 'manual' && (
-          <Tabs defaultValue="details" className="mt-6">
+        <Tabs defaultValue="details" className="mt-6">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="details">Detailed Breakdown</TabsTrigger>
               <TabsTrigger value="metrics">Accuracy Metrics</TabsTrigger>
@@ -175,8 +167,7 @@ export function ResultsDashboard({ results, loading }: ResultsDashboardProps) {
                     </Card>
                 </div>
             </TabsContent>
-          </Tabs>
-        )}
+        </Tabs>
       </CardContent>
     </Card>
   );

@@ -116,8 +116,6 @@ export function EvaluationForm({ onEvaluate, isLoading }: EvaluationFormProps) {
                     <SelectContent>
                       <SelectItem value="bounding_box">COCO JSON</SelectItem>
                       <SelectItem value="cvat_xml">CVAT XML 1.1</SelectItem>
-                      <SelectItem value="polygon">Polygon (AI Fallback)</SelectItem>
-                      <SelectItem value="keypoints">Keypoints (AI Fallback)</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />

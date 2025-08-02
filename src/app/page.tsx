@@ -7,7 +7,6 @@ import { useToast } from "@/hooks/use-toast";
 import { EvaluationForm } from '@/components/EvaluationForm';
 import { ResultsDashboard } from '@/components/ResultsDashboard';
 import { AnnotatorAiLogo } from '@/components/AnnotatorAiLogo';
-import { aiScoringFallback, type AiScoringFallbackInput } from '@/ai/flows/ai-scoring-fallback';
 import type { EvaluationResult } from '@/lib/types';
 import { evaluateAnnotations } from '@/lib/evaluator';
 import { parseCvatXml } from '@/lib/cvat-xml-parser';
@@ -43,24 +42,14 @@ export default function Home() {
             gtAnnotations = JSON.parse(gtAnnotationsText);
             studentAnnotations = JSON.parse(studentAnnotationsText);
         } else {
-             // For polygon and keypoints, we'll use the AI fallback directly for now.
-             throw new Error(`Tool type '${data.toolType}' requires AI Fallback for evaluation.`);
+             throw new Error(`Tool type '${data.toolType}' is not supported for manual evaluation.`);
         }
       } catch (e) {
         toast({
-          title: "File Parsing or Evaluation Error",
-          description: (e as Error).message.includes('AI Fallback') ? (e as Error).message : "One of the files is not valid or in the expected format. Using AI to attempt evaluation.",
+          title: "File Parsing Error",
+          description: `An error occurred while parsing the files: ${(e as Error).message}`,
           variant: "destructive",
         });
-
-        const aiInput: AiScoringFallbackInput = {
-          gtAnnotations: gtAnnotationsText,
-          studentAnnotations: studentAnnotationsText,
-          toolType: data.toolType,
-          errorDetails: `Failed to parse file or unsupported tool type: ${(e as Error).message}`
-        };
-        const aiResult = await aiScoringFallback(aiInput);
-        setResults({ ...aiResult, source: 'ai_fallback' });
         setIsLoading(false);
         return;
       }
@@ -77,29 +66,9 @@ export default function Home() {
       const error = e as Error;
       toast({
         title: "Error",
-        description: `An unexpected error occurred: ${error.message}. Trying AI fallback.`,
+        description: `An unexpected error occurred during evaluation: ${error.message}.`,
         variant: "destructive",
       });
-      // AI fallback on unexpected error
-      try {
-        const gtAnnotationsText = await data.gtFile.text();
-        const studentAnnotationsText = await data.studentFile.text();
-        const aiInput: AiScoringFallbackInput = {
-          gtAnnotations: gtAnnotationsText,
-          studentAnnotations: studentAnnotationsText,
-          toolType: data.toolType,
-          errorDetails: `An unexpected error occurred during evaluation: ${error.stack}`
-        };
-        const aiResult = await aiScoringFallback(aiInput);
-        setResults({ ...aiResult, source: 'ai_fallback' });
-      } catch (aiError) {
-        console.error("AI Fallback failed:", aiError);
-        toast({
-          title: "AI Fallback Failed",
-          description: "The AI fallback also failed to process the request.",
-          variant: "destructive",
-        });
-      }
     } finally {
       setIsLoading(false);
     }

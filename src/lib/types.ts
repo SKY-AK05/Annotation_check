@@ -1,6 +1,4 @@
 
-import type { AiScoringFallbackOutput } from '@/ai/flows/ai-scoring-fallback';
-
 export interface FormValues {
   gtFile: File;
   studentFile: File;
@@ -75,8 +73,4 @@ export interface ManualEvaluationResult {
   }
 }
 
-export interface AiEvaluationResult extends AiScoringFallbackOutput {
-  source: 'ai_fallback';
-}
-
-export type EvaluationResult = ManualEvaluationResult | AiEvaluationResult;
+export type EvaluationResult = ManualEvaluationResult;
