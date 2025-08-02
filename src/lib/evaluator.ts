@@ -80,11 +80,10 @@ export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, sch
     const IOU_THRESHOLD = 0.5;
     const matchKey = schema.matchKey;
 
-    const gtAnnotations = gtJson.annotations;
-    const studentAnnotations = studentJson.annotations;
+    const allGtAnnotations = gtJson.annotations;
+    const allStudentAnnotations = studentJson.annotations;
 
     const matched: Match[] = [];
-    const missed: { gt: BboxAnnotation }[] = [];
     
     const studentMatchedIds = new Set<number>();
     const gtMatchedIds = new Set<number>();
@@ -94,94 +93,114 @@ export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, sch
     let totalAttributeSimilarity = 0;
     let attributeComparisons = 0;
 
-    // First pass: Match using the unique key if it exists
-    if (matchKey) {
-        const studentMap = new Map<string, BboxAnnotation>();
-        studentAnnotations.forEach(ann => {
-            const key = getAnnotationAttribute(ann, matchKey);
-            if(key) studentMap.set(key, ann);
-        });
+    // Group annotations by image ID
+    const gtAnnsByImage = allGtAnnotations.reduce((acc, ann) => {
+        (acc[ann.image_id] = acc[ann.image_id] || []).push(ann);
+        return acc;
+    }, {} as Record<number, BboxAnnotation[]>);
 
+    const studentAnnsByImage = allStudentAnnotations.reduce((acc, ann) => {
+        (acc[ann.image_id] = acc[ann.image_id] || []).push(ann);
+        return acc;
+    }, {} as Record<number, BboxAnnotation[]>);
+    
+    const imageIds = Object.keys(gtAnnsByImage).map(Number);
+
+    for (const imageId of imageIds) {
+        const gtAnnotations = gtAnnsByImage[imageId] || [];
+        const studentAnnotations = studentAnnsByImage[imageId] || [];
+
+        // First pass: Match using the unique key if it exists
+        if (matchKey) {
+            const studentMap = new Map<string, BboxAnnotation>();
+            studentAnnotations.forEach(ann => {
+                const key = getAnnotationAttribute(ann, matchKey);
+                if(key) studentMap.set(key, ann);
+            });
+
+            for (const gt of gtAnnotations) {
+                const key = getAnnotationAttribute(gt, matchKey);
+                if (key && studentMap.has(key)) {
+                    const student = studentMap.get(key)!;
+                    
+                    gtMatchedIds.add(gt.id);
+                    studentMatchedIds.add(student.id);
+                    studentMap.delete(key); // Ensure student annotation is not reused
+
+                    const iou = calculateIoU(gt.bbox, student.bbox);
+                    totalIou += iou;
+
+                    const gtLabel = getCategoryName(gt.category_id, gtJson.categories);
+                    const studentLabel = getCategoryName(student.category_id, studentJson.categories);
+                    const isLabelMatch = gtLabel === studentLabel;
+                    if(isLabelMatch) correctLabelCount++;
+
+                    let attributeSimilarity = 0;
+                    let currentAttributeComparisons = 0;
+                    const labelSchema = schema.labels.find(l => l.name === gtLabel);
+
+                    if (labelSchema && labelSchema.attributes.length > 0) {
+                        let currentTotalSimilarity = 0;
+                        for (const attrName of labelSchema.attributes) {
+                            if (attrName === matchKey) continue;
+                            const gtAttr = getAnnotationAttribute(gt, attrName) || '';
+                            const studentAttr = getAnnotationAttribute(student, attrName) || '';
+                            currentTotalSimilarity += getStringSimilarity(gtAttr, studentAttr);
+                            currentAttributeComparisons++;
+                        }
+                        if (currentAttributeComparisons > 0) {
+                            attributeSimilarity = currentTotalSimilarity / currentAttributeComparisons;
+                            totalAttributeSimilarity += attributeSimilarity; // This should be attributeSimilarity not currentTotalSimilarity
+                            attributeComparisons++;
+                        }
+                    }
+
+                    matched.push({ gt, student, iou, isLabelMatch, attributeSimilarity });
+                }
+            }
+        }
+
+        // Second pass: Match remaining annotations using IoU + Label fallback
         for (const gt of gtAnnotations) {
-            const key = getAnnotationAttribute(gt, matchKey);
-            if (key && studentMap.has(key)) {
-                const student = studentMap.get(key)!;
-                if(gt.image_id !== student.image_id) continue;
-                
-                gtMatchedIds.add(gt.id);
-                studentMatchedIds.add(student.id);
+            if (gtMatchedIds.has(gt.id)) continue;
+
+            let bestMatch: { studentAnn: BboxAnnotation; iou: number } | null = null;
+            for (const student of studentAnnotations) {
+                if (studentMatchedIds.has(student.id)) continue;
 
                 const iou = calculateIoU(gt.bbox, student.bbox);
-                totalIou += iou;
-
-                const gtLabel = getCategoryName(gt.category_id, gtJson.categories);
-                const studentLabel = getCategoryName(student.category_id, studentJson.categories);
-                const isLabelMatch = gtLabel === studentLabel;
-                if(isLabelMatch) correctLabelCount++;
-
-                let attributeSimilarity = 0;
-                let currentAttributeComparisons = 0;
-                const labelSchema = schema.labels.find(l => l.name === gtLabel);
-
-                if (labelSchema && labelSchema.attributes.length > 0) {
-                    let currentTotalSimilarity = 0;
-                    for (const attrName of labelSchema.attributes) {
-                        if (attrName === matchKey) continue;
-                        const gtAttr = getAnnotationAttribute(gt, attrName) || '';
-                        const studentAttr = getAnnotationAttribute(student, attrName) || '';
-                        currentTotalSimilarity += getStringSimilarity(gtAttr, studentAttr);
-                        currentAttributeComparisons++;
-                    }
-                    if (currentAttributeComparisons > 0) {
-                        attributeSimilarity = currentTotalSimilarity / currentAttributeComparisons;
-                        totalAttributeSimilarity += attributeSimilarity;
-                        attributeComparisons++;
+                if (iou > IOU_THRESHOLD) {
+                    if (!bestMatch || iou > bestMatch.iou || (gt.category_id === student.category_id && (!bestMatch || bestMatch.studentAnn.category_id !== gt.category_id))) {
+                       bestMatch = { studentAnn: student, iou };
                     }
                 }
-
-                matched.push({ gt, student, iou, isLabelMatch, attributeSimilarity });
             }
-        }
-    }
-
-    // Second pass: Match remaining annotations using IoU + Label fallback
-    for (const gt of gtAnnotations) {
-        if (gtMatchedIds.has(gt.id)) continue;
-
-        let bestMatch: { studentAnn: BboxAnnotation; iou: number } | null = null;
-        for (const student of studentAnnotations) {
-            if (studentMatchedIds.has(student.id)) continue;
-            if (gt.image_id !== student.image_id) continue;
-
-            const iou = calculateIoU(gt.bbox, student.bbox);
-            if (iou > IOU_THRESHOLD) {
-                if (!bestMatch || iou > bestMatch.iou || (gt.category_id === student.category_id && (!bestMatch || bestMatch.studentAnn.category_id !== gt.category_id))) {
-                   bestMatch = { studentAnn: student, iou };
-                }
-            }
-        }
-        
-        if (bestMatch) {
-            gtMatchedIds.add(gt.id);
-            studentMatchedIds.add(bestMatch.studentAnn.id);
-
-            const isLabelMatch = gt.category_id === bestMatch.studentAnn.category_id;
-            if(isLabelMatch) correctLabelCount++;
             
-            // For IoU-based matches, attribute similarity is considered 0 unless explicitly coded
-            matched.push({ gt, student: bestMatch.studentAnn, iou: bestMatch.iou, isLabelMatch, attributeSimilarity: 0 });
-            totalIou += bestMatch.iou;
-        } else {
-            missed.push({ gt });
+            if (bestMatch) {
+                gtMatchedIds.add(gt.id);
+                studentMatchedIds.add(bestMatch.studentAnn.id);
+
+                const isLabelMatch = gt.category_id === bestMatch.studentAnn.category_id;
+                if(isLabelMatch) correctLabelCount++;
+                
+                // For IoU-based matches, attribute similarity is considered 0 unless explicitly coded
+                matched.push({ gt, student: bestMatch.studentAnn, iou: bestMatch.iou, isLabelMatch, attributeSimilarity: 0 });
+                totalIou += bestMatch.iou;
+            }
         }
     }
 
-    const extra = studentAnnotations
+
+    const missed = allGtAnnotations
+        .filter(g => !gtMatchedIds.has(g.id))
+        .map(gt => ({ gt }));
+
+    const extra = allStudentAnnotations
         .filter(s => !studentMatchedIds.has(s.id))
         .map(student => ({ student }));
 
-    const totalGt = gtAnnotations.length;
-    const totalPossibleMatches = Math.max(totalGt, studentAnnotations.length);
+    const totalGt = allGtAnnotations.length;
+    const totalPossibleMatches = Math.max(totalGt, allStudentAnnotations.length);
 
     const label_accuracy: LabelAccuracy = {
         correct: correctLabelCount,
@@ -195,7 +214,7 @@ export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, sch
     };
 
     const iouScore = matched.length > 0 ? (totalIou / matched.length) * 100 : 0;
-    const precision = totalPossibleMatches > 0 ? matched.length / studentAnnotations.length : 0;
+    const precision = totalPossibleMatches > 0 ? matched.length / allStudentAnnotations.length : 0;
     const recall = totalGt > 0 ? matched.length / totalGt : 0;
     const detectionScore = (precision * 0.4 + recall * 0.6) * 100;
 
@@ -212,7 +231,7 @@ export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, sch
 
     const critical_issues: string[] = [];
     if (recall < 0.5 && totalGt > 0) critical_issues.push(`High number of missed annotations (${missed.length}).`);
-    if (precision < 0.5 && studentAnnotations.length > 0) critical_issues.push(`High number of extra annotations (${extra.length}).`);
+    if (precision < 0.5 && allStudentAnnotations.length > 0) critical_issues.push(`High number of extra annotations (${extra.length}).`);
     if(label_accuracy.accuracy < 70 && label_accuracy.total > 0) critical_issues.push(`Low label accuracy: ${label_accuracy.accuracy.toFixed(1)}%`);
     if(attribute_accuracy.average_similarity < 70 && attribute_accuracy.total > 0) critical_issues.push(`Low attribute accuracy: ${attribute_accuracy.average_similarity.toFixed(1)}%`);
 
