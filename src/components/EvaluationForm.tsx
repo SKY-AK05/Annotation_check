@@ -35,7 +35,7 @@ const formSchema = z.object({
 });
 
 interface EvaluationFormProps {
-  onEvaluate: (data: { gtFile: File, studentFiles: FileList, toolType: string }) => void;
+  onEvaluate: (data: FormValues) => void;
   isLoading: boolean;
   onGtFileChange: (file: File | undefined) => void;
 }
@@ -52,11 +52,7 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange }: Evalua
   const studentFileRef = form.register("studentFiles");
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    onEvaluate({
-      gtFile: values.gtFile[0],
-      studentFiles: values.studentFiles,
-      toolType: values.toolType,
-    });
+    onEvaluate(values);
   }
 
   return (

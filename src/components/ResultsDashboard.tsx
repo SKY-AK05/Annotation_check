@@ -39,10 +39,12 @@ const SkeletonDashboard = () => (
 );
 
 const SingleResultDisplay = ({ result }: { result: EvaluationResult }) => {
-    const resultSource = { label: 'Rule-Based', icon: <FileCog className="h-4 w-4" />, color: 'bg-primary/10 text-primary' };
-  
+    
     const getAnnotationLabel = (ann: BboxAnnotation) => {
-        return ann.attributes?.['label'] || `ID ${ann.id}`;
+      const categoryName = ann.attributes?.['label']
+      const annotationId = `ID ${ann.id}`
+      const matchKey = ann.attributes?.['Annotation No'] ? ` (Key: ${ann.attributes['Annotation No']})` : ''
+      return `${categoryName || 'Unknown'}${matchKey || ` (${annotationId})`}`
     };
 
     return (
@@ -128,7 +130,7 @@ const SingleResultDisplay = ({ result }: { result: EvaluationResult }) => {
 
 export function ResultsDashboard({ results, loading }: ResultsDashboardProps) {
   if (loading) return <SkeletonDashboard />;
-  if (!results) return <Placeholder />;
+  if (!results || results.length === 0) return <Placeholder />;
 
   const handleDownloadCsv = () => {
     let csvContent = "data:text/csv;charset=utf-8,";
@@ -151,7 +153,8 @@ export function ResultsDashboard({ results, loading }: ResultsDashboardProps) {
         const feedback = `"${result.feedback.join('. ')}"`;
         const criticalIssues = `"${result.critical_issues.join('. ')}"`;
 
-        csvContent += `${studentFilename},${score},${avgIoU},${labelAccuracy},${correctLabels},${totalLabels},${attributeAccuracy},${attributesCompared},${matchedCount},${missedCount},${extraCount},${feedback},${criticalIssues}\r\n`;
+        const row = [studentFilename, score, avgIoU, labelAccuracy, correctLabels, totalLabels, attributeAccuracy, attributesCompared, matchedCount, missedCount, extraCount, feedback, criticalIssues].join(',');
+        csvContent += row + "\r\n";
     });
 
     const encodedUri = encodeURI(csvContent);
