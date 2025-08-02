@@ -1,5 +1,5 @@
 
-import type { ManualEvaluationResult, CocoJson, BboxAnnotation, LabelAccuracy, AttributeAccuracy, Match } from './types';
+import type { EvaluationResult, CocoJson, BboxAnnotation, LabelAccuracy, AttributeAccuracy, Match } from './types';
 import type { EvalSchema } from '@/ai/flows/extract-eval-schema';
 
 // Simple IoU (Intersection over Union) calculation for bounding boxes
@@ -76,7 +76,7 @@ function getAnnotationAttribute(annotation: BboxAnnotation, key: string): string
     return annotation.attributes?.[key];
 }
 
-export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, schema: EvalSchema): ManualEvaluationResult {
+export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, schema: EvalSchema): EvaluationResult {
     const IOU_THRESHOLD = 0.5;
     const matchKey = schema.matchKey;
 
@@ -109,6 +109,7 @@ export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, sch
     for (const imageId of imageIds) {
         const gtAnnotations = gtAnnsByImage[imageId] || [];
         const studentAnnotations = studentAnnsByImage[imageId] || [];
+        const imageStudentMatchedIds = new Set<number>();
 
         // First pass: Match using the unique key if it exists
         if (matchKey) {
@@ -125,6 +126,7 @@ export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, sch
                     
                     gtMatchedIds.add(gt.id);
                     studentMatchedIds.add(student.id);
+                    imageStudentMatchedIds.add(student.id);
                     studentMap.delete(key); // Ensure student annotation is not reused
 
                     const iou = calculateIoU(gt.bbox, student.bbox);
@@ -136,11 +138,11 @@ export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, sch
                     if(isLabelMatch) correctLabelCount++;
 
                     let attributeSimilarity = 0;
-                    let currentAttributeComparisons = 0;
                     const labelSchema = schema.labels.find(l => l.name === gtLabel);
 
                     if (labelSchema && labelSchema.attributes.length > 0) {
                         let currentTotalSimilarity = 0;
+                        let currentAttributeComparisons = 0;
                         for (const attrName of labelSchema.attributes) {
                             if (attrName === matchKey) continue;
                             const gtAttr = getAnnotationAttribute(gt, attrName) || '';
@@ -150,8 +152,8 @@ export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, sch
                         }
                         if (currentAttributeComparisons > 0) {
                             attributeSimilarity = currentTotalSimilarity / currentAttributeComparisons;
-                            totalAttributeSimilarity += attributeSimilarity; // This should be attributeSimilarity not currentTotalSimilarity
-                            attributeComparisons++;
+                            totalAttributeSimilarity += currentTotalSimilarity;
+                            attributeComparisons += currentAttributeComparisons;
                         }
                     }
 
@@ -166,7 +168,7 @@ export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, sch
 
             let bestMatch: { studentAnn: BboxAnnotation; iou: number } | null = null;
             for (const student of studentAnnotations) {
-                if (studentMatchedIds.has(student.id)) continue;
+                if (studentMatchedIds.has(student.id) || imageStudentMatchedIds.has(student.id)) continue;
 
                 const iou = calculateIoU(gt.bbox, student.bbox);
                 if (iou > IOU_THRESHOLD) {
@@ -179,6 +181,7 @@ export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, sch
             if (bestMatch) {
                 gtMatchedIds.add(gt.id);
                 studentMatchedIds.add(bestMatch.studentAnn.id);
+                imageStudentMatchedIds.add(bestMatch.studentAnn.id);
 
                 const isLabelMatch = gt.category_id === bestMatch.studentAnn.category_id;
                 if(isLabelMatch) correctLabelCount++;
@@ -200,7 +203,8 @@ export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, sch
         .map(student => ({ student }));
 
     const totalGt = allGtAnnotations.length;
-    const totalPossibleMatches = Math.max(totalGt, allStudentAnnotations.length);
+    const totalStudent = allStudentAnnotations.length;
+    const totalPossibleMatches = Math.max(totalGt, totalStudent);
 
     const label_accuracy: LabelAccuracy = {
         correct: correctLabelCount,
@@ -214,7 +218,7 @@ export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, sch
     };
 
     const iouScore = matched.length > 0 ? (totalIou / matched.length) * 100 : 0;
-    const precision = totalPossibleMatches > 0 ? matched.length / allStudentAnnotations.length : 0;
+    const precision = totalStudent > 0 ? matched.length / totalStudent : 0;
     const recall = totalGt > 0 ? matched.length / totalGt : 0;
     const detectionScore = (precision * 0.4 + recall * 0.6) * 100;
 
@@ -231,12 +235,12 @@ export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, sch
 
     const critical_issues: string[] = [];
     if (recall < 0.5 && totalGt > 0) critical_issues.push(`High number of missed annotations (${missed.length}).`);
-    if (precision < 0.5 && allStudentAnnotations.length > 0) critical_issues.push(`High number of extra annotations (${extra.length}).`);
+    if (precision < 0.5 && totalStudent > 0) critical_issues.push(`High number of extra annotations (${extra.length}).`);
     if(label_accuracy.accuracy < 70 && label_accuracy.total > 0) critical_issues.push(`Low label accuracy: ${label_accuracy.accuracy.toFixed(1)}%`);
     if(attribute_accuracy.average_similarity < 70 && attribute_accuracy.total > 0) critical_issues.push(`Low attribute accuracy: ${attribute_accuracy.average_similarity.toFixed(1)}%`);
 
     return {
-        source: 'manual',
+        source: 'rule-based',
         score: Math.round(finalScore),
         feedback,
         matched: matched.map(m => ({
