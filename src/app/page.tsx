@@ -2,6 +2,7 @@
 'use client';
 
 import { useState } from 'react';
+import JSZip from 'jszip';
 import type { FormValues } from '@/lib/types';
 import { useToast } from "@/hooks/use-toast";
 import { EvaluationForm } from '@/components/EvaluationForm';
@@ -63,8 +64,38 @@ export default function Home() {
   
     try {
         const gtFileContent = await data.gtFile.text();
-        const studentFiles = Array.from(data.studentFiles);
+        const studentFileInputs = Array.from(data.studentFiles);
         const batchResults: EvaluationResult[] = [];
+        
+        let studentFiles: { name: string, content: string }[] = [];
+
+        // Handle ZIP file upload
+        if (studentFileInputs.length === 1 && studentFileInputs[0].name.endsWith('.zip')) {
+            toast({ title: "Processing ZIP file...", description: "Extracting student submissions." });
+            const zipFile = studentFileInputs[0];
+            const zip = await JSZip.loadAsync(zipFile);
+            const filePromises = [];
+
+            for (const filename in zip.files) {
+                if (!zip.files[filename].dir && (filename.endsWith('.xml') || filename.endsWith('.json'))) {
+                    const filePromise = zip.files[filename].async('string').then(content => ({
+                        name: filename,
+                        content: content
+                    }));
+                    filePromises.push(filePromise);
+                }
+            }
+            studentFiles = await Promise.all(filePromises);
+        } else {
+            studentFiles = await Promise.all(studentFileInputs.map(async file => ({
+                name: file.name,
+                content: await file.text()
+            })));
+        }
+
+        if (studentFiles.length === 0) {
+            throw new Error("No valid annotation files (.xml or .json) found in the upload.");
+        }
 
         let gtAnnotations;
         const isXmlFile = (content: string) => content.trim().startsWith('<?xml');
@@ -76,7 +107,7 @@ export default function Home() {
         }
 
         for (const studentFile of studentFiles) {
-            const studentFileContent = await studentFile.text();
+            const studentFileContent = studentFile.content;
             let studentAnnotations;
 
             if (data.toolType === 'cvat_xml' || isXmlFile(studentFileContent)) {

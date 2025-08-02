@@ -104,7 +104,7 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange }: Evalua
                       <Input type="file" className="pl-10" {...studentFileRef} multiple />
                     </div>
                   </FormControl>
-                  <FormDescription>Upload one or more student submission files.</FormDescription>
+                  <FormDescription>Upload one or more student files, or a single ZIP archive.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -114,7 +114,7 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange }: Evalua
               name="toolType"
               render={({ field }) => (
                   <FormItem>
-                  <FormLabel>Tool Type</FormLabel>
+                  <FormLabel>Annotation Format</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                       <SelectTrigger>
@@ -128,6 +128,7 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange }: Evalua
                         <SelectItem value="keypoints" disabled>Keypoints (Coming Soon)</SelectItem>
                       </SelectContent>
                   </Select>
+                  <FormDescription>Select the format for all files. ZIP archives can contain mixed formats if needed.</FormDescription>
                   <FormMessage />
                   </FormItem>
               )}
