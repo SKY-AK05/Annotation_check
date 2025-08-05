@@ -80,11 +80,16 @@ export default function Home() {
         title: "Evaluation Rules Generated",
         description: "The evaluation schema has been extracted from your GT file.",
       });
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      let description = `Could not process the GT file: ${e.message}`;
+      // Check if the error is a service availability issue from the AI model
+      if (e.cause?.status === 503 || (e.message && e.message.includes('503'))) {
+        description = "The AI service is temporarily unavailable. Please try again in a few moments.";
+      }
       toast({
         title: "Error Generating Rules",
-        description: `Could not process the GT file: ${(e as Error).message}`,
+        description: description,
         variant: "destructive",
       });
     } finally {
