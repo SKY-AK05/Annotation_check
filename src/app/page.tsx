@@ -27,6 +27,7 @@ export default function Home() {
     if (!file) {
       setEvalSchema(null);
       setGtFileContent(null);
+      setImageUrls(new Map());
       return;
     }
     
@@ -34,26 +35,34 @@ export default function Home() {
     setResults(null);
     setEvalSchema(null);
     setGtFileContent(null);
+    setImageUrls(new Map());
 
     try {
       let fileContent: string;
+      const newImageUrls = new Map<string, string>();
 
       if (file.name.endsWith('.zip')) {
-        toast({ title: "Processing GT ZIP file...", description: "Extracting ground truth annotation." });
+        toast({ title: "Processing GT ZIP file...", description: "Extracting annotations and images." });
         const zip = await JSZip.loadAsync(file);
         let foundFile: JSZip.JSZipObject | null = null;
         
-        // Search for the first valid annotation file
-        for (const filename in zip.files) {
-            const fileInZip = zip.files[filename];
-            if (!fileInZip.dir && (filename.endsWith('.xml') || filename.endsWith('.json'))) {
+        const filePromises = Object.values(zip.files).map(async (fileInZip) => {
+            if (fileInZip.dir) return;
+            
+            if (!foundFile && (fileInZip.name.endsWith('.xml') || fileInZip.name.endsWith('.json'))) {
                 foundFile = fileInZip;
-                break;
+            } else if (fileInZip.name.match(/\.(jpe?g|png|gif|webp)$/i)) {
+                const blob = await fileInZip.async('blob');
+                const url = URL.createObjectURL(blob);
+                const filename = fileInZip.name.split('/').pop()!;
+                newImageUrls.set(filename, url);
             }
-        }
+        });
+
+        await Promise.all(filePromises);
 
         if (!foundFile) {
-            throw new Error("No .xml or .json file found inside the Ground Truth ZIP archive.");
+            throw new Error("No .xml or .json annotation file found inside the Ground Truth ZIP archive.");
         }
         fileContent = await foundFile.async('string');
 
@@ -62,6 +71,7 @@ export default function Home() {
       }
 
       setGtFileContent(fileContent);
+      setImageUrls(newImageUrls); // Set images extracted from GT zip
       const schema = await extractEvalSchema({ gtFileContent: fileContent });
       setEvalSchema(schema);
       toast({
@@ -91,7 +101,6 @@ export default function Home() {
     }
     setIsLoading(true);
     setResults(null);
-    setImageUrls(new Map());
   
     try {
         const studentFileInputs = Array.from(data.studentFiles);
@@ -99,29 +108,32 @@ export default function Home() {
         const batchResults: EvaluationResult[] = [];
         
         let studentFiles: { name: string, content: string }[] = [];
-        const newImageUrls = new Map<string, string>();
+        // Start with images from GT zip, then add/overwrite with explicitly uploaded images
+        const newImageUrls = new Map(imageUrls);
 
-        // Handle image files
-        const imagePromises = imageFileInputs.map(async file => {
-          if (file.name.endsWith('.zip')) {
-            const zip = await JSZip.loadAsync(file);
-            const imageInZipPromises = Object.values(zip.files).map(async (zipFile) => {
-              if (!zipFile.dir && zipFile.name.match(/\.(jpe?g|png|gif|webp)$/i)) {
-                const blob = await zipFile.async('blob');
-                return { name: zipFile.name.split('/').pop()!, url: URL.createObjectURL(blob) };
+        // Handle image files uploaded in the dedicated field
+        if(imageFileInputs.length > 0) {
+            const imagePromises = imageFileInputs.map(async file => {
+              if (file.name.endsWith('.zip')) {
+                const zip = await JSZip.loadAsync(file);
+                const imageInZipPromises = Object.values(zip.files).map(async (zipFile) => {
+                  if (!zipFile.dir && zipFile.name.match(/\.(jpe?g|png|gif|webp)$/i)) {
+                    const blob = await zipFile.async('blob');
+                    return { name: zipFile.name.split('/').pop()!, url: URL.createObjectURL(blob) };
+                  }
+                  return null;
+                });
+                return Promise.all(imageInZipPromises);
+              } else {
+                 return { name: file.name, url: URL.createObjectURL(file) };
               }
-              return null;
             });
-            return Promise.all(imageInZipPromises);
-          } else {
-             return { name: file.name, url: URL.createObjectURL(file) };
-          }
-        });
 
-        const allImagesNested = await Promise.all(imagePromises);
-        allImagesNested.flat().filter(Boolean).forEach(img => {
-            if (img) newImageUrls.set(img.name, img.url);
-        });
+            const allImagesNested = await Promise.all(imagePromises);
+            allImagesNested.flat().filter(Boolean).forEach(img => {
+                if (img) newImageUrls.set(img.name, img.url);
+            });
+        }
         setImageUrls(newImageUrls);
 
         // Handle ZIP file upload for student files
