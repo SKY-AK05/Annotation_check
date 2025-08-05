@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { ScoreCard } from "@/components/ScoreCard";
 import type { BboxAnnotation, EvaluationResult, ImageEvaluationResult } from "@/lib/types";
-import { AlertCircle, CheckCircle, Download, FileQuestion, ImageIcon, MessageSquare, ShieldAlert, User } from "lucide-react";
+import { AlertCircle, CheckCircle, Download, FileQuestion, FileText, ImageIcon, MessageSquare, ShieldAlert, User } from "lucide-react";
 import { Badge } from "./ui/badge";
 
 interface ResultsDashboardProps {
@@ -88,7 +87,7 @@ const ImageResultDisplay = ({ imageResult }: { imageResult: ImageEvaluationResul
     )
 }
 
-const SingleResultDisplay = ({ result }: { result: EvaluationResult }) => {
+const SingleResultDisplay = ({ result, onDownloadXML }: { result: EvaluationResult; onDownloadXML: (result: EvaluationResult) => void; }) => {
     
     const getAnnotationLabel = (ann: BboxAnnotation) => {
       const categoryName = ann.attributes?.['label']
@@ -200,6 +199,97 @@ export function ResultsDashboard({ results, loading }: ResultsDashboardProps) {
     document.body.removeChild(link);
   }
 
+  const handleDownloadXML = (result: EvaluationResult) => {
+    const escapeXml = (unsafe: string) => {
+      return unsafe.replace(/[<>&'"]/g, (c) => {
+        switch (c) {
+          case '<': return '&lt;';
+          case '>': return '&gt;';
+          case '&': return '&amp;';
+          case '\'': return '&apos;';
+          case '"': return '&quot;';
+          default: return c;
+        }
+      });
+    };
+
+    let xmlContent = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+    xmlContent += `<EvaluationResult studentFilename="${escapeXml(result.studentFilename)}">\n`;
+    xmlContent += `  <Summary>\n`;
+    xmlContent += `    <Score>${result.score}</Score>\n`;
+    xmlContent += `    <AverageIoU>${result.average_iou.toFixed(4)}</AverageIoU>\n`;
+    xmlContent += `    <LabelAccuracy correct="${result.label_accuracy.correct}" total="${result.label_accuracy.total}" accuracy="${result.label_accuracy.accuracy.toFixed(2)}%"/>\n`;
+    xmlContent += `    <AttributeAccuracy average_similarity="${result.attribute_accuracy.average_similarity.toFixed(2)}%" total="${result.attribute_accuracy.total}"/>\n`;
+    xmlContent += `    <Detections matched="${result.matched.length}" missed="${result.missed.length}" extra="${result.extra.length}"/>\n`;
+    xmlContent += `  </Summary>\n`;
+    xmlContent += `  <Feedback>\n`;
+    result.feedback.forEach(item => {
+      xmlContent += `    <Item>${escapeXml(item)}</Item>\n`;
+    });
+    xmlContent += `  </Feedback>\n`;
+    if (result.critical_issues.length > 0) {
+      xmlContent += `  <CriticalIssues>\n`;
+      result.critical_issues.forEach(item => {
+        xmlContent += `    <Item>${escapeXml(item)}</Item>\n`;
+      });
+      xmlContent += `  </CriticalIssues>\n`;
+    }
+    xmlContent += `  <PerImageBreakdown>\n`;
+    result.image_results.forEach(imgResult => {
+      xmlContent += `    <Image id="${imgResult.imageId}" name="${escapeXml(imgResult.imageName)}">\n`;
+      const createAnnotationNode = (ann: BboxAnnotation, type: 'gt' | 'student') => {
+        let node = `      <Annotation type="${type}" id="${ann.id}" category_id="${ann.category_id}" bbox="${ann.bbox.join(',')}"`;
+        if (ann.attributes) {
+          node += `>`;
+          Object.entries(ann.attributes).forEach(([key, value]) => {
+             if (value !== undefined) {
+               node += `        <Attribute name="${escapeXml(key)}">${escapeXml(value)}</Attribute>\n`;
+             }
+          });
+        }
+        else{
+          node += `/>`;
+        }
+        node += `\n`;
+        return node;
+      };
+      
+      if (imgResult.matched.length > 0) {
+        xmlContent += `      <MatchedAnnotations>\n`;
+        imgResult.matched.forEach(match => {
+          xmlContent += `        <Match iou="${match.iou.toFixed(4)}" isLabelMatch="${match.isLabelMatch}" attributeSimilarity="${match.attributeSimilarity.toFixed(4)}">\n`;
+          xmlContent += createAnnotationNode(match.gt, 'gt');
+          xmlContent += createAnnotationNode(match.student, 'student');
+          xmlContent += `        </Match>\n`;
+        });
+        xmlContent += `      </MatchedAnnotations>\n`;
+      }
+      if (imgResult.missed.length > 0) {
+        xmlContent += `      <MissedAnnotations>\n`;
+        imgResult.missed.forEach(miss => xmlContent += createAnnotationNode(miss.gt, 'gt'));
+        xmlContent += `      </MissedAnnotations>\n`;
+      }
+      if (imgResult.extra.length > 0) {
+        xmlContent += `      <ExtraAnnotations>\n`;
+        imgResult.extra.forEach(extra => xmlContent += createAnnotationNode(extra.student, 'student'));
+        xmlContent += `      </ExtraAnnotations>\n`;
+      }
+      xmlContent += `    </Image>\n`;
+    });
+    xmlContent += `  </PerImageBreakdown>\n`;
+    xmlContent += `</EvaluationResult>\n`;
+    
+    const blob = new Blob([xmlContent], { type: 'application/xml' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${result.studentFilename.replace(/[^a-z0-9]/gi, '_')}_result.xml`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <Card className="w-full">
       <CardHeader className="flex flex-row items-center justify-between">
@@ -256,9 +346,17 @@ export function ResultsDashboard({ results, loading }: ResultsDashboardProps) {
             <h3 className="text-lg font-semibold mb-2">Detailed Student Results</h3>
             {results.map((result) => (
                 <AccordionItem value={result.studentFilename} key={result.studentFilename}>
-                    <AccordionTrigger className="font-medium">{result.studentFilename}</AccordionTrigger>
+                    <AccordionTrigger className="font-medium">
+                       <div className="flex items-center justify-between w-full pr-4">
+                           <span>{result.studentFilename}</span>
+                           <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDownloadXML(result); }}>
+                                <FileText className="mr-2 h-4 w-4" />
+                                Download XML
+                            </Button>
+                       </div>
+                    </AccordionTrigger>
                     <AccordionContent className="p-4 bg-muted/50 rounded-md">
-                        <SingleResultDisplay result={result} />
+                        <SingleResultDisplay result={result} onDownloadXML={handleDownloadXML} />
                     </AccordionContent>
                 </AccordionItem>
             ))}
@@ -267,3 +365,5 @@ export function ResultsDashboard({ results, loading }: ResultsDashboardProps) {
     </Card>
   );
 }
+
+    
