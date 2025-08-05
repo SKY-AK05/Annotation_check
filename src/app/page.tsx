@@ -44,8 +44,9 @@ export default function Home() {
         
         // Search for the first valid annotation file
         for (const filename in zip.files) {
-            if (filename.endsWith('.xml') || filename.endsWith('.json')) {
-                foundFile = zip.files[filename];
+            const fileInZip = zip.files[filename];
+            if (!fileInZip.dir && (filename.endsWith('.xml') || filename.endsWith('.json'))) {
+                foundFile = fileInZip;
                 break;
             }
         }
@@ -109,17 +110,26 @@ export default function Home() {
                 
                 // Handle nested zips for CVAT batch exports
                 if (filename.endsWith('.zip')) {
-                    const nestedZip = await JSZip.loadAsync(await fileInZip.async('blob'));
-                    for (const nestedFilename in nestedZip.files) {
-                        const nestedFile = nestedZip.files[nestedFilename];
-                        if (!nestedFile.dir && (nestedFilename.endsWith('.xml') || nestedFilename.endsWith('.json'))) {
-                             const filePromise = nestedFile.async('string').then(content => ({
-                                name: filename, // Use the outer zip filename as student identifier
-                                content: content
-                            }));
-                            filePromises.push(filePromise);
+                    const filePromise = async () => {
+                        try {
+                            const nestedZip = await JSZip.loadAsync(await fileInZip.async('blob'));
+                            for (const nestedFilename in nestedZip.files) {
+                                const nestedFile = nestedZip.files[nestedFilename];
+                                if (!nestedFile.dir && (nestedFilename.endsWith('.xml') || nestedFilename.endsWith('.json'))) {
+                                    const content = await nestedFile.async('string');
+                                    return {
+                                        name: filename, // Use the outer zip filename as student identifier
+                                        content: content
+                                    };
+                                }
+                            }
+                        } catch(e) {
+                            console.error(`Skipping corrupted nested zip: ${filename}`, e);
+                            return null;
                         }
-                    }
+                        return null;
+                    };
+                    filePromises.push(filePromise());
                 }
                 // Handle regular files at top level
                 else if (filename.endsWith('.xml') || filename.endsWith('.json')) {
@@ -130,7 +140,8 @@ export default function Home() {
                     filePromises.push(filePromise);
                 }
             }
-            studentFiles = await Promise.all(filePromises);
+            const resolvedFiles = await Promise.all(filePromises);
+            studentFiles = resolvedFiles.filter(f => f !== null) as { name: string, content: string }[];
         } else {
             studentFiles = await Promise.all(studentFileInputs.map(async file => ({
                 name: file.name,
