@@ -114,7 +114,7 @@ const ImageResultDisplay = ({ imageResult, imageUrl }: { imageResult: ImageEvalu
     )
 }
 
-const SingleResultDisplay = ({ result, onDownloadXML, imageUrls }: { result: EvaluationResult; onDownloadXML: (result: EvaluationResult) => void; imageUrls: Map<string, string>; }) => {
+const SingleResultDisplay = ({ result, onDownloadCsv, imageUrls }: { result: EvaluationResult; onDownloadCsv: (result: EvaluationResult) => void; imageUrls: Map<string, string>; }) => {
     
     return (
         <div className="space-y-6">
@@ -185,7 +185,7 @@ export function ResultsDashboard({ results, loading, imageUrls }: ResultsDashboa
   if (loading) return <SkeletonDashboard />;
   if (!results || results.length === 0) return <Placeholder />;
 
-  const handleDownloadCsv = () => {
+  const handleDownloadSummaryCsv = () => {
     let csvContent = "data:text/csv;charset=utf-8,";
     
     // Header
@@ -219,96 +219,103 @@ export function ResultsDashboard({ results, loading, imageUrls }: ResultsDashboa
     document.body.removeChild(link);
   }
 
-  const handleDownloadXML = (result: EvaluationResult) => {
-    const escapeXml = (unsafe: string) => {
-      return unsafe.replace(/[<>&'"]/g, (c) => {
-        switch (c) {
-          case '<': return '&lt;';
-          case '>': return '&gt;';
-          case '&': return '&amp;';
-          case '\'': return '&apos;';
-          case '"': return '&quot;';
-          default: return c;
+  const handleDownloadDetailedCsv = (result: EvaluationResult) => {
+    const escapeCsv = (str: string | number | undefined) => {
+        if (str === undefined || str === null) return '""';
+        const s = String(str);
+        if (s.includes('"') || s.includes(',')) {
+            return `"${s.replace(/"/g, '""')}"`;
         }
-      });
+        return `"${s}"`;
     };
 
-    let xmlContent = `<?xml version="1.0" encoding="UTF-8"?>\n`;
-    xmlContent += `<EvaluationResult studentFilename="${escapeXml(result.studentFilename)}">\n`;
-    xmlContent += `  <Summary>\n`;
-    xmlContent += `    <Score>${result.score}</Score>\n`;
-    xmlContent += `    <AverageIoU>${result.average_iou.toFixed(4)}</AverageIoU>\n`;
-    xmlContent += `    <LabelAccuracy correct="${result.label_accuracy.correct}" total="${result.label_accuracy.total}" accuracy="${result.label_accuracy.accuracy.toFixed(2)}%"/>\n`;
-    xmlContent += `    <AttributeAccuracy average_similarity="${result.attribute_accuracy.average_similarity.toFixed(2)}%" total="${result.attribute_accuracy.total}"/>\n`;
-    xmlContent += `    <Detections matched="${result.matched.length}" missed="${result.missed.length}" extra="${result.extra.length}"/>\n`;
-    xmlContent += `  </Summary>\n`;
-    xmlContent += `  <Feedback>\n`;
-    result.feedback.forEach(item => {
-      xmlContent += `    <Item>${escapeXml(item)}</Item>\n`;
-    });
-    xmlContent += `  </Feedback>\n`;
-    if (result.critical_issues.length > 0) {
-      xmlContent += `  <CriticalIssues>\n`;
-      result.critical_issues.forEach(item => {
-        xmlContent += `    <Item>${escapeXml(item)}</Item>\n`;
-      });
-      xmlContent += `  </CriticalIssues>\n`;
-    }
-    xmlContent += `  <PerImageBreakdown>\n`;
+    let csv = [];
+
+    // Summary
+    csv.push(`"Summary for ${result.studentFilename}"`);
+    csv.push(`"Metric","Value"`);
+    csv.push(`"Score",${result.score}`);
+    csv.push(`"Average IoU",${result.average_iou.toFixed(4)}`);
+    csv.push(`"Label Accuracy","${result.label_accuracy.accuracy.toFixed(2)}%"`);
+    csv.push(`"Attribute Accuracy","${result.attribute_accuracy.average_similarity.toFixed(2)}%"`);
+    csv.push(`"Matched Detections",${result.matched.length}`);
+    csv.push(`"Missed Detections",${result.missed.length}`);
+    csv.push(`"Extra Detections",${result.extra.length}`);
+    csv.push('');
+
+    // Feedback & Issues
+    csv.push('"Feedback"');
+    result.feedback.forEach(f => csv.push(escapeCsv(f)));
+    csv.push('');
+    csv.push('"Critical Issues"');
+    result.critical_issues.forEach(i => csv.push(escapeCsv(i)));
+    csv.push('');
+    csv.push('---');
+    csv.push('');
+
+    // Per-Image Breakdown
     result.image_results.forEach(imgResult => {
-      xmlContent += `    <Image id="${imgResult.imageId}" name="${escapeXml(imgResult.imageName)}">\n`;
-      const createAnnotationNode = (ann: BboxAnnotation, type: 'gt' | 'student') => {
-        let node = `      <Annotation type="${type}" id="${ann.id}" category_id="${ann.category_id}" bbox="${ann.bbox.join(',')}"`;
-        if (ann.attributes) {
-          node += `>`;
-          Object.entries(ann.attributes).forEach(([key, value]) => {
-             if (value !== undefined) {
-               node += `        <Attribute name="${escapeXml(key)}">${escapeXml(value)}</Attribute>\n`;
-             }
-          });
-        }
-        else{
-          node += `/>`;
-        }
-        node += `\n`;
-        return node;
-      };
-      
-      if (imgResult.matched.length > 0) {
-        xmlContent += `      <MatchedAnnotations>\n`;
-        imgResult.matched.forEach(match => {
-          xmlContent += `        <Match iou="${match.iou.toFixed(4)}" isLabelMatch="${match.isLabelMatch}" attributeSimilarity="${match.attributeSimilarity.toFixed(4)}">\n`;
-          xmlContent += createAnnotationNode(match.gt, 'gt');
-          xmlContent += createAnnotationNode(match.student, 'student');
-          xmlContent += `        </Match>\n`;
+        csv.push(`"Image: ${imgResult.imageName}"`);
+        csv.push('');
+
+        // Matched
+        csv.push('"Matched Annotations"');
+        csv.push(`"GT ID","GT Label","GT Bbox","Student ID","Student Label","Student Bbox","IoU","Label Match","Attribute Similarity"`);
+        imgResult.matched.forEach(m => {
+            const row = [
+                m.gt.id,
+                m.gt.attributes?.label,
+                m.gt.bbox.join(';'),
+                m.student.id,
+                m.student.attributes?.label,
+                m.student.bbox.join(';'),
+                m.iou.toFixed(4),
+                m.isLabelMatch,
+                m.attributeSimilarity.toFixed(4),
+            ].map(escapeCsv).join(',');
+            csv.push(row);
         });
-        xmlContent += `      </MatchedAnnotations>\n`;
-      }
-      if (imgResult.missed.length > 0) {
-        xmlContent += `      <MissedAnnotations>\n`;
-        imgResult.missed.forEach(miss => xmlContent += createAnnotationNode(miss.gt, 'gt'));
-        xmlContent += `      </MissedAnnotations>\n`;
-      }
-      if (imgResult.extra.length > 0) {
-        xmlContent += `      <ExtraAnnotations>\n`;
-        imgResult.extra.forEach(extra => xmlContent += createAnnotationNode(extra.student, 'student'));
-        xmlContent += `      </ExtraAnnotations>\n`;
-      }
-      xmlContent += `    </Image>\n`;
+        csv.push('');
+
+        // Missed
+        csv.push('"Missed Annotations"');
+        csv.push(`"GT ID","GT Label","GT Bbox"`);
+        imgResult.missed.forEach(m => {
+            const row = [
+                m.gt.id,
+                m.gt.attributes?.label,
+                m.gt.bbox.join(';'),
+            ].map(escapeCsv).join(',');
+            csv.push(row);
+        });
+        csv.push('');
+
+        // Extra
+        csv.push('"Extra Annotations"');
+        csv.push(`"Student ID","Student Label","Student Bbox"`);
+        imgResult.extra.forEach(e => {
+            const row = [
+                e.student.id,
+                e.student.attributes?.label,
+                e.student.bbox.join(';'),
+            ].map(escapeCsv).join(',');
+            csv.push(row);
+        });
+        csv.push('');
+        csv.push('---');
+        csv.push('');
     });
-    xmlContent += `  </PerImageBreakdown>\n`;
-    xmlContent += `</EvaluationResult>\n`;
-    
-    const blob = new Blob([xmlContent], { type: 'application/xml' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${result.studentFilename.replace(/[^a-z0-9]/gi, '_')}_result.xml`;
+
+    const csvContent = "data:text/csv;charset=utf-8," + csv.join("\r\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `${result.studentFilename.replace(/[^a-z0-9]/gi, '_')}_detailed_result.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(url);
   };
+
 
   return (
     <Card className="w-full">
@@ -327,7 +334,7 @@ export function ResultsDashboard({ results, loading, imageUrls }: ResultsDashboa
             Summary and detailed breakdown for each student file.
           </CardDescription>
         </div>
-        <Button variant="outline" onClick={handleDownloadCsv}>
+        <Button variant="outline" onClick={handleDownloadSummaryCsv}>
           <Download className="mr-2 h-4 w-4" /> Download Summary CSV
         </Button>
       </CardHeader>
@@ -369,14 +376,14 @@ export function ResultsDashboard({ results, loading, imageUrls }: ResultsDashboa
                     <AccordionTrigger className="font-medium">
                        <div className="flex items-center justify-between w-full pr-4">
                            <span>{result.studentFilename}</span>
-                           <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDownloadXML(result); }}>
+                           <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDownloadDetailedCsv(result); }}>
                                 <FileText className="mr-2 h-4 w-4" />
-                                Download XML
+                                Download CSV
                             </Button>
                        </div>
                     </AccordionTrigger>
                     <AccordionContent className="p-4 bg-muted/50 rounded-md">
-                        <SingleResultDisplay result={result} onDownloadXML={handleDownloadXML} imageUrls={imageUrls}/>
+                        <SingleResultDisplay result={result} onDownloadCsv={handleDownloadDetailedCsv} imageUrls={imageUrls}/>
                     </AccordionContent>
                 </AccordionItem>
             ))}
