@@ -8,12 +8,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { ScoreCard } from "@/components/ScoreCard";
 import type { BboxAnnotation, EvaluationResult, ImageEvaluationResult } from "@/lib/types";
+import { AnnotationViewer } from "@/components/AnnotationViewer";
 import { AlertCircle, CheckCircle, Download, FileQuestion, FileText, ImageIcon, MessageSquare, ShieldAlert, User } from "lucide-react";
 import { Badge } from "./ui/badge";
 
 interface ResultsDashboardProps {
   results: EvaluationResult[] | null;
   loading: boolean;
+  imageUrls: Map<string, string>;
 }
 
 const Placeholder = () => (
@@ -38,7 +40,7 @@ const SkeletonDashboard = () => (
   </Card>
 );
 
-const ImageResultDisplay = ({ imageResult }: { imageResult: ImageEvaluationResult}) => {
+const ImageResultDisplay = ({ imageResult, imageUrl }: { imageResult: ImageEvaluationResult, imageUrl: string | undefined }) => {
     const getAnnotationLabel = (ann: BboxAnnotation) => {
       const categoryName = ann.attributes?.['label']
       const annotationId = `ID ${ann.id}`
@@ -55,6 +57,18 @@ const ImageResultDisplay = ({ imageResult }: { imageResult: ImageEvaluationResul
                 </CardTitle>
             </CardHeader>
             <CardContent className="p-4 pt-0 grid grid-cols-1 md:grid-cols-3 gap-4">
+                 <div className="md:col-span-3">
+                   {imageUrl ? (
+                        <AnnotationViewer
+                            imageUrl={imageUrl}
+                            imageResult={imageResult}
+                        />
+                    ) : (
+                        <div className="w-full aspect-video bg-muted rounded-md flex items-center justify-center text-sm text-muted-foreground">
+                            Image not provided
+                        </div>
+                    )}
+                </div>
                  <Card>
                     <CardHeader className="pb-2"><CardTitle className="text-base">{imageResult.matched.length} Matched</CardTitle></CardHeader>
                     <CardContent>
@@ -87,15 +101,8 @@ const ImageResultDisplay = ({ imageResult }: { imageResult: ImageEvaluationResul
     )
 }
 
-const SingleResultDisplay = ({ result, onDownloadXML }: { result: EvaluationResult; onDownloadXML: (result: EvaluationResult) => void; }) => {
+const SingleResultDisplay = ({ result, onDownloadXML, imageUrls }: { result: EvaluationResult; onDownloadXML: (result: EvaluationResult) => void; imageUrls: Map<string, string>; }) => {
     
-    const getAnnotationLabel = (ann: BboxAnnotation) => {
-      const categoryName = ann.attributes?.['label']
-      const annotationId = `ID ${ann.id}`
-      const matchKey = ann.attributes?.['Annotation No'] ? ` (Key: ${ann.attributes['Annotation No']})` : ''
-      return `${categoryName || 'Unknown'}${matchKey || ` (${annotationId})`}`
-    };
-
     return (
         <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -152,7 +159,7 @@ const SingleResultDisplay = ({ result, onDownloadXML }: { result: EvaluationResu
                             {imageResult.imageName}
                         </AccordionTrigger>
                         <AccordionContent className="p-2">
-                           <ImageResultDisplay imageResult={imageResult}/>
+                           <ImageResultDisplay imageResult={imageResult} imageUrl={imageUrls.get(imageResult.imageName)} />
                         </AccordionContent>
                     </AccordionItem>
                 ))}
@@ -161,7 +168,7 @@ const SingleResultDisplay = ({ result, onDownloadXML }: { result: EvaluationResu
     );
 };
 
-export function ResultsDashboard({ results, loading }: ResultsDashboardProps) {
+export function ResultsDashboard({ results, loading, imageUrls }: ResultsDashboardProps) {
   if (loading) return <SkeletonDashboard />;
   if (!results || results.length === 0) return <Placeholder />;
 
@@ -356,7 +363,7 @@ export function ResultsDashboard({ results, loading }: ResultsDashboardProps) {
                        </div>
                     </AccordionTrigger>
                     <AccordionContent className="p-4 bg-muted/50 rounded-md">
-                        <SingleResultDisplay result={result} onDownloadXML={handleDownloadXML} />
+                        <SingleResultDisplay result={result} onDownloadXML={handleDownloadXML} imageUrls={imageUrls}/>
                     </AccordionContent>
                 </AccordionItem>
             ))}
@@ -365,5 +372,3 @@ export function ResultsDashboard({ results, loading }: ResultsDashboardProps) {
     </Card>
   );
 }
-
-    

@@ -5,7 +5,7 @@ import * as React from 'react';
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Loader2, UploadCloud, FileCog } from 'lucide-react';
+import { Loader2, UploadCloud, FileCog, Image as ImageIcon } from 'lucide-react';
 
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +31,7 @@ import type { FormValues } from '@/lib/types';
 const formSchema = z.object({
   gtFile: typeof window === 'undefined' ? z.any() : z.instanceof(FileList).refine((files) => files?.length === 1, "Ground Truth file is required."),
   studentFiles: typeof window === 'undefined' ? z.any() : z.instanceof(FileList).refine((files) => files?.length >= 1, "At least one Student Annotation file is required."),
+  imageFiles: typeof window === 'undefined' ? z.any() : z.instanceof(FileList).refine((files) => files?.length >= 1, "At least one image file is required."),
   toolType: z.string({ required_error: 'Please select a tool type.' }),
 });
 
@@ -50,6 +51,7 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange }: Evalua
 
   const gtFileRef = form.register("gtFile");
   const studentFileRef = form.register("studentFiles");
+  const imageFileRef = form.register("imageFiles");
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     onEvaluate(values);
@@ -62,7 +64,7 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange }: Evalua
             <FileCog className="w-6 h-6" />
             New Evaluation
         </CardTitle>
-        <CardDescription>Upload annotations to compare and score. The GT file defines the rules.</CardDescription>
+        <CardDescription>Upload annotations and images to compare and score.</CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -80,6 +82,7 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange }: Evalua
                         type="file" 
                         className="pl-10" 
                         {...gtFileRef} 
+                        accept=".xml,.json,.zip"
                         onChange={(e) => {
                             field.onChange(e.target.files);
                             onGtFileChange(e.target.files?.[0]);
@@ -101,7 +104,7 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange }: Evalua
                   <FormControl>
                     <div className="relative">
                       <UploadCloud className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                      <Input type="file" className="pl-10" {...studentFileRef} multiple />
+                      <Input type="file" className="pl-10" {...studentFileRef} accept=".xml,.json,.zip" multiple />
                     </div>
                   </FormControl>
                   <FormDescription>Upload one or more student files, or a single ZIP archive.</FormDescription>
@@ -110,6 +113,23 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange }: Evalua
               )}
             />
             <FormField
+              control={form.control}
+              name="imageFiles"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>3. Original Images</FormLabel>
+                  <FormControl>
+                    <div className="relative">
+                      <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                      <Input type="file" className="pl-10" {...imageFileRef} accept="image/*,.zip" multiple />
+                    </div>
+                  </FormControl>
+                  <FormDescription>Upload all images used in annotations, or a ZIP archive.</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+             <FormField
               control={form.control}
               name="toolType"
               render={({ field }) => (

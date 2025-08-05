@@ -20,6 +20,7 @@ export default function Home() {
   const [results, setResults] = useState<EvaluationResult[] | null>(null);
   const [evalSchema, setEvalSchema] = useState<EvalSchema | null>(null);
   const [gtFileContent, setGtFileContent] = useState<string | null>(null);
+  const [imageUrls, setImageUrls] = useState<Map<string, string>>(new Map());
   const { toast } = useToast();
 
   const handleGtFileChange = async (file: File | undefined) => {
@@ -90,12 +91,38 @@ export default function Home() {
     }
     setIsLoading(true);
     setResults(null);
+    setImageUrls(new Map());
   
     try {
         const studentFileInputs = Array.from(data.studentFiles);
+        const imageFileInputs = Array.from(data.imageFiles);
         const batchResults: EvaluationResult[] = [];
         
         let studentFiles: { name: string, content: string }[] = [];
+        const newImageUrls = new Map<string, string>();
+
+        // Handle image files
+        const imagePromises = imageFileInputs.map(async file => {
+          if (file.name.endsWith('.zip')) {
+            const zip = await JSZip.loadAsync(file);
+            const imageInZipPromises = Object.values(zip.files).map(async (zipFile) => {
+              if (!zipFile.dir && zipFile.name.match(/\.(jpe?g|png|gif|webp)$/i)) {
+                const blob = await zipFile.async('blob');
+                return { name: zipFile.name.split('/').pop()!, url: URL.createObjectURL(blob) };
+              }
+              return null;
+            });
+            return Promise.all(imageInZipPromises);
+          } else {
+             return { name: file.name, url: URL.createObjectURL(file) };
+          }
+        });
+
+        const allImagesNested = await Promise.all(imagePromises);
+        allImagesNested.flat().filter(Boolean).forEach(img => {
+            if (img) newImageUrls.set(img.name, img.url);
+        });
+        setImageUrls(newImageUrls);
 
         // Handle ZIP file upload for student files
         if (studentFileInputs.length === 1 && studentFileInputs[0].name.endsWith('.zip')) {
@@ -215,7 +242,7 @@ export default function Home() {
           <RuleConfiguration schema={evalSchema} loading={isGeneratingRules} onSchemaChange={handleSchemaChange} />
         </div>
         <div className="lg:col-span-2">
-          <ResultsDashboard results={results} loading={isLoading} />
+          <ResultsDashboard results={results} loading={isLoading} imageUrls={imageUrls} />
         </div>
       </main>
     </div>
