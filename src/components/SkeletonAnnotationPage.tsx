@@ -2,34 +2,97 @@
 'use client';
 
 import React, { useState } from 'react';
+import JSZip from 'jszip';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { CheckCircle, Info, Loader2, UploadCloud } from "lucide-react";
+import { CheckCircle, Loader2, UploadCloud } from "lucide-react";
 import type { CocoJson, SkeletonEvaluationResult } from '@/lib/types';
 import { evaluateSkeletons } from '@/lib/evaluator';
 import { SkeletonViewer } from './SkeletonViewer';
 import { ScoreCard } from './ScoreCard';
+import { useToast } from '@/hooks/use-toast';
 
 export default function SkeletonAnnotationPage() {
     const [gtFile, setGtFile] = useState<File | null>(null);
     const [studentFile, setStudentFile] = useState<File | null>(null);
     const [imageFile, setImageFile] = useState<File | null>(null);
+    
     const [gtJson, setGtJson] = useState<CocoJson | null>(null);
     const [studentJson, setStudentJson] = useState<CocoJson | null>(null);
     const [imageUrl, setImageUrl] = useState<string | null>(null);
+    
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [results, setResults] = useState<SkeletonEvaluationResult | null>(null);
-    const [error, setError] = useState<string | null>(null);
+    const { toast } = useToast();
 
-    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, fileSetter: React.Dispatch<React.SetStateAction<File | null>>, jsonSetter: React.Dispatch<React.SetStateAction<CocoJson | null>>) => {
+    const processFile = async (file: File, jsonSetter: React.Dispatch<React.SetStateAction<CocoJson | null>>, isGt: boolean) => {
+        let annotationContent: string | null = null;
+
+        if (file.name.endsWith('.zip')) {
+            const zip = await JSZip.loadAsync(file);
+            let annotationFile: JSZip.JSZipObject | null = null;
+            
+            const filePromises = Object.values(zip.files).map(async (fileInZip) => {
+                if (fileInZip.dir) return;
+
+                if (!annotationFile && fileInZip.name.endsWith('.json')) {
+                    annotationFile = fileInZip;
+                }
+                
+                if (isGt && fileInZip.name.match(/\.(jpe?g|png|gif|webp)$/i)) {
+                    const blob = await fileInZip.async('blob');
+                    const url = URL.createObjectURL(blob);
+                    setImageUrl(url); // Set the first image found as the preview
+                    setImageFile(new File([blob], fileInZip.name.split('/').pop()!));
+                }
+            });
+            await Promise.all(filePromises);
+
+            if (annotationFile) {
+                annotationContent = await annotationFile.async('string');
+            } else {
+                throw new Error("No .json annotation file found in the ZIP archive.");
+            }
+        } else if (file.name.endsWith('.json')) {
+            annotationContent = await file.text();
+        } else {
+             throw new Error("Unsupported file type. Please upload a .json or .zip file.");
+        }
+        
+        if (annotationContent) {
+            jsonSetter(JSON.parse(annotationContent));
+        }
+    };
+
+
+    const handleGtFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
-            fileSetter(file);
-            const content = await file.text();
-            jsonSetter(JSON.parse(content));
+            setGtFile(file);
+            setResults(null);
+            try {
+                await processFile(file, setGtJson, true);
+                toast({ title: "Ground Truth processed successfully." });
+            } catch (error: any) {
+                toast({ title: "Error processing GT file", description: error.message, variant: "destructive" });
+            }
+        }
+    };
+    
+    const handleStudentFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            setStudentFile(file);
+             setResults(null);
+            try {
+                await processFile(file, setStudentJson, false);
+                 toast({ title: "Student file processed successfully." });
+            } catch (error: any) {
+                toast({ title: "Error processing student file", description: error.message, variant: "destructive" });
+            }
         }
     };
 
@@ -43,12 +106,15 @@ export default function SkeletonAnnotationPage() {
 
     const handleEvaluate = async () => {
         if (!gtJson || !studentJson || !imageFile) {
-            setError("Please upload all three files: Ground Truth, Student Annotation, and the Image.");
+            toast({
+                title: "Missing Files",
+                description: "Please upload all three files: Ground Truth, Student Annotation, and the Image.",
+                variant: "destructive",
+            });
             return;
         }
 
         setIsLoading(true);
-        setError(null);
         setResults(null);
 
         try {
@@ -60,7 +126,11 @@ export default function SkeletonAnnotationPage() {
 
         } catch (e: any) {
             console.error(e);
-            setError(`Evaluation failed: ${e.message}. Please check file formats.`);
+            toast({
+                title: "Evaluation Error",
+                description: `Evaluation failed: ${e.message}. Please check file formats.`,
+                variant: "destructive",
+            });
         } finally {
             setIsLoading(false);
         }
@@ -77,21 +147,21 @@ export default function SkeletonAnnotationPage() {
             <CardContent className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="space-y-2">
-                        <Label htmlFor="gt-file">1. Ground Truth (COCO JSON)</Label>
+                        <Label htmlFor="gt-file">1. Ground Truth (JSON or ZIP)</Label>
                         <div className="relative">
                             <UploadCloud className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                            <Input id="gt-file" type="file" className="pl-10" accept=".json" onChange={(e) => handleFileChange(e, setGtFile, setGtJson)} />
+                            <Input id="gt-file" type="file" className="pl-10" accept=".json,.zip" onChange={handleGtFileChange} />
                         </div>
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="student-file">2. Student Annotation (COCO JSON)</Label>
+                        <Label htmlFor="student-file">2. Student Annotation (JSON or ZIP)</Label>
                          <div className="relative">
                             <UploadCloud className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                            <Input id="student-file" type="file" className="pl-10" accept=".json" onChange={(e) => handleFileChange(e, setStudentFile, setStudentJson)} />
+                            <Input id="student-file" type="file" className="pl-10" accept=".json,.zip" onChange={handleStudentFileChange} />
                         </div>
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="image-file">3. Image File</Label>
+                        <Label htmlFor="image-file">3. Image File (if not in GT ZIP)</Label>
                          <div className="relative">
                             <UploadCloud className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                             <Input id="image-file" type="file" className="pl-10" accept="image/*" onChange={handleImageChange} />
@@ -109,8 +179,6 @@ export default function SkeletonAnnotationPage() {
                         'Run Skeleton Evaluation'
                     )}
                 </Button>
-
-                {error && <Alert variant="destructive"><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}
 
                 {isLoading && (
                      <Card className="flex flex-col items-center justify-center text-center p-8 h-full min-h-[300px]">
@@ -168,4 +236,5 @@ export default function SkeletonAnnotationPage() {
             </CardContent>
         </Card>
     );
-}
+
+    
