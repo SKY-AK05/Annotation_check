@@ -1,5 +1,6 @@
 
-import type { EvaluationResult, CocoJson, BboxAnnotation, LabelAccuracy, AttributeAccuracy, Match } from './types';
+
+import type { EvaluationResult, CocoJson, BboxAnnotation, LabelAccuracy, AttributeAccuracy, Match, ImageEvaluationResult } from './types';
 import type { EvalSchema } from '@/ai/flows/extract-eval-schema';
 
 // Simple IoU (Intersection over Union) calculation for bounding boxes
@@ -80,6 +81,7 @@ export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, sch
 
     const gtCategories = new Map((gtJson.categories || []).map(c => [c.id, c.name]));
     const studentCategories = new Map((studentJson.categories || []).map(c => [c.id, c.name]));
+    const gtImages = new Map((gtJson.images || []).map(i => [i.id, i.file_name]));
 
     const matched: Match[] = [];
     
@@ -103,11 +105,15 @@ export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, sch
     }, {} as Record<number, BboxAnnotation[]>);
     
     const imageIds = Object.keys(gtAnnsByImage).map(Number);
+    const image_results: ImageEvaluationResult[] = [];
+
 
     for (const imageId of imageIds) {
         const gtAnnotations = gtAnnsByImage[imageId] || [];
         const studentAnnotations = studentAnnsByImage[imageId] || [];
         const imageUsedStudentIds = new Set<number>();
+
+        const imageMatched: Match[] = [];
 
         // First pass: Match using the unique key if it exists
         if (matchKey) {
@@ -155,7 +161,9 @@ export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, sch
                         }
                     }
 
-                    matched.push({ gt, student, iou, isLabelMatch, attributeSimilarity: pairAttributeSimilarity });
+                    const matchResult = { gt, student, iou, isLabelMatch, attributeSimilarity: pairAttributeSimilarity };
+                    matched.push(matchResult);
+                    imageMatched.push(matchResult);
                     studentMap.delete(key);
                 }
             }
@@ -208,9 +216,31 @@ export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, sch
                         attributeComparisonsCount += currentPairAttributeCount;
                     }
                 }
-
-                matched.push({ gt, student: bestMatch.studentAnn, iou: bestMatch.iou, isLabelMatch, attributeSimilarity: pairAttributeSimilarity });
+                const matchResult = { gt, student: bestMatch.studentAnn, iou: bestMatch.iou, isLabelMatch, attributeSimilarity: pairAttributeSimilarity };
+                matched.push(matchResult);
+                imageMatched.push(matchResult);
             }
+        }
+        
+        const imageGtIds = new Set(gtAnnotations.map(a => a.id));
+        const imageStudentIds = new Set(studentAnnotations.map(a => a.id));
+
+        const imageMissed = gtAnnotations
+            .filter(g => !gtMatchedIds.has(g.id))
+            .map(gt => ({ gt }));
+
+        const imageExtra = studentAnnotations
+            .filter(s => !imageUsedStudentIds.has(s.id) && !studentMatchedIds.has(s.id))
+            .map(student => ({ student }));
+        
+        if (imageMatched.length > 0 || imageMissed.length > 0 || imageExtra.length > 0) {
+             image_results.push({
+                imageId: imageId,
+                imageName: gtImages.get(imageId) || `Image ID: ${imageId}`,
+                matched: imageMatched,
+                missed: imageMissed,
+                extra: imageExtra,
+            });
         }
     }
 
@@ -238,7 +268,7 @@ export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, sch
     };
 
     const iouScore = matched.length > 0 ? (totalIou / matched.length) * 100 : 0;
-    const precision = totalGt > 0 ? matched.length / totalGt : 0;
+    const precision = totalStudent > 0 ? matched.length / totalStudent : 0;
     const recall = totalGt > 0 ? matched.length / totalGt : 0;
     
     // Using F-beta score with beta=0.5 to weigh precision more than recall
@@ -257,7 +287,7 @@ export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, sch
 
     const critical_issues: string[] = [];
     if (recall < 0.5 && totalGt > 5) critical_issues.push(`High number of missed annotations (${missed.length}). Review the GT carefully.`);
-    if (precision < 0.5 && matched.length > 5) critical_issues.push(`High number of extra annotations (${extra.length}). Ensure you only annotate required objects.`);
+    if (precision < 0.5 && totalStudent > 5) critical_issues.push(`High number of extra annotations (${extra.length}). Ensure you only annotate required objects.`);
     if(label_accuracy.accuracy < 70 && label_accuracy.total > 5) critical_issues.push(`Low label accuracy: ${label_accuracy.accuracy.toFixed(1)}%. Double-check object classes.`);
     if(attribute_accuracy.average_similarity < 70 && attribute_accuracy.total > 0) critical_issues.push(`Low attribute accuracy: ${attribute_accuracy.average_similarity.toFixed(1)}%. Check for typos or incorrect text.`);
 
@@ -272,5 +302,6 @@ export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, sch
         label_accuracy,
         attribute_accuracy,
         critical_issues,
+        image_results,
     };
 }

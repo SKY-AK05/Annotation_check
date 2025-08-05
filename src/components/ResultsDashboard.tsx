@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,8 +8,8 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { ScoreCard } from "@/components/ScoreCard";
-import type { BboxAnnotation, EvaluationResult } from "@/lib/types";
-import { AlertCircle, CheckCircle, Download, FileQuestion, MessageSquare, ShieldAlert, User } from "lucide-react";
+import type { BboxAnnotation, EvaluationResult, ImageEvaluationResult } from "@/lib/types";
+import { AlertCircle, CheckCircle, Download, FileQuestion, ImageIcon, MessageSquare, ShieldAlert, User } from "lucide-react";
 import { Badge } from "./ui/badge";
 
 interface ResultsDashboardProps {
@@ -38,6 +39,55 @@ const SkeletonDashboard = () => (
   </Card>
 );
 
+const ImageResultDisplay = ({ imageResult }: { imageResult: ImageEvaluationResult}) => {
+    const getAnnotationLabel = (ann: BboxAnnotation) => {
+      const categoryName = ann.attributes?.['label']
+      const annotationId = `ID ${ann.id}`
+      const matchKey = ann.attributes?.['Annotation No'] ? ` (Key: ${ann.attributes['Annotation No']})` : ''
+      return `${categoryName || 'Unknown'}${matchKey || ` (${annotationId})`}`
+    };
+
+    return (
+        <Card className="bg-background">
+            <CardHeader className="p-4">
+                <CardTitle className="text-lg flex items-center gap-2">
+                    <ImageIcon className="h-5 w-5"/>
+                    {imageResult.imageName}
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 pt-0 grid grid-cols-1 md:grid-cols-3 gap-4">
+                 <Card>
+                    <CardHeader className="pb-2"><CardTitle className="text-base">{imageResult.matched.length} Matched</CardTitle></CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader><TableRow><TableHead>GT</TableHead><TableHead>Student</TableHead><TableHead>IoU</TableHead></TableRow></TableHeader>
+                            <TableBody>{imageResult.matched.map((m, i) => <TableRow key={i}><TableCell>{getAnnotationLabel(m.gt)}</TableCell><TableCell>{getAnnotationLabel(m.student)}</TableCell><TableCell>{m.iou.toFixed(2)}</TableCell></TableRow>)}</TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="pb-2"><CardTitle className="text-base">{imageResult.missed.length} Missed</CardTitle></CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader><TableRow><TableHead>GT Label</TableHead></TableRow></TableHeader>
+                            <TableBody>{imageResult.missed.map((m, i) => <TableRow key={i}><TableCell>{getAnnotationLabel(m.gt)}</TableCell></TableRow>)}</TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="pb-2"><CardTitle className="text-base">{imageResult.extra.length} Extra</CardTitle></CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader><TableRow><TableHead>Student Label</TableHead></TableRow></TableHeader>
+                            <TableBody>{imageResult.extra.map((m, i) => <TableRow key={i}><TableCell>{getAnnotationLabel(m.student)}</TableCell></TableRow>)}</TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+            </CardContent>
+        </Card>
+    )
+}
+
 const SingleResultDisplay = ({ result }: { result: EvaluationResult }) => {
     
     const getAnnotationLabel = (ann: BboxAnnotation) => {
@@ -57,7 +107,7 @@ const SingleResultDisplay = ({ result }: { result: EvaluationResult }) => {
                     <Card>
                         <CardHeader className="flex flex-row items-center space-x-3 space-y-0 pb-2">
                             <MessageSquare className="h-5 w-5 text-primary"/>
-                            <h3 className="font-semibold">Feedback</h3>
+                            <h3 className="font-semibold">Overall Feedback</h3>
                         </CardHeader>
                         <CardContent>
                             <ul className="space-y-2 text-sm text-muted-foreground">
@@ -81,35 +131,6 @@ const SingleResultDisplay = ({ result }: { result: EvaluationResult }) => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-                <Card>
-                    <CardHeader className="pb-2"><CardTitle className="text-base">{result.matched.length} Matched</CardTitle></CardHeader>
-                    <CardContent>
-                        <Table>
-                            <TableHeader><TableRow><TableHead>GT</TableHead><TableHead>Student</TableHead><TableHead>IoU</TableHead></TableRow></TableHeader>
-                            <TableBody>{result.matched.map((m, i) => <TableRow key={i}><TableCell>{getAnnotationLabel(m.gt)}</TableCell><TableCell>{getAnnotationLabel(m.student)}</TableCell><TableCell>{m.iou.toFixed(2)}</TableCell></TableRow>)}</TableBody>
-                        </Table>
-                    </CardContent>
-                </Card>
-                    <Card>
-                    <CardHeader className="pb-2"><CardTitle className="text-base">{result.missed.length} Missed</CardTitle></CardHeader>
-                    <CardContent>
-                        <Table>
-                            <TableHeader><TableRow><TableHead>GT Label</TableHead></TableRow></TableHeader>
-                            <TableBody>{result.missed.map((m, i) => <TableRow key={i}><TableCell>{getAnnotationLabel(m.gt)}</TableCell></TableRow>)}</TableBody>
-                        </Table>
-                    </CardContent>
-                </Card>
-                    <Card>
-                    <CardHeader className="pb-2"><CardTitle className="text-base">{result.extra.length} Extra</CardTitle></CardHeader>
-                    <CardContent>
-                        <Table>
-                            <TableHeader><TableRow><TableHead>Student Label</TableHead></TableRow></TableHeader>
-                            <TableBody>{result.extra.map((m, i) => <TableRow key={i}><TableCell>{getAnnotationLabel(m.student)}</TableCell></TableRow>)}</TableBody>
-                        </Table>
-                    </CardContent>
-                </Card>
-            </div>
              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
                 <Card>
                     <CardHeader><CardTitle>Localization Accuracy</CardTitle></CardHeader>
@@ -124,6 +145,19 @@ const SingleResultDisplay = ({ result }: { result: EvaluationResult }) => {
                     <CardContent className="text-3xl font-bold">{result.attribute_accuracy.average_similarity.toFixed(0)}% <span className="text-sm font-normal text-muted-foreground">({result.attribute_accuracy.total} attributes)</span></CardContent>
                 </Card>
             </div>
+             <Accordion type="single" collapsible className="w-full mt-6">
+                <h3 className="font-semibold mb-2">Per-Image Breakdown</h3>
+                 {result.image_results.map((imageResult) => (
+                    <AccordionItem value={imageResult.imageName} key={imageResult.imageName}>
+                        <AccordionTrigger className="font-normal text-sm bg-muted/30 px-4 rounded-md">
+                            {imageResult.imageName}
+                        </AccordionTrigger>
+                        <AccordionContent className="p-2">
+                           <ImageResultDisplay imageResult={imageResult}/>
+                        </AccordionContent>
+                    </AccordionItem>
+                ))}
+            </Accordion>
         </div>
     );
 };
@@ -219,7 +253,7 @@ export function ResultsDashboard({ results, loading }: ResultsDashboardProps) {
         </Card>
         
         <Accordion type="single" collapsible className="w-full">
-            <h3 className="text-lg font-semibold mb-2">Detailed Results</h3>
+            <h3 className="text-lg font-semibold mb-2">Detailed Student Results</h3>
             {results.map((result) => (
                 <AccordionItem value={result.studentFilename} key={result.studentFilename}>
                     <AccordionTrigger className="font-medium">{result.studentFilename}</AccordionTrigger>

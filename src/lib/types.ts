@@ -56,6 +56,15 @@ export interface Match {
     attributeSimilarity: number;
 }
 
+export interface ImageEvaluationResult {
+    imageId: number;
+    imageName: string;
+    matched: Match[];
+    missed: { gt: BboxAnnotation }[];
+    extra: { student: BboxAnnotation }[];
+}
+
+
 export interface EvaluationResult {
   studentFilename: string;
   source: 'rule-based';
@@ -68,4 +77,5 @@ export interface EvaluationResult {
   label_accuracy: LabelAccuracy;
   attribute_accuracy: AttributeAccuracy;
   critical_issues: string[];
+  image_results: ImageEvaluationResult[];
 }
