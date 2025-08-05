@@ -49,7 +49,9 @@ export default function Home() {
         const filePromises = Object.values(zip.files).map(async (fileInZip) => {
             if (fileInZip.dir) return;
             
-            if (!foundFile && (fileInZip.name.endsWith('.xml') || fileInZip.name.endsWith('.json'))) {
+            const isAnnotationFile = fileInZip.name.endsWith('.xml') || fileInZip.name.endsWith('.json');
+
+            if (!foundFile && isAnnotationFile) {
                 foundFile = fileInZip;
             } else if (fileInZip.name.match(/\.(jpe?g|png|gif|webp)$/i)) {
                 const blob = await fileInZip.async('blob');
@@ -104,7 +106,7 @@ export default function Home() {
   
     try {
         const studentFileInputs = Array.from(data.studentFiles);
-        const imageFileInputs = Array.from(data.imageFiles);
+        const imageFileInputs = data.imageFiles ? Array.from(data.imageFiles) : [];
         const batchResults: EvaluationResult[] = [];
         
         let studentFiles: { name: string, content: string }[] = [];
@@ -133,6 +135,10 @@ export default function Home() {
             allImagesNested.flat().filter(Boolean).forEach(img => {
                 if (img) newImageUrls.set(img.name, img.url);
             });
+        }
+        
+        if (newImageUrls.size === 0) {
+            throw new Error("No image files found. Please upload images either in the GT ZIP or the dedicated image upload field.");
         }
         setImageUrls(newImageUrls);
 

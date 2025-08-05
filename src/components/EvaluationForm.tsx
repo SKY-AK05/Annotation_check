@@ -31,7 +31,7 @@ import type { FormValues } from '@/lib/types';
 const formSchema = z.object({
   gtFile: typeof window === 'undefined' ? z.any() : z.instanceof(FileList).refine((files) => files?.length === 1, "Ground Truth file is required."),
   studentFiles: typeof window === 'undefined' ? z.any() : z.instanceof(FileList).refine((files) => files?.length >= 1, "At least one Student Annotation file is required."),
-  imageFiles: typeof window === 'undefined' ? z.any() : z.instanceof(FileList).refine((files) => files?.length >= 1, "At least one image file is required."),
+  imageFiles: z.any().optional(),
   toolType: z.string({ required_error: 'Please select a tool type.' }),
 });
 
@@ -117,14 +117,14 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange }: Evalua
               name="imageFiles"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>3. Original Images</FormLabel>
+                  <FormLabel>3. Original Images (Optional)</FormLabel>
                   <FormControl>
                     <div className="relative">
                       <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                       <Input type="file" className="pl-10" {...imageFileRef} accept="image/*,.zip" multiple />
                     </div>
                   </FormControl>
-                  <FormDescription>Upload all images used in annotations, or a ZIP archive.</FormDescription>
+                  <FormDescription>Upload images if they are not in the GT ZIP file.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

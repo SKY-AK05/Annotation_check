@@ -5,7 +5,7 @@ import type { EvalSchema } from "@/ai/flows/extract-eval-schema";
 export interface FormValues {
   gtFile: FileList;
   studentFiles: FileList;
-  imageFiles: FileList;
+  imageFiles?: FileList;
   toolType: string;
 }
 
