@@ -13,6 +13,8 @@ import type { EvaluationResult } from '@/lib/types';
 import { evaluateAnnotations } from '@/lib/evaluator';
 import { parseCvatXml } from '@/lib/cvat-xml-parser';
 import { extractEvalSchema, type EvalSchema } from '@/ai/flows/extract-eval-schema';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SkeletonAnnotationPage } from '@/components/SkeletonAnnotationPage';
 
 export default function Home() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -267,14 +269,27 @@ export default function Home() {
         <AnnotatorAiLogo className="h-10 w-10 text-primary" />
         <h1 className="text-3xl font-bold ml-4 tracking-tight">Annotator AI</h1>
       </header>
-      <main className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-        <div className="lg:col-span-1 flex flex-col gap-8 lg:sticky lg:top-12">
-          <EvaluationForm onEvaluate={handleEvaluate} isLoading={isLoading || isGeneratingRules} onGtFileChange={handleGtFileChange} />
-          <RuleConfiguration schema={evalSchema} loading={isGeneratingRules} onSchemaChange={handleSchemaChange} />
-        </div>
-        <div className="lg:col-span-2">
-          <ResultsDashboard results={results} loading={isLoading} imageUrls={imageUrls} />
-        </div>
+      <main className="w-full max-w-7xl">
+        <Tabs defaultValue="bounding-box" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-6">
+            <TabsTrigger value="bounding-box">Bounding Box Evaluation</TabsTrigger>
+            <TabsTrigger value="skeleton">Skeleton Evaluation</TabsTrigger>
+          </TabsList>
+          <TabsContent value="bounding-box">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+              <div className="lg:col-span-1 flex flex-col gap-8 lg:sticky lg:top-12">
+                <EvaluationForm onEvaluate={handleEvaluate} isLoading={isLoading || isGeneratingRules} onGtFileChange={handleGtFileChange} />
+                <RuleConfiguration schema={evalSchema} loading={isGeneratingRules} onSchemaChange={handleSchemaChange} />
+              </div>
+              <div className="lg:col-span-2">
+                <ResultsDashboard results={results} loading={isLoading} imageUrls={imageUrls} />
+              </div>
+            </div>
+          </TabsContent>
+          <TabsContent value="skeleton">
+            <SkeletonAnnotationPage />
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );
