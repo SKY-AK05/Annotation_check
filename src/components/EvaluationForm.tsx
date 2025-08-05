@@ -5,7 +5,7 @@ import * as React from 'react';
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Loader2, UploadCloud, FileCog, Image as ImageIcon } from 'lucide-react';
+import { Loader2, UploadCloud, FileCog, Image as ImageIcon, BoxSelect, Bone } from 'lucide-react';
 
 import { Button } from "@/components/ui/button";
 import {
@@ -24,9 +24,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { FormValues } from '@/lib/types';
+import { Label } from '@/components/ui/label';
 
 const formSchema = z.object({
   gtFile: typeof window === 'undefined' ? z.any() : z.instanceof(FileList).refine((files) => files?.length === 1, "Ground Truth file is required."),
@@ -39,9 +41,11 @@ interface EvaluationFormProps {
   onEvaluate: (data: FormValues) => void;
   isLoading: boolean;
   onGtFileChange: (file: File | undefined) => void;
+  onModeChange: (mode: 'bounding-box' | 'skeleton') => void;
+  currentMode: 'bounding-box' | 'skeleton';
 }
 
-export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange }: EvaluationFormProps) {
+export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange, onModeChange, currentMode }: EvaluationFormProps) {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -67,6 +71,34 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange }: Evalua
         <CardDescription>Upload annotations and images to compare and score.</CardDescription>
       </CardHeader>
       <CardContent>
+         <RadioGroup 
+            defaultValue="bounding-box" 
+            className="grid grid-cols-2 gap-4 mb-6"
+            onValueChange={onModeChange}
+            value={currentMode}
+        >
+            <div>
+              <RadioGroupItem value="bounding-box" id="bounding-box" className="peer sr-only" />
+              <Label
+                htmlFor="bounding-box"
+                className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+              >
+                <BoxSelect className="mb-3 h-6 w-6" />
+                Bounding Box
+              </Label>
+            </div>
+            <div>
+              <RadioGroupItem value="skeleton" id="skeleton" className="peer sr-only" />
+              <Label
+                htmlFor="skeleton"
+                className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+              >
+                <Bone className="mb-3 h-6 w-6" />
+                Skeleton
+              </Label>
+            </div>
+        </RadioGroup>
+        
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <FormField
@@ -153,7 +185,7 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange }: Evalua
                   </FormItem>
               )}
             />
-            <Button type="submit" disabled={isLoading} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
+            <Button type="submit" disabled={isLoading || currentMode === 'skeleton'} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
