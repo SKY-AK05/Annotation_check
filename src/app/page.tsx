@@ -19,19 +19,47 @@ export default function Home() {
   const [isGeneratingRules, setIsGeneratingRules] = useState<boolean>(false);
   const [results, setResults] = useState<EvaluationResult[] | null>(null);
   const [evalSchema, setEvalSchema] = useState<EvalSchema | null>(null);
+  const [gtFileContent, setGtFileContent] = useState<string | null>(null);
   const { toast } = useToast();
 
   const handleGtFileChange = async (file: File | undefined) => {
     if (!file) {
       setEvalSchema(null);
+      setGtFileContent(null);
       return;
     }
     
     setIsGeneratingRules(true);
     setResults(null);
     setEvalSchema(null);
+    setGtFileContent(null);
+
     try {
-      const fileContent = await file.text();
+      let fileContent: string;
+
+      if (file.name.endsWith('.zip')) {
+        toast({ title: "Processing GT ZIP file...", description: "Extracting ground truth annotation." });
+        const zip = await JSZip.loadAsync(file);
+        let foundFile: JSZip.JSZipObject | null = null;
+        
+        // Search for the first valid annotation file
+        for (const filename in zip.files) {
+            if (filename.endsWith('.xml') || filename.endsWith('.json')) {
+                foundFile = zip.files[filename];
+                break;
+            }
+        }
+
+        if (!foundFile) {
+            throw new Error("No .xml or .json file found inside the Ground Truth ZIP archive.");
+        }
+        fileContent = await foundFile.async('string');
+
+      } else {
+        fileContent = await file.text();
+      }
+
+      setGtFileContent(fileContent);
       const schema = await extractEvalSchema({ gtFileContent: fileContent });
       setEvalSchema(schema);
       toast({
@@ -51,10 +79,10 @@ export default function Home() {
   }
 
   const handleEvaluate = async (data: FormValues) => {
-    if (!evalSchema) {
+    if (!evalSchema || !gtFileContent) {
       toast({
-        title: "Evaluation Rules Missing",
-        description: "Please upload a Ground Truth file first to generate rules.",
+        title: "Evaluation Rules or GT File Missing",
+        description: "Please upload a Ground Truth file first to generate rules and prepare for evaluation.",
         variant: "destructive",
       });
       return;
@@ -63,19 +91,14 @@ export default function Home() {
     setResults(null);
   
     try {
-        const gtFile = data.gtFile[0];
-        if (!gtFile) {
-            throw new Error("Ground Truth file is missing.");
-        }
-        const gtFileContent = await gtFile.text();
         const studentFileInputs = Array.from(data.studentFiles);
         const batchResults: EvaluationResult[] = [];
         
         let studentFiles: { name: string, content: string }[] = [];
 
-        // Handle ZIP file upload
+        // Handle ZIP file upload for student files
         if (studentFileInputs.length === 1 && studentFileInputs[0].name.endsWith('.zip')) {
-            toast({ title: "Processing ZIP file...", description: "Extracting student submissions." });
+            toast({ title: "Processing Student ZIP file...", description: "Extracting submissions." });
             const zipFile = studentFileInputs[0];
             const zip = await JSZip.loadAsync(zipFile);
             const filePromises = [];
