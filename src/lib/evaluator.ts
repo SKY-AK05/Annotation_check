@@ -81,7 +81,7 @@ export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, sch
 
     const gtCategories = new Map((gtJson.categories || []).map(c => [c.id, c.name]));
     const studentCategories = new Map((studentJson.categories || []).map(c => [c.id, c.name]));
-    const gtImages = new Map((gtJson.images || []).map(i => [i.id, i.file_name]));
+    const gtImages = new Map((gtJson.images || []).map(i => [i.id, i.file_name.split('/').pop()!]));
 
     const matched: Match[] = [];
     

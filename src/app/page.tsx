@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import JSZip from 'jszip';
-import type { FormValues } from '@/lib/types';
+import type { FormValues, CocoJson } from '@/lib/types';
 import { useToast } from "@/hooks/use-toast";
 import { EvaluationForm } from '@/components/EvaluationForm';
 import { ResultsDashboard } from '@/components/ResultsDashboard';
@@ -203,23 +203,31 @@ export default function Home() {
             throw new Error("No valid annotation files (.xml or .json) found in the upload. Please check file formats and try again.");
         }
 
-        let gtAnnotations;
+        let gtAnnotations: CocoJson;
         const isXmlFile = (content: string) => content.trim().startsWith('<?xml');
 
         if (data.toolType === 'cvat_xml' || isXmlFile(gtFileContent)) {
             gtAnnotations = parseCvatXml(gtFileContent);
         } else {
             gtAnnotations = JSON.parse(gtFileContent);
+            // Also normalize image file names for COCO JSON
+            gtAnnotations.images.forEach(image => {
+                image.file_name = image.file_name.split('/').pop()!;
+            });
         }
 
         for (const studentFile of studentFiles) {
             const studentFileContent = studentFile.content;
-            let studentAnnotations;
+            let studentAnnotations: CocoJson;
 
             if (data.toolType === 'cvat_xml' || isXmlFile(studentFileContent)) {
                 studentAnnotations = parseCvatXml(studentFileContent);
             } else {
                 studentAnnotations = JSON.parse(studentFileContent);
+                // Also normalize image file names for COCO JSON
+                studentAnnotations.images.forEach(image => {
+                    image.file_name = image.file_name.split('/').pop()!;
+                });
             }
         
             const manualResult = evaluateAnnotations(gtAnnotations, studentAnnotations, evalSchema);

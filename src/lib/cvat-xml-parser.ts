@@ -27,7 +27,9 @@ export function parseCvatXml(xmlString: string): CocoJson {
 
     xmlDoc.querySelectorAll("image").forEach(imageNode => {
         const imageId = parseInt(imageNode.getAttribute("id") || "0", 10);
-        const imageName = imageNode.getAttribute("name") || "";
+        let imageName = imageNode.getAttribute("name") || "";
+        // Keep only the base filename
+        imageName = imageName.split('/').pop()!;
         const imageWidth = parseInt(imageNode.getAttribute("width") || "0", 10);
         const imageHeight = parseInt(imageNode.getAttribute("height") || "0", 10);
 
