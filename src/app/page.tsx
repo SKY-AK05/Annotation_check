@@ -270,40 +270,35 @@ export default function Home() {
         <h1 className="text-3xl font-bold ml-4 tracking-tight">Annotator AI</h1>
       </header>
       <main className="w-full max-w-7xl">
-        {evaluationMode === 'bounding-box' ? (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
             <div className="lg:col-span-1 flex flex-col gap-8 lg:sticky lg:top-12">
-              <EvaluationForm 
+            <EvaluationForm 
                 onEvaluate={handleEvaluate} 
                 isLoading={isLoading || isGeneratingRules} 
                 onGtFileChange={handleGtFileChange}
                 onModeChange={setEvaluationMode}
                 currentMode={evaluationMode}
-              />
-              <RuleConfiguration schema={evalSchema} loading={isGeneratingRules} onSchemaChange={handleSchemaChange} />
+            />
+            {evaluationMode === 'bounding-box' && (
+                <RuleConfiguration 
+                    schema={evalSchema} 
+                    loading={isGeneratingRules} 
+                    onSchemaChange={handleSchemaChange} 
+                />
+            )}
             </div>
             <div className="lg:col-span-2">
-              <ResultsDashboard results={results} loading={isLoading} imageUrls={imageUrls} />
+            {evaluationMode === 'bounding-box' ? (
+                <ResultsDashboard 
+                    results={results} 
+                    loading={isLoading} 
+                    imageUrls={imageUrls} 
+                />
+            ) : (
+                <SkeletonAnnotationPage />
+            )}
             </div>
-          </div>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-                <div className="lg:col-span-1 flex flex-col gap-8 lg:sticky lg:top-12">
-                    <EvaluationForm 
-                        onEvaluate={handleEvaluate} 
-                        isLoading={isLoading || isGeneratingRules} 
-                        onGtFileChange={handleGtFileChange}
-                        onModeChange={setEvaluationMode}
-                        currentMode={evaluationMode}
-                     />
-                </div>
-                 <div className="lg:col-span-2">
-                    <SkeletonAnnotationPage />
-                </div>
-            </div>
-          </>
-        )}
+        </div>
       </main>
     </div>
   );

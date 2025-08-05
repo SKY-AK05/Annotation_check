@@ -68,7 +68,7 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange, onModeCh
             <FileCog className="w-6 h-6" />
             New Evaluation
         </CardTitle>
-        <CardDescription>Upload annotations and images to compare and score.</CardDescription>
+        <CardDescription>Select an annotation type and upload your files.</CardDescription>
       </CardHeader>
       <CardContent>
          <RadioGroup 
@@ -99,104 +99,106 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange, onModeCh
             </div>
         </RadioGroup>
         
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <FormField
-              control={form.control}
-              name="gtFile"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>1. Ground Truth Annotations</FormLabel>
-                  <FormControl>
-                    <div className="relative">
-                      <UploadCloud className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                      <Input 
-                        type="file" 
-                        className="pl-10" 
-                        {...gtFileRef} 
-                        accept=".xml,.json,.zip"
-                        onChange={(e) => {
-                            field.onChange(e.target.files);
-                            onGtFileChange(e.target.files?.[0]);
-                        }}
-                      />
-                    </div>
-                  </FormControl>
-                  <FormDescription>This file will be used to auto-generate evaluation rules.</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="studentFiles"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>2. Student Annotations</FormLabel>
-                  <FormControl>
-                    <div className="relative">
-                      <UploadCloud className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                      <Input type="file" className="pl-10" {...studentFileRef} accept=".xml,.json,.zip" multiple />
-                    </div>
-                  </FormControl>
-                  <FormDescription>Upload one or more student files, or a single ZIP archive.</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="imageFiles"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>3. Original Images (Optional)</FormLabel>
-                  <FormControl>
-                    <div className="relative">
-                      <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                      <Input type="file" className="pl-10" {...imageFileRef} accept="image/*,.zip" multiple />
-                    </div>
-                  </FormControl>
-                  <FormDescription>Upload images if they are not in the GT ZIP file.</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-             <FormField
-              control={form.control}
-              name="toolType"
-              render={({ field }) => (
+        {currentMode === 'bounding-box' && (
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <FormField
+                control={form.control}
+                name="gtFile"
+                render={({ field }) => (
                   <FormItem>
-                  <FormLabel>Annotation Format</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                      <SelectTrigger>
-                          <SelectValue placeholder="Select a tool type" />
-                      </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="bounding_box">COCO JSON (Bounding Box)</SelectItem>
-                        <SelectItem value="cvat_xml">CVAT XML 1.1</SelectItem>
-                        <SelectItem value="polygon" disabled>Polygon (Coming Soon)</SelectItem>
-                        <SelectItem value="keypoints" disabled>Keypoints (Coming Soon)</SelectItem>
-                      </SelectContent>
-                  </Select>
-                  <FormDescription>Select the format for all files. ZIP archives can contain mixed formats if needed.</FormDescription>
-                  <FormMessage />
+                    <FormLabel>1. Ground Truth Annotations</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <UploadCloud className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                        <Input 
+                          type="file" 
+                          className="pl-10" 
+                          {...gtFileRef} 
+                          accept=".xml,.json,.zip"
+                          onChange={(e) => {
+                              field.onChange(e.target.files);
+                              onGtFileChange(e.target.files?.[0]);
+                          }}
+                        />
+                      </div>
+                    </FormControl>
+                    <FormDescription>This file will be used to auto-generate evaluation rules.</FormDescription>
+                    <FormMessage />
                   </FormItem>
-              )}
-            />
-            <Button type="submit" disabled={isLoading || currentMode === 'skeleton'} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Evaluating...
-                </>
-              ) : (
-                'Run Evaluation'
-              )}
-            </Button>
-          </form>
-        </Form>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="studentFiles"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>2. Student Annotations</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <UploadCloud className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                        <Input type="file" className="pl-10" {...studentFileRef} accept=".xml,.json,.zip" multiple />
+                      </div>
+                    </FormControl>
+                    <FormDescription>Upload one or more student files, or a single ZIP archive.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="imageFiles"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>3. Original Images (Optional)</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                        <Input type="file" className="pl-10" {...imageFileRef} accept="image/*,.zip" multiple />
+                      </div>
+                    </FormControl>
+                    <FormDescription>Upload images if they are not in the GT ZIP file.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="toolType"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Annotation Format</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                        <SelectTrigger>
+                            <SelectValue placeholder="Select a tool type" />
+                        </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="bounding_box">COCO JSON (Bounding Box)</SelectItem>
+                          <SelectItem value="cvat_xml">CVAT XML 1.1</SelectItem>
+                          <SelectItem value="polygon" disabled>Polygon (Coming Soon)</SelectItem>
+                          <SelectItem value="keypoints" disabled>Keypoints (Coming Soon)</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <FormDescription>Select the format for all files. ZIP archives can contain mixed formats if needed.</FormDescription>
+                    <FormMessage />
+                    </FormItem>
+                )}
+              />
+              <Button type="submit" disabled={isLoading} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Evaluating...
+                  </>
+                ) : (
+                  'Run Evaluation'
+                )}
+              </Button>
+            </form>
+          </Form>
+        )}
       </CardContent>
     </Card>
   );
