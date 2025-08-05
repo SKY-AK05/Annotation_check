@@ -13,7 +13,7 @@ import type { EvaluationResult } from '@/lib/types';
 import { evaluateAnnotations } from '@/lib/evaluator';
 import { parseCvatXml } from '@/lib/cvat-xml-parser';
 import { extractEvalSchema, type EvalSchema } from '@/ai/flows/extract-eval-schema';
-import { SkeletonAnnotationPage } from '@/components/SkeletonAnnotationPage';
+import SkeletonAnnotationPage from '@/components/SkeletonAnnotationPage';
 
 export default function Home() {
   const [isLoading, setIsLoading] = useState<boolean>(false);

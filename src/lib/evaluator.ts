@@ -1,6 +1,7 @@
 
 
-import type { EvaluationResult, CocoJson, BboxAnnotation, LabelAccuracy, AttributeAccuracy, Match, ImageEvaluationResult } from './types';
+
+import type { EvaluationResult, CocoJson, BboxAnnotation, LabelAccuracy, AttributeAccuracy, Match, ImageEvaluationResult, SkeletonEvaluationResult, SkeletonMatch } from './types';
 import type { EvalSchema } from '@/ai/flows/extract-eval-schema';
 
 // Simple IoU (Intersection over Union) calculation for bounding boxes
@@ -303,5 +304,114 @@ export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, sch
         attribute_accuracy,
         critical_issues,
         image_results,
+    };
+}
+
+
+// COCO sigmas for OKS calculation (for human keypoints)
+const COCO_SIGMAS = [
+    0.026, 0.025, 0.025, 0.035, 0.035, 0.079, 0.079, 0.072, 0.072, 0.062,
+    0.062, 0.107, 0.107, 0.087, 0.087, 0.089, 0.089
+];
+
+
+function calculateOKS(gt: BboxAnnotation, student: BboxAnnotation, sigmas: number[]): number {
+    const gtKpts = gt.keypoints || [];
+    const studentKpts = student.keypoints || [];
+    const area = gt.bbox[2] * gt.bbox[3];
+    let totalOks = 0;
+    let visibleKptsCount = 0;
+
+    for (let i = 0; i < gtKpts.length; i += 3) {
+        const gt_v = gtKpts[i + 2];
+        if (gt_v > 0) { // Only consider visible GT keypoints
+            const gt_x = gtKpts[i];
+            const gt_y = gtKpts[i + 1];
+            const student_x = studentKpts[i];
+            const student_y = studentKpts[i + 1];
+            const student_v = studentKpts[i + 2];
+
+            if (student_v > 0) {
+                const dx = gt_x - student_x;
+                const dy = gt_y - student_y;
+                const sigma = sigmas[i / 3];
+                const variance = (sigma * 2) ** 2;
+                const exponent = (dx ** 2 + dy ** 2) / (2 * area * variance + 1e-9);
+                totalOks += Math.exp(-exponent);
+            }
+            visibleKptsCount++;
+        }
+    }
+
+    return visibleKptsCount > 0 ? totalOks / visibleKptsCount : 0;
+}
+
+
+export function evaluateSkeletons(gtJson: CocoJson, studentJson: CocoJson): Omit<SkeletonEvaluationResult, 'studentFilename'> {
+    const IOU_THRESHOLD = 0.5;
+
+    const allGtAnnotations = gtJson.annotations;
+    const allStudentAnnotations = studentJson.annotations;
+    
+    // Assuming a single category for skeletons in this simplified version
+    const sigmas = gtJson.categories[0]?.keypoints ? COCO_SIGMAS : [];
+
+    const matched: SkeletonMatch[] = [];
+    const studentMatchedIds = new Set<number>();
+    
+    let totalOks = 0;
+
+    for (const gt of allGtAnnotations) {
+        let bestMatch: { student: BboxAnnotation; iou: number } | null = null;
+        for (const student of allStudentAnnotations) {
+            if (studentMatchedIds.has(student.id)) continue;
+            const iou = calculateIoU(gt.bbox, student.bbox);
+            if (iou > IOU_THRESHOLD) {
+                if (!bestMatch || iou > bestMatch.iou) {
+                    bestMatch = { student, iou };
+                }
+            }
+        }
+        
+        if (bestMatch) {
+            studentMatchedIds.add(bestMatch.student.id);
+            const oks = calculateOKS(gt, bestMatch.student, sigmas);
+            totalOks += oks;
+            
+            matched.push({
+                gt,
+                student: bestMatch.student,
+                iou: bestMatch.iou,
+                oks,
+                isLabelMatch: true, // Simplified for this version
+                attributeSimilarity: 1, // Simplified for this version
+            });
+        }
+    }
+    
+    const missed = allGtAnnotations
+        .filter(gt => !matched.some(m => m.gt.id === gt.id))
+        .map(gt => ({ gt }));
+
+    const extra = allStudentAnnotations
+        .filter(s => !studentMatchedIds.has(s.id))
+        .map(student => ({ student }));
+
+    const averageOks = matched.length > 0 ? totalOks / matched.length : 0;
+    const score = Math.round(averageOks * 100);
+
+    const feedback = [
+        `Evaluation complete. Average Object Keypoint Similarity (OKS) is ${averageOks.toFixed(3)}.`,
+        `Matched ${matched.length} skeletons.`,
+        `Found ${missed.length} missed and ${extra.length} extra skeletons.`
+    ];
+
+    return {
+        score,
+        feedback,
+        averageOks,
+        matched,
+        missed,
+        extra
     };
 }

@@ -13,6 +13,8 @@ export interface CocoCategory {
     id: number;
     name: string;
     supercategory?: string;
+    keypoints?: string[];
+    skeleton?: number[][];
 }
 
 export interface CocoImage {
@@ -30,6 +32,8 @@ export interface BboxAnnotation {
     attributes?: {
         [key: string]: string | undefined;
     };
+    keypoints?: number[];
+    num_keypoints?: number;
 }
 
 export interface CocoJson {
@@ -57,6 +61,11 @@ export interface Match {
     attributeSimilarity: number;
 }
 
+export interface SkeletonMatch extends Match {
+    oks: number;
+}
+
+
 export interface ImageEvaluationResult {
     imageId: number;
     imageName: string;
@@ -80,3 +89,15 @@ export interface EvaluationResult {
   critical_issues: string[];
   image_results: ImageEvaluationResult[];
 }
+
+
+export interface SkeletonEvaluationResult {
+    studentFilename: string;
+    score: number;
+    feedback: string[];
+    averageOks: number;
+    matched: SkeletonMatch[];
+    missed: { gt: BboxAnnotation }[];
+    extra: { student: BboxAnnotation }[];
+}
+
