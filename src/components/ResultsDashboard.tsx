@@ -40,6 +40,16 @@ const SkeletonDashboard = () => (
   </Card>
 );
 
+const Legend = () => (
+    <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-muted-foreground mt-2 border-t pt-2">
+        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'rgba(0, 255, 0, 0.7)' }}></div><span>GT (Matched)</span></div>
+        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'rgba(0, 0, 255, 0.7)' }}></div><span>Student (Matched)</span></div>
+        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'rgba(255, 0, 0, 0.9)' }}></div><span>Missed</span></div>
+        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'rgba(255, 165, 0, 0.9)' }}></div><span>Extra</span></div>
+    </div>
+);
+
+
 const ImageResultDisplay = ({ imageResult, imageUrl }: { imageResult: ImageEvaluationResult, imageUrl: string | undefined }) => {
     const getAnnotationLabel = (ann: BboxAnnotation) => {
       const categoryName = ann.attributes?.['label']
@@ -59,10 +69,13 @@ const ImageResultDisplay = ({ imageResult, imageUrl }: { imageResult: ImageEvalu
             <CardContent className="p-4 pt-0 grid grid-cols-1 md:grid-cols-3 gap-4">
                  <div className="md:col-span-3">
                    {imageUrl ? (
-                        <AnnotationViewer
-                            imageUrl={imageUrl}
-                            imageResult={imageResult}
-                        />
+                        <div>
+                            <AnnotationViewer
+                                imageUrl={imageUrl}
+                                imageResult={imageResult}
+                            />
+                            <Legend />
+                        </div>
                     ) : (
                         <div className="w-full aspect-video bg-muted rounded-md flex items-center justify-center text-sm text-muted-foreground">
                             Image not provided
