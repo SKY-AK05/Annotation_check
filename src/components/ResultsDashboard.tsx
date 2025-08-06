@@ -421,8 +421,6 @@ export function ResultsDashboard({ results, loading, imageUrls, onEvaluate, onGt
             </AccordionItem>
         </Accordion>
         
-        <Separator />
-
         <div>
             <h2 className="text-2xl font-bold tracking-tight mb-4">Evaluation Results</h2>
             {loading && !results ? (
