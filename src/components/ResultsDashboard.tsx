@@ -389,42 +389,40 @@ export function ResultsDashboard({ results, loading, imageUrls, onEvaluate, onGt
         </CardTitle>
         <CardDescription>Upload annotations to compare and score.</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-8">
         <EvaluationForm 
             onEvaluate={onEvaluate} 
             isLoading={loading} 
             onGtFileChange={onGtFileChange}
         />
-        <Separator className="my-8" />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-            <div className="lg:col-span-2">
-              {loading && !results ? (
-                  <div className="flex flex-col items-center justify-center text-center p-8 h-full min-h-[400px] border-dashed border-2 rounded-md">
+        
+        <RuleConfiguration 
+            schema={evalSchema} 
+            loading={loading} 
+            onRuleChange={onRuleChange} 
+        />
+        
+        <Separator />
+
+        <div>
+            <h2 className="text-2xl font-bold tracking-tight mb-4">Evaluation Results</h2>
+            {loading && !results ? (
+                <div className="flex flex-col items-center justify-center text-center p-8 h-full min-h-[300px] border-dashed border-2 rounded-md">
                     <FileQuestion className="h-16 w-16 text-muted-foreground mb-4 animate-pulse" />
                     <h3 className="text-xl font-semibold text-foreground">Evaluating...</h3>
                     <p className="text-muted-foreground mt-2">The results will appear here once the evaluation is complete.</p>
-                  </div>
-              ) : results ? (
-                  <ResultsDisplay results={results} imageUrls={imageUrls} />
-              ) : (
-                <div className="flex flex-col items-center justify-center text-center p-8 h-full min-h-[400px] border-dashed border-2 rounded-md">
-                  <FileQuestion className="h-16 w-16 text-muted-foreground mb-4" />
-                  <h3 className="text-xl font-semibold text-foreground">Awaiting Evaluation</h3>
-                  <p className="text-muted-foreground mt-2">Complete the form and run an evaluation to see results.</p>
                 </div>
-              )}
-            </div>
-            <div className="lg:col-span-1 flex flex-col gap-8">
-              <RuleConfiguration 
-                  schema={evalSchema} 
-                  loading={loading} 
-                  onRuleChange={onRuleChange} 
-              />
-            </div>
+            ) : results ? (
+                <ResultsDisplay results={results} imageUrls={imageUrls} />
+            ) : (
+                <div className="flex flex-col items-center justify-center text-center p-8 h-full min-h-[300px] border-dashed border-2 rounded-md">
+                    <FileQuestion className="h-16 w-16 text-muted-foreground mb-4" />
+                    <h3 className="text-xl font-semibold text-foreground">Awaiting Evaluation</h3>
+                    <p className="text-muted-foreground mt-2">Complete the form and run an evaluation to see results.</p>
+                </div>
+            )}
         </div>
       </CardContent>
     </Card>
   );
 }
-
-    
