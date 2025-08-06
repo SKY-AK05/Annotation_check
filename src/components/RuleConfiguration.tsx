@@ -126,7 +126,7 @@ export function RuleConfiguration({ schema, loading, onRuleChange }: RuleConfigu
                         <Label htmlFor="pseudocode" className="text-sm font-semibold">Logic Pseudocode (Editable)</Label>
                         <Textarea 
                             id="pseudocode"
-                            className="bg-muted p-4 rounded-lg text-xs text-muted-foreground overflow-x-auto font-mono h-64"
+                            className="p-4 rounded-lg text-xs text-muted-foreground overflow-x-auto font-mono h-64"
                             value={editedPseudoCode}
                             onChange={(e) => setEditedPseudoCode(e.target.value)}
                             disabled={loading}
