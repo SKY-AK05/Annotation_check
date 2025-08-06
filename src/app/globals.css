@@ -85,7 +85,7 @@
     background-size: 40px 40px;
     background-position: 0 0, 20px 20px;
     background-color: hsl(var(--background));
-    cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><path d='M4.5 4.5l15 7.5-15 7.5v-15z'/></svg>"), auto;
+    cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z'/></svg>"), auto;
   }
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-bangers), sans-serif;
