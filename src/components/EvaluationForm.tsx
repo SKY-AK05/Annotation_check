@@ -71,8 +71,8 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange, onModeCh
         <CardDescription>Select an annotation type and upload your files.</CardDescription>
       </CardHeader>
       <CardContent>
-         <RadioGroup 
-            defaultValue="bounding-box" 
+         <RadioGroup
+            defaultValue="bounding-box"
             className="grid grid-cols-2 gap-4 mb-6"
             onValueChange={onModeChange}
             value={currentMode}
@@ -84,7 +84,7 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange, onModeCh
                 className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary w-full"
               >
                 <BoxSelect className="mb-3 h-6 w-6" />
-                Bounding Box
+                <div className="h-10 text-center">Bounding Box</div>
               </Label>
             </div>
             <div>
@@ -94,11 +94,11 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange, onModeCh
                 className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary w-full"
               >
                 <Bone className="mb-3 h-6 w-6" />
-                Skeleton
+                <div className="h-10 text-center">Skeleton</div>
               </Label>
             </div>
         </RadioGroup>
-        
+
         {currentMode === 'bounding-box' && (
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -111,10 +111,10 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange, onModeCh
                     <FormControl>
                       <div className="relative">
                         <UploadCloud className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                        <Input 
-                          type="file" 
-                          className="pl-10" 
-                          {...gtFileRef} 
+                        <Input
+                          type="file"
+                          className="pl-10"
+                          {...gtFileRef}
                           accept=".xml,.json,.zip"
                           onChange={(e) => {
                               field.onChange(e.target.files);
