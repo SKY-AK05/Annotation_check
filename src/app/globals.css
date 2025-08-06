@@ -21,8 +21,8 @@ body {
     --secondary-foreground: 225 33% 10%;
     --muted: 222 28% 60%;
     --muted-foreground: 222 28% 90%;
-    --accent: 45 96% 56%; /* #fbbf24 */
-    --accent-foreground: 45 96% 10%;
+    --accent: 60 20% 95%; /* Milky White */
+    --accent-foreground: 60 50% 5%; /* Dark text for contrast */
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
     --border: 60 80% 92%; /* creamy white */
@@ -56,8 +56,8 @@ body {
     --secondary-foreground: 225 33% 90%;
     --muted: 222 28% 40%;
     --muted-foreground: 222 28% 80%;
-    --accent: 45 96% 56%; /* #fbbf24 */
-    --accent-foreground: 45 96% 10%;
+    --accent: 60 20% 95%; /* Milky White */
+    --accent-foreground: 60 50% 5%; /* Dark text for contrast */
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
     --border: 60 67% 4%; /* soft black */
