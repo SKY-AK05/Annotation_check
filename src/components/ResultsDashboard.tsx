@@ -164,10 +164,10 @@ const ResultsDisplay = ({ results, imageUrls }: { results: EvaluationResult[], i
       <div className="flex flex-row items-center justify-between mb-4">
         <div>
             <div className="flex items-center gap-3">
-                 <h2 className="text-2xl font-bold tracking-tight">
+                 <h2 className="text-3xl">
                     Batch Evaluation Results
                 </h2>
-                 <Badge variant="outline" className={`border-2 border-foreground`}>
+                 <Badge variant="outline" className={`border-2 border-foreground shadow-hard`}>
                     <User className="h-4 w-4 mr-1" />
                     {results.length} Students
                 </Badge>
@@ -176,12 +176,12 @@ const ResultsDisplay = ({ results, imageUrls }: { results: EvaluationResult[], i
             Summary and detailed breakdown for each student file.
           </p>
         </div>
-        <Button variant="outline" onClick={handleDownloadSummaryCsv} className='btn-sketch'>
+        <Button variant="outline" onClick={handleDownloadSummaryCsv}>
           <Download className="mr-2 h-4 w-4" /> Download Summary CSV
         </Button>
       </div>
 
-       <Card className="mb-6 card-sketch">
+       <Card className="mb-6">
             <CardHeader>
                 <CardTitle>Batch Summary</CardTitle>
             </CardHeader>
@@ -212,19 +212,19 @@ const ResultsDisplay = ({ results, imageUrls }: { results: EvaluationResult[], i
         </Card>
         
         <Accordion type="single" collapsible className="w-full">
-            <h3 className="text-lg font-semibold mb-2">Detailed Student Results</h3>
+            <h3 className="text-2xl mb-2">Detailed Student Results</h3>
             {results.map((result) => (
-                <AccordionItem value={result.studentFilename} key={result.studentFilename}>
-                    <AccordionTrigger className="font-medium">
+                <AccordionItem value={result.studentFilename} key={result.studentFilename} className="card-style mb-4 overflow-hidden">
+                    <AccordionTrigger className="font-bold text-lg p-4 hover:no-underline">
                        <div className="flex items-center justify-between w-full pr-4">
                            <span>{result.studentFilename}</span>
-                           <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDownloadDetailedCsv(result); }} className='btn-sketch'>
+                           <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDownloadDetailedCsv(result); }}>
                                 <FileText className="mr-2 h-4 w-4" />
                                 Download CSV
                             </Button>
                        </div>
                     </AccordionTrigger>
-                    <AccordionContent className="p-4 rounded-md">
+                    <AccordionContent className="p-4 bg-muted">
                         <SingleResultDisplay result={result} onDownloadCsv={handleDownloadDetailedCsv} imageUrls={imageUrls}/>
                     </AccordionContent>
                 </AccordionItem>
@@ -255,9 +255,9 @@ const ImageResultDisplay = ({ imageResult, imageUrl }: { imageResult: ImageEvalu
     };
 
     return (
-        <Card className="bg-background card-sketch">
+        <Card>
             <CardHeader className="p-4">
-                <CardTitle className="text-lg flex items-center gap-2">
+                <CardTitle className="text-xl flex items-center gap-2">
                     <ImageIcon className="h-5 w-5"/>
                     {imageResult.imageName}
                 </CardTitle>
@@ -278,8 +278,8 @@ const ImageResultDisplay = ({ imageResult, imageUrl }: { imageResult: ImageEvalu
                         </div>
                     )}
                 </div>
-                 <Card className='card-sketch'>
-                    <CardHeader className="pb-2"><CardTitle className="text-base">{imageResult.matched.length} Matched</CardTitle></CardHeader>
+                 <Card>
+                    <CardHeader className="pb-2"><CardTitle className="text-lg">{imageResult.matched.length} Matched</CardTitle></CardHeader>
                     <CardContent>
                         <Table>
                             <TableHeader><TableRow><TableHead>GT</TableHead><TableHead>Student</TableHead><TableHead>IoU</TableHead></TableRow></TableHeader>
@@ -287,8 +287,8 @@ const ImageResultDisplay = ({ imageResult, imageUrl }: { imageResult: ImageEvalu
                         </Table>
                     </CardContent>
                 </Card>
-                <Card className='card-sketch'>
-                    <CardHeader className="pb-2"><CardTitle className="text-base">{imageResult.missed.length} Missed</CardTitle></CardHeader>
+                <Card>
+                    <CardHeader className="pb-2"><CardTitle className="text-lg">{imageResult.missed.length} Missed</CardTitle></CardHeader>
                     <CardContent>
                         <Table>
                             <TableHeader><TableRow><TableHead>GT Label</TableHead></TableRow></TableHeader>
@@ -296,8 +296,8 @@ const ImageResultDisplay = ({ imageResult, imageUrl }: { imageResult: ImageEvalu
                         </Table>
                     </CardContent>
                 </Card>
-                <Card className='card-sketch'>
-                    <CardHeader className="pb-2"><CardTitle className="text-base">{imageResult.extra.length} Extra</CardTitle></CardHeader>
+                <Card>
+                    <CardHeader className="pb-2"><CardTitle className="text-lg">{imageResult.extra.length} Extra</CardTitle></CardHeader>
                     <CardContent>
                         <Table>
                             <TableHeader><TableRow><TableHead>Student Label</TableHead></TableRow></TableHeader>
@@ -319,10 +319,10 @@ const SingleResultDisplay = ({ result, onDownloadCsv, imageUrls }: { result: Eva
                     <ScoreCard score={result.score} />
                 </div>
                 <div className="md:col-span-2 space-y-4">
-                    <Card className='card-sketch'>
+                    <Card>
                         <CardHeader className="flex flex-row items-center space-x-3 space-y-0 pb-2">
                             <MessageSquare className="h-5 w-5 text-primary"/>
-                            <h3 className="font-semibold">Overall Feedback</h3>
+                            <h3 className="font-bold">Overall Feedback</h3>
                         </CardHeader>
                         <CardContent>
                             <ul className="space-y-2 text-sm text-muted-foreground">
@@ -331,10 +331,10 @@ const SingleResultDisplay = ({ result, onDownloadCsv, imageUrls }: { result: Eva
                         </CardContent>
                     </Card>
                     { (result.critical_issues && result.critical_issues.length > 0) ? (
-                        <Card className='card-sketch'>
+                        <Card>
                         <CardHeader className="flex flex-row items-center space-x-3 space-y-0 pb-2">
                             <ShieldAlert className="h-5 w-5 text-destructive"/>
-                            <h3 className="font-semibold">Critical Issues</h3>
+                            <h3 className="font-bold">Critical Issues</h3>
                         </CardHeader>
                         <CardContent>
                             <ul className="space-y-2 text-sm text-muted-foreground">
@@ -347,15 +347,15 @@ const SingleResultDisplay = ({ result, onDownloadCsv, imageUrls }: { result: Eva
             </div>
 
              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-                <Card className='card-sketch'>
+                <Card>
                     <CardHeader><CardTitle>Localization Accuracy</CardTitle></CardHeader>
                     <CardContent className="text-3xl font-bold">{result.average_iou.toFixed(3)} <span className="text-sm font-normal text-muted-foreground">Avg. IoU</span></CardContent>
                 </Card>
-                <Card className='card-sketch'>
+                <Card>
                     <CardHeader><CardTitle>Label Accuracy</CardTitle></CardHeader>
                     <CardContent className="text-3xl font-bold">{result.label_accuracy.accuracy.toFixed(0)}% <span className="text-sm font-normal text-muted-foreground">({result.label_accuracy.correct}/{result.label_accuracy.total} correct)</span></CardContent>
                 </Card>
-                    <Card className='card-sketch'>
+                    <Card>
                     <CardHeader><CardTitle>Attribute Accuracy</CardTitle></CardHeader>
                     <CardContent className="text-3xl font-bold">{result.attribute_accuracy.average_similarity.toFixed(0)}% <span className="text-sm font-normal text-muted-foreground">({result.attribute_accuracy.total} attributes)</span></CardContent>
                 </Card>
@@ -387,7 +387,7 @@ export function ResultsDashboard({ results, loading, imageUrls, onEvaluate, onGt
   }, [evalSchema]);
   
   return (
-    <Card className="w-full card-sketch">
+    <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
             <FileCog className="w-6 h-6" />
@@ -409,21 +409,21 @@ export function ResultsDashboard({ results, loading, imageUrls, onEvaluate, onGt
           value={openAccordion}
           onValueChange={setOpenAccordion}
         >
-            <AccordionItem value="item-1">
-                <AccordionTrigger>
+            <AccordionItem value="item-1" className="card-style overflow-hidden">
+                <AccordionTrigger className="p-4 hover:no-underline">
                     <div className='flex items-center gap-3'>
                         <Code2 className="w-6 h-6" />
                         <div className="flex-1 text-left">
-                            <h2 className="text-xl font-semibold tracking-tight">
+                            <h2 className="text-2xl">
                                 Evaluation Rules
                             </h2>
-                            <p className="text-sm text-muted-foreground">
+                            <p className="text-sm text-muted-foreground font-sans">
                                 Customize logic with instructions or by editing the pseudocode directly.
                             </p>
                         </div>
                     </div>
                 </AccordionTrigger>
-                <AccordionContent>
+                <AccordionContent className="bg-muted p-4">
                     <RuleConfiguration 
                         schema={evalSchema} 
                         loading={loading} 
@@ -434,9 +434,9 @@ export function ResultsDashboard({ results, loading, imageUrls, onEvaluate, onGt
         </Accordion>
         
         <div>
-            <h2 className="text-2xl font-bold tracking-tight mb-4">Evaluation Results</h2>
+            <h2 className="text-3xl mb-4">Evaluation Results</h2>
             {loading && !results ? (
-                <div className="flex flex-col items-center justify-center text-center p-8 h-full min-h-[300px] border-dashed border-2 rounded-md">
+                <div className="flex flex-col items-center justify-center text-center p-8 h-full min-h-[300px] border-dashed border-2 rounded-md bg-card">
                     <FileQuestion className="h-16 w-16 text-muted-foreground mb-4 animate-pulse" />
                     <h3 className="text-xl font-semibold text-foreground">Evaluating...</h3>
                     <p className="text-muted-foreground mt-2">The results will appear here once the evaluation is complete.</p>
@@ -444,7 +444,7 @@ export function ResultsDashboard({ results, loading, imageUrls, onEvaluate, onGt
             ) : results ? (
                 <ResultsDisplay results={results} imageUrls={imageUrls} />
             ) : (
-                <div className="flex flex-col items-center justify-center text-center p-8 h-full min-h-[300px] border-dashed border-2 rounded-md">
+                <div className="flex flex-col items-center justify-center text-center p-8 h-full min-h-[300px] border-dashed border-2 rounded-md bg-card">
                     <FileQuestion className="h-16 w-16 text-muted-foreground mb-4" />
                     <h3 className="text-xl font-semibold text-foreground">Awaiting Evaluation</h3>
                     <p className="text-muted-foreground mt-2">Complete the form and run an evaluation to see results.</p>

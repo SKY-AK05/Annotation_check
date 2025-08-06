@@ -18,9 +18,9 @@ interface RuleConfigurationProps {
 }
 
 const Placeholder = () => (
-    <div className="flex flex-col items-center justify-center text-center p-8 h-full min-h-[200px] border-dashed border-2 rounded-lg">
+    <div className="flex flex-col items-center justify-center text-center p-8 h-full min-h-[200px] border-dashed border-2 rounded-lg bg-card card-style">
       <FileJson className="h-12 w-12 text-muted-foreground mb-4" />
-      <h3 className="text-lg font-semibold text-foreground">Awaiting Ground Truth</h3>
+      <h3 className="text-lg font-bold text-foreground">Awaiting Ground Truth</h3>
       <p className="text-muted-foreground mt-1 text-sm">Upload a GT file to auto-generate evaluation rules.</p>
     </div>
 );
@@ -72,15 +72,15 @@ export function RuleConfiguration({ schema, loading, onRuleChange }: RuleConfigu
   if (!schema) return <Placeholder />;
 
   return (
-    <Card className='card-sketch'>
+    <Card>
         <CardContent className="space-y-6 pt-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                 <div className="space-y-6">
                     <div className="space-y-2">
-                        <h4 className="font-semibold text-sm">Labels & Attributes</h4>
+                        <h4 className="font-bold text-lg">Labels & Attributes</h4>
                         <div className="flex flex-wrap gap-2">
                         {schema.labels.map(label => (
-                            <Badge key={label.name} variant="secondary" className="border-2 border-foreground">
+                            <Badge key={label.name} variant="secondary" className="border-2 border-foreground shadow-hard">
                                 {label.name}
                                 {label.attributes.length > 0 && ` (${label.attributes.join(', ')})`}
                             </Badge>
@@ -88,43 +88,43 @@ export function RuleConfiguration({ schema, loading, onRuleChange }: RuleConfigu
                         </div>
                     </div>
                     <div className="space-y-2">
-                        <h4 className="font-semibold text-sm">Matching Key</h4>
-                        <Badge variant="outline" className="border-2 border-foreground">{schema.matchKey || 'IoU + Label'}</Badge>
+                        <h4 className="font-bold text-lg">Matching Key</h4>
+                        <Badge variant="outline" className="border-2 border-foreground shadow-hard">{schema.matchKey || 'IoU + Label'}</Badge>
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="plain-english-instructions" className="text-sm font-semibold flex items-center gap-2">
+                        <Label htmlFor="plain-english-instructions" className="text-lg font-bold flex items-center gap-2">
                             <Wand2 className="w-4 h-4" />
                             Plain English Instructions
                         </Label>
                         <Textarea 
                             id="plain-english-instructions"
-                            className="bg-background p-2 rounded-lg text-sm text-foreground font-sans h-24 textarea-sketch"
+                            className="bg-card p-2 rounded-lg text-sm h-24 shadow-hard"
                             placeholder="e.g., 'Ignore the color attribute for cars.' or 'Only check pedestrians for IoU.'"
                             value={userInstructions}
                             onChange={(e) => setUserInstructions(e.target.value)}
                             disabled={loading}
                         />
-                         <Button onClick={handleRegenerateFromInstructions} disabled={loading || !hasInstructions} size="sm" className='btn-sketch'>
+                         <Button onClick={handleRegenerateFromInstructions} disabled={loading || !hasInstructions} size="sm">
                             {loading && hasInstructions ? 'Applying...' : 'Apply Instructions'}
                         </Button>
                     </div>
                 </div>
                 <div className="space-y-2">
-                    <Label htmlFor="pseudocode" className="text-sm font-semibold">Logic Pseudocode (Editable)</Label>
+                    <Label htmlFor="pseudocode" className="text-lg font-bold">Logic Pseudocode (Editable)</Label>
                     <Textarea 
                         id="pseudocode"
-                        className="p-4 rounded-lg text-xs text-muted-foreground overflow-x-auto font-mono h-64 textarea-sketch"
+                        className="p-4 rounded-lg text-xs text-muted-foreground overflow-x-auto font-mono h-64 bg-card shadow-hard"
                         value={editedPseudoCode}
                         onChange={(e) => setEditedPseudoCode(e.target.value)}
                         disabled={loading}
                     />
-                    <Button onClick={handleRegenerateFromPseudoCode} disabled={loading || !hasPseudoCodeChanged} size="sm" className='btn-sketch'>
+                    <Button onClick={handleRegenerateFromPseudoCode} disabled={loading || !hasPseudoCodeChanged} size="sm">
                          {loading && hasPseudoCodeChanged ? 'Applying...' : 'Apply Pseudocode Changes'}
                     </Button>
                 </div>
             </div>
             <div className="w-full flex justify-center border-t pt-4 mt-4">
-                <Button onClick={() => hasInstructions ? handleRegenerateFromInstructions() : handleRegenerateFromPseudoCode() } disabled={loading || (!hasInstructions && !hasPseudoCodeChanged)} className="w-full md:w-auto btn-sketch">
+                <Button onClick={() => hasInstructions ? handleRegenerateFromInstructions() : handleRegenerateFromPseudoCode() } disabled={loading || (!hasInstructions && !hasPseudoCodeChanged)} className="w-full md:w-auto">
                     <Sparkles className="mr-2 h-4 w-4" />
                     Regenerate Rules
                 </Button>

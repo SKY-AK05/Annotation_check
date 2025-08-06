@@ -1,13 +1,20 @@
 import type {Metadata} from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
-import { Architects_Daughter } from 'next/font/google'
+import { Bangers, Karla } from 'next/font/google'
 
-const architectsDaughter = Architects_Daughter({ 
+const bangers = Bangers({ 
   subsets: ['latin'], 
   weight: '400',
-  variable: '--font-architects-daughter',
-})
+  variable: '--font-bangers',
+});
+
+const karla = Karla({
+  subsets: ['latin'],
+  weight: ['400', '700'],
+  variable: '--font-karla',
+});
+
 
 export const metadata: Metadata = {
   title: 'Annotator AI',
@@ -20,7 +27,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={architectsDaughter.variable}>
+    <html lang="en" className={`${bangers.variable} ${karla.variable}`}>
       <body>
         {children}
         <Toaster />

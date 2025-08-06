@@ -18,8 +18,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['var(--font-architects-daughter)'],
-        headline: ['var(--font-architects-daughter)'],
+        sans: ['var(--font-karla)'],
+        headline: ['var(--font-bangers)'],
       },
       colors: {
         background: 'hsl(var(--background))',

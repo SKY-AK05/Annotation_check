@@ -69,13 +69,13 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange, imageUrl
               name="gtFile"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>1. Ground Truth Annotations</FormLabel>
+                  <FormLabel className="font-bold">1. Ground Truth Annotations</FormLabel>
                   <FormControl>
                     <div className="relative">
                       <FileCog className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                       <Input
                         type="file"
-                        className="pl-10 input-sketch"
+                        className="pl-10"
                         {...gtFileRef}
                         accept=".xml,.json,.zip"
                         onChange={(e) => {
@@ -95,11 +95,11 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange, imageUrl
               name="studentFiles"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>2. Student Annotations</FormLabel>
+                  <FormLabel className="font-bold">2. Student Annotations</FormLabel>
                   <FormControl>
                     <div className="relative">
                       <UploadCloud className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                      <Input type="file" className="pl-10 input-sketch" {...studentFileRef} accept=".xml,.json,.zip" multiple />
+                      <Input type="file" className="pl-10" {...studentFileRef} accept=".xml,.json,.zip" multiple />
                     </div>
                   </FormControl>
                   <FormDescription>Upload one or more files, or a single ZIP archive.</FormDescription>
@@ -112,13 +112,13 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange, imageUrl
               name="imageFiles"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>3. Original Images (Optional)</FormLabel>
+                  <FormLabel className="font-bold">3. Original Images (Optional)</FormLabel>
                   <FormControl>
                     <div className="relative">
                       <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                       <Input 
                         type="file" 
-                        className="pl-10 input-sketch" 
+                        className="pl-10" 
                         {...imageFileRef} 
                         accept="image/*,.zip" 
                         multiple 
@@ -142,14 +142,14 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange, imageUrl
               name="toolType"
               render={({ field }) => (
                   <FormItem>
-                  <FormLabel>Annotation Format</FormLabel>
+                  <FormLabel className="font-bold">Annotation Format</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
-                      <SelectTrigger className='input-sketch'>
+                      <SelectTrigger className='shadow-hard border-2 border-foreground'>
                           <SelectValue placeholder="Select a tool type" />
                       </SelectTrigger>
                       </FormControl>
-                      <SelectContent className='card-sketch'>
+                      <SelectContent className='card-style'>
                         <SelectItem value="bounding_box">COCO JSON (Bounding Box)</SelectItem>
                         <SelectItem value="cvat_xml">CVAT XML 1.1</SelectItem>
                         <SelectItem value="polygon" disabled>Polygon (Coming Soon)</SelectItem>
@@ -162,7 +162,7 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange, imageUrl
               )}
             />
           </div>
-          <Button type="submit" disabled={isLoading} className="w-full btn-sketch">
+          <Button type="submit" disabled={isLoading} className="w-full">
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
