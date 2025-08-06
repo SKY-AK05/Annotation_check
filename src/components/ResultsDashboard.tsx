@@ -226,7 +226,7 @@ const ResultsDisplay = ({ results, imageUrls }: { results: EvaluationResult[], i
                             </Button>
                        </div>
                     </AccordionTrigger>
-                    <AccordionContent className="p-4 bg-muted/50 rounded-md">
+                    <AccordionContent className="p-4 rounded-md">
                         <SingleResultDisplay result={result} onDownloadCsv={handleDownloadDetailedCsv} imageUrls={imageUrls}/>
                     </AccordionContent>
                 </AccordionItem>
@@ -456,6 +456,8 @@ export function ResultsDashboard({ results, loading, imageUrls, onEvaluate, onGt
     </Card>
   );
 }
+
+    
 
     
 
