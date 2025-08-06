@@ -446,7 +446,7 @@ export function ResultsDashboard({ results, loading, imageUrls, onEvaluate, onGt
             ) : (
                 <div className="flex flex-col items-center justify-center text-center p-8 h-full min-h-[300px] border-dashed border-2 rounded-md bg-card">
                     <FileQuestion className="h-16 w-16 text-muted-foreground mb-4" />
-                    <h3 className="text-xl font-semibold text-foreground">Awaiting Evaluation</h3>
+                    <h3 className="text-xl font-semibold text-foreground font-sans">Awaiting Evaluation</h3>
                     <p className="text-muted-foreground mt-2">Complete the form and run an evaluation to see results.</p>
                 </div>
             )}
