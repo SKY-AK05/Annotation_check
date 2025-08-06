@@ -5,7 +5,7 @@ import * as React from 'react';
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Loader2, UploadCloud, FileCog, Image as ImageIcon } from 'lucide-react';
+import { Loader2, UploadCloud, FileCog, Image as ImageIcon, CheckCircle } from 'lucide-react';
 
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import type { FormValues } from '@/lib/types';
+import { cn } from '@/lib/utils';
 
 const formSchema = z.object({
   gtFile: typeof window === 'undefined' ? z.any() : z.instanceof(FileList).refine((files) => files?.length === 1, "Ground Truth file is required."),
@@ -38,9 +39,10 @@ interface EvaluationFormProps {
   onEvaluate: (data: FormValues) => void;
   isLoading: boolean;
   onGtFileChange: (file: File | undefined) => void;
+  imageUrls: Map<string, string>;
 }
 
-export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange }: EvaluationFormProps) {
+export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange, imageUrls }: EvaluationFormProps) {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -51,6 +53,8 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange }: Evalua
   const gtFileRef = form.register("gtFile");
   const studentFileRef = form.register("studentFiles");
   const imageFileRef = form.register("imageFiles");
+  
+  const hasImagesFromGt = imageUrls.size > 0;
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     onEvaluate(values);
@@ -68,7 +72,7 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange }: Evalua
                   <FormLabel>1. Ground Truth Annotations</FormLabel>
                   <FormControl>
                     <div className="relative">
-                      <UploadCloud className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                      <FileCog className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                       <Input
                         type="file"
                         className="pl-10"
@@ -81,7 +85,7 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange }: Evalua
                       />
                     </div>
                   </FormControl>
-                  <FormDescription>This file will be used to auto-generate evaluation rules.</FormDescription>
+                  <FormDescription>Upload a single JSON, XML, or ZIP file.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -98,7 +102,7 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange }: Evalua
                       <Input type="file" className="pl-10" {...studentFileRef} accept=".xml,.json,.zip" multiple />
                     </div>
                   </FormControl>
-                  <FormDescription>Upload one or more student files, or a single ZIP archive.</FormDescription>
+                  <FormDescription>Upload one or more files, or a single ZIP archive.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -112,10 +116,23 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange }: Evalua
                   <FormControl>
                     <div className="relative">
                       <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                      <Input type="file" className="pl-10" {...imageFileRef} accept="image/*,.zip" multiple />
+                      <Input 
+                        type="file" 
+                        className="pl-10" 
+                        {...imageFileRef} 
+                        accept="image/*,.zip" 
+                        multiple 
+                        disabled={hasImagesFromGt}
+                      />
                     </div>
                   </FormControl>
-                  <FormDescription>Upload images if they are not in the GT ZIP file.</FormDescription>
+                  <FormDescription className={cn(hasImagesFromGt && "text-green-600 flex items-center gap-2")}>
+                    {hasImagesFromGt ? (
+                        <><CheckCircle className="h-4 w-4" /> Images loaded from GT ZIP.</>
+                    ) : (
+                        "Upload images if not in the GT ZIP file."
+                    )}
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -139,7 +156,7 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange }: Evalua
                         <SelectItem value="keypoints" disabled>Keypoints (Coming Soon)</SelectItem>
                       </SelectContent>
                   </Select>
-                  <FormDescription>Select the format for all files. ZIP archives can contain mixed formats if needed.</FormDescription>
+                  <FormDescription>Select the format used in your annotation files.</FormDescription>
                   <FormMessage />
                   </FormItem>
               )}

@@ -3,7 +3,6 @@
 
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -16,7 +15,6 @@ import { AlertCircle, CheckCircle, Download, FileQuestion, FileText, ImageIcon, 
 import { Badge } from "./ui/badge";
 import { EvaluationForm } from "./EvaluationForm";
 import { RuleConfiguration } from "./RuleConfiguration";
-import { Separator } from "./ui/separator";
 
 interface ResultsDashboardProps {
   results: EvaluationResult[] | null;
@@ -402,6 +400,7 @@ export function ResultsDashboard({ results, loading, imageUrls, onEvaluate, onGt
             onEvaluate={onEvaluate} 
             isLoading={loading} 
             onGtFileChange={onGtFileChange}
+            imageUrls={imageUrls}
         />
         
         <Accordion 
