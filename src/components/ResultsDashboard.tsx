@@ -455,9 +455,3 @@ export function ResultsDashboard({ results, loading, imageUrls, onEvaluate, onGt
     </Card>
   );
 }
-
-    
-
-    
-
-    

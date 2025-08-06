@@ -133,5 +133,3 @@ export function RuleConfiguration({ schema, loading, onRuleChange }: RuleConfigu
     </Card>
   );
 }
-
-    

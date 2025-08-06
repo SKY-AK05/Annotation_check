@@ -11,13 +11,14 @@ export const AnnotatorAiLogo = (props: React.SVGProps<SVGSVGElement>) => (
     strokeLinejoin="round"
     {...props}
   >
-    <path d="M25 35 C20 30, 80 30, 75 35 C80 40, 20 40, 25 35 Z" />
-    <path d="M25 35 L25 75 C20 80, 80 80, 75 75 L75 35" />
-    <path d="M24 76 C19 81, 81 81, 76 76" />
-    
-    <path d="M40 50 L60 65" />
-    <path d="M60 50 L40 65" />
-    
-    <circle cx="50" cy="58" r="3" fill="currentColor"/>
+    {/* Rough box shape */}
+    <path d="M20 25 C15 20, 85 20, 80 25 C85 30, 15 30, 20 25 Z" transform="rotate(-2)" />
+    <path d="M20 25 L18 80 C13 85, 87 85, 82 80 L 80 25" transform="rotate(-2)" />
+    <path d="M18 80 C13 85, 87 85, 82 80" transform="rotate(-2)" />
+
+    {/* Simple 'A' inside */}
+    <path d="M40 70 L50 40 L60 70" />
+    <path d="M45 60 L55 60" />
+
   </svg>
 );
