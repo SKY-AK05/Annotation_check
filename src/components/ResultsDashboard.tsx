@@ -396,11 +396,30 @@ export function ResultsDashboard({ results, loading, imageUrls, onEvaluate, onGt
             onGtFileChange={onGtFileChange}
         />
         
-        <RuleConfiguration 
-            schema={evalSchema} 
-            loading={loading} 
-            onRuleChange={onRuleChange} 
-        />
+        <Accordion type="single" collapsible className="w-full" defaultValue="item-1">
+            <AccordionItem value="item-1">
+                <AccordionTrigger>
+                    <div className='flex items-center gap-3'>
+                        <Code2 className="w-6 h-6" />
+                        <div className="flex-1 text-left">
+                            <h2 className="text-xl font-semibold tracking-tight">
+                                Evaluation Rules
+                            </h2>
+                            <p className="text-sm text-muted-foreground">
+                                Customize logic with instructions or by editing the pseudocode directly.
+                            </p>
+                        </div>
+                    </div>
+                </AccordionTrigger>
+                <AccordionContent>
+                    <RuleConfiguration 
+                        schema={evalSchema} 
+                        loading={loading} 
+                        onRuleChange={onRuleChange} 
+                    />
+                </AccordionContent>
+            </AccordionItem>
+        </Accordion>
         
         <Separator />
 
@@ -426,3 +445,5 @@ export function ResultsDashboard({ results, loading, imageUrls, onEvaluate, onGt
     </Card>
   );
 }
+
+    
