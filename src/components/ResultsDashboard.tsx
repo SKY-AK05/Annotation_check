@@ -397,13 +397,6 @@ export function ResultsDashboard({ results, loading, imageUrls, onEvaluate, onGt
         />
         <Separator className="my-8" />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-            <div className="lg:col-span-1 flex flex-col gap-8">
-              <RuleConfiguration 
-                  schema={evalSchema} 
-                  loading={loading} 
-                  onRuleChange={onRuleChange} 
-              />
-            </div>
             <div className="lg:col-span-2">
               {loading && !results ? (
                   <div className="flex flex-col items-center justify-center text-center p-8 h-full min-h-[400px] border-dashed border rounded-md">
@@ -421,8 +414,17 @@ export function ResultsDashboard({ results, loading, imageUrls, onEvaluate, onGt
                 </div>
               )}
             </div>
+            <div className="lg:col-span-1 flex flex-col gap-8">
+              <RuleConfiguration 
+                  schema={evalSchema} 
+                  loading={loading} 
+                  onRuleChange={onRuleChange} 
+              />
+            </div>
         </div>
       </CardContent>
     </Card>
   );
 }
+
+    
