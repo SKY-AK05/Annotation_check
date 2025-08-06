@@ -3,6 +3,8 @@
 
 import React, { useRef, useEffect, useState } from 'react';
 import type { ImageEvaluationResult } from '@/lib/types';
+import { Button } from './ui/button';
+import { ZoomIn, ZoomOut, RefreshCcw } from 'lucide-react';
 
 interface AnnotationViewerProps {
   imageUrl: string;
@@ -93,23 +95,30 @@ export function AnnotationViewer({ imageUrl, imageResult }: AnnotationViewerProp
         draw();
     }, [scale, panOffset, imageResult, imageUrl]);
 
-    const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
-        e.preventDefault();
-        const rect = canvasRef.current!.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+    const handleZoom = (direction: 'in' | 'out') => {
+        const zoomFactor = 1.2;
+        const newScale = direction === 'in' ? scale * zoomFactor : scale / zoomFactor;
+        
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const rect = canvas.getBoundingClientRect();
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
 
-        const zoom = 1 - e.deltaY * 0.001;
-        const newScale = Math.max(0.1, Math.min(scale * zoom, 20));
-
-        const worldX = (x - panOffset.x) / scale;
-        const worldY = (y - panOffset.y) / scale;
+        const worldX = (centerX - panOffset.x) / scale;
+        const worldY = (centerY - panOffset.y) / scale;
 
         setPanOffset({
-            x: x - worldX * newScale,
-            y: y - worldY * newScale
+            x: centerX - worldX * newScale,
+            y: centerY - worldY * newScale
         });
-        setScale(newScale);
+
+        setScale(Math.max(0.1, Math.min(newScale, 20)));
+    };
+    
+    const resetView = () => {
+        setPanOffset({ x: 0, y: 0 });
+        setScale(baseScale.current);
     };
 
     const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -129,23 +138,28 @@ export function AnnotationViewer({ imageUrl, imageResult }: AnnotationViewerProp
         setIsPanning(false);
     };
     
-    const handleDoubleClick = () => {
-        setPanOffset({ x: 0, y: 0 });
-        setScale(baseScale.current);
-    };
-
-
     return (
-        <canvas 
-            ref={canvasRef} 
-            className="w-full h-auto rounded-md border bg-muted cursor-grab" 
-            style={{ cursor: isPanning ? 'grabbing' : 'grab' }}
-            onWheel={handleWheel}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-            onDoubleClick={handleDoubleClick}
-        />
+        <div className="relative w-full">
+            <canvas 
+                ref={canvasRef} 
+                className="w-full h-auto rounded-md border bg-muted cursor-grab" 
+                style={{ cursor: isPanning ? 'grabbing' : 'grab' }}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
+            />
+            <div className="absolute bottom-2 right-2 flex items-center gap-2">
+                 <Button variant="outline" size="icon" onClick={() => handleZoom('in')} title="Zoom In">
+                    <ZoomIn className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="icon" onClick={() => handleZoom('out')} title="Zoom Out">
+                    <ZoomOut className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="icon" onClick={resetView} title="Reset View">
+                    <RefreshCcw className="h-4 w-4" />
+                </Button>
+            </div>
+        </div>
     );
 }
