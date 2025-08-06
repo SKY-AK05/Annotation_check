@@ -77,51 +77,54 @@ export function RuleConfiguration({ schema, loading, onRuleChange }: RuleConfigu
       {!schema ? <Placeholder /> : (
         <Card>
             <CardContent className="space-y-6 pt-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                        <h4 className="font-semibold text-sm">Labels & Attributes</h4>
-                        <div className="flex flex-wrap gap-2">
-                        {schema.labels.map(label => (
-                            <Badge key={label.name} variant="secondary" className="text-xs">
-                                {label.name}
-                                {label.attributes.length > 0 && ` (${label.attributes.join(', ')})`}
-                            </Badge>
-                        ))}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                    <div className="space-y-6">
+                        <div className="space-y-2">
+                            <h4 className="font-semibold text-sm">Labels & Attributes</h4>
+                            <div className="flex flex-wrap gap-2">
+                            {schema.labels.map(label => (
+                                <Badge key={label.name} variant="secondary" className="text-xs">
+                                    {label.name}
+                                    {label.attributes.length > 0 && ` (${label.attributes.join(', ')})`}
+                                </Badge>
+                            ))}
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <h4 className="font-semibold text-sm">Matching Key</h4>
+                            <Badge variant="outline" className="text-xs">{schema.matchKey || 'IoU + Label'}</Badge>
                         </div>
                     </div>
-                    <div className="space-y-2">
-                        <h4 className="font-semibold text-sm">Matching Key</h4>
-                        <Badge variant="outline" className="text-xs">{schema.matchKey || 'IoU + Label'}</Badge>
+                    <div className="space-y-6">
+                        <div className="space-y-2">
+                            <Label htmlFor="plain-english-instructions" className="text-sm font-semibold flex items-center gap-2">
+                                <Wand2 className="w-4 h-4" />
+                                Plain English Instructions
+                            </Label>
+                            <Textarea 
+                                id="plain-english-instructions"
+                                className="bg-background p-2 rounded-lg text-sm text-foreground font-sans h-24"
+                                placeholder="e.g., 'Ignore the color attribute for cars.' or 'Only check pedestrians for IoU.'"
+                                value={userInstructions}
+                                onChange={(e) => setUserInstructions(e.target.value)}
+                                disabled={loading}
+                            />
+                        </div>
+                         <div className="space-y-2">
+                            <Label htmlFor="pseudocode" className="text-sm font-semibold">Logic Pseudocode (Read-Only)</Label>
+                            <Textarea 
+                                id="pseudocode"
+                                className="bg-muted p-4 rounded-lg text-xs text-muted-foreground overflow-x-auto font-mono h-48"
+                                value={pseudoCode}
+                                onChange={(e) => setPseudoCode(e.target.value)}
+                                readOnly
+                                disabled={loading}
+                            />
+                            <p className="text-xs text-muted-foreground">This is a read-only view. Use the instruction box above to apply changes.</p>
+                        </div>
                     </div>
                 </div>
-
-                <div className="space-y-2">
-                    <Label htmlFor="plain-english-instructions" className="text-sm font-semibold flex items-center gap-2">
-                        <Wand2 className="w-4 h-4" />
-                        Plain English Instructions
-                    </Label>
-                    <Textarea 
-                        id="plain-english-instructions"
-                        className="bg-background p-2 rounded-lg text-sm text-foreground font-sans h-24"
-                        placeholder="e.g., 'Ignore the color attribute for cars.' or 'Only check pedestrians for IoU.'"
-                        value={userInstructions}
-                        onChange={(e) => setUserInstructions(e.target.value)}
-                        disabled={loading}
-                    />
-                </div>
-                 <div className="space-y-2">
-                    <Label htmlFor="pseudocode" className="text-sm font-semibold">Logic Pseudocode (Read-Only)</Label>
-                    <Textarea 
-                        id="pseudocode"
-                        className="bg-muted p-4 rounded-lg text-xs text-muted-foreground overflow-x-auto font-mono h-48"
-                        value={pseudoCode}
-                        onChange={(e) => setPseudoCode(e.target.value)}
-                        readOnly
-                        disabled={loading}
-                    />
-                    <p className="text-xs text-muted-foreground">This is a read-only view. Use the instruction box above to apply changes.</p>
-                </div>
-                <Button onClick={handleRegenerate} disabled={loading || !userInstructions.trim()} className="w-full md:w-auto">
+                <Button onClick={handleRegenerate} disabled={loading || !userInstructions.trim()} className="w-full md:w-auto mt-6">
                     {loading ? (
                         <>
                             <Sparkles className="mr-2 h-4 w-4 animate-spin" />
