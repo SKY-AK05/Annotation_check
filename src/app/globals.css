@@ -9,6 +9,51 @@ body {
 
 @layer base {
   :root {
+    --background: 43 44% 92%; /* Vanilla Cream */
+    --foreground: 21 14% 25%; /* Mocha Earth */
+    
+    --card: 43 44% 92%;
+    --card-foreground: 21 14% 25%;
+    
+    --popover: 43 44% 92%;
+    --popover-foreground: 21 14% 25%;
+
+    --primary: 21 14% 30%; /* Darker brown for primary actions */
+    --primary-foreground: 43 44% 95%;
+    
+    --secondary: 43 44% 88%;
+    --secondary-foreground: 21 14% 25%;
+    
+    --muted: 43 44% 85%;
+    --muted-foreground: 21 14% 40%;
+    
+    --accent: 43 44% 88%; /* Creamy hover */
+    --accent-foreground: 21 14% 15%;
+    
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 43 44% 85%;
+    --input: 43 44% 85%;
+    --ring: 21 14% 30%;
+    
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+
+    --sidebar-background: 43 44% 90%; /* Slightly darker cream */
+    --sidebar-foreground: 21 14% 25%;
+    --sidebar-primary: 21 14% 30%;
+    --sidebar-primary-foreground: 43 44% 95%;
+    --sidebar-accent: 43 44% 85%;
+    --sidebar-accent-foreground: 21 14% 15%;
+    --sidebar-border: 43 44% 85%;
+    --sidebar-ring: 21 14% 30%;
+  }
+  
+  .dark {
     --background: 21 14% 25%; /* Mocha Earth: #4B3935 */
     --foreground: 43 44% 92%; /* Vanilla Cream: #F0E7D5 */
     
@@ -52,51 +97,6 @@ body {
     --sidebar-accent-foreground: 43 44% 95%;
     --sidebar-border: 21 14% 35%;
     --sidebar-ring: 43 44% 85%;
-  }
-  
-  .dark {
-    --background: 43 44% 92%; /* Vanilla Cream */
-    --foreground: 21 14% 25%; /* Mocha Earth */
-    
-    --card: 43 44% 92%;
-    --card-foreground: 21 14% 25%;
-    
-    --popover: 43 44% 92%;
-    --popover-foreground: 21 14% 25%;
-
-    --primary: 21 14% 30%; /* Darker brown for primary actions */
-    --primary-foreground: 43 44% 95%;
-    
-    --secondary: 43 44% 88%;
-    --secondary-foreground: 21 14% 25%;
-    
-    --muted: 43 44% 85%;
-    --muted-foreground: 21 14% 40%;
-    
-    --accent: 43 44% 88%; /* Creamy hover */
-    --accent-foreground: 21 14% 15%;
-    
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-
-    --border: 43 44% 85%;
-    --input: 43 44% 85%;
-    --ring: 21 14% 30%;
-    
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-
-    --sidebar-background: 43 44% 90%; /* Slightly darker cream */
-    --sidebar-foreground: 21 14% 25%;
-    --sidebar-primary: 21 14% 30%;
-    --sidebar-primary-foreground: 43 44% 95%;
-    --sidebar-accent: 43 44% 85%;
-    --sidebar-accent-foreground: 21 14% 15%;
-    --sidebar-border: 43 44% 85%;
-    --sidebar-ring: 21 14% 30%;
   }
 }
 
