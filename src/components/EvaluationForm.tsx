@@ -81,7 +81,7 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange, onModeCh
               <RadioGroupItem value="bounding-box" id="bounding-box" className="peer sr-only" />
               <Label
                 htmlFor="bounding-box"
-                className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary w-full"
               >
                 <BoxSelect className="mb-3 h-6 w-6" />
                 Bounding Box
@@ -91,7 +91,7 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange, onModeCh
               <RadioGroupItem value="skeleton" id="skeleton" className="peer sr-only" />
               <Label
                 htmlFor="skeleton"
-                className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary w-full"
               >
                 <Bone className="mb-3 h-6 w-6" />
                 Skeleton
