@@ -18,8 +18,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        body: ['Inter', 'sans-serif'],
-        headline: ['Inter', 'sans-serif'],
+        body: ['Source Serif 4', 'serif'],
+        headline: ['Source Serif 4', 'serif'],
         code: ['monospace'],
       },
       colors: {

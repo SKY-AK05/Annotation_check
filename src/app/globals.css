@@ -4,7 +4,11 @@
 @tailwind utilities;
 
 body {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Source Serif 4', serif;
+  background-image:
+    linear-gradient(to right, rgba(213, 203, 186, 0.5) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(213, 203, 186, 0.5) 1px, transparent 1px);
+  background-size: 2px 2px;
 }
 
 @layer base {
