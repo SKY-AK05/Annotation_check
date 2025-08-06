@@ -1,6 +1,7 @@
 
 'use client';
 
+import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -379,6 +380,13 @@ const SingleResultDisplay = ({ result, onDownloadCsv, imageUrls }: { result: Eva
 };
 
 export function ResultsDashboard({ results, loading, imageUrls, onEvaluate, onGtFileChange, evalSchema, onRuleChange }: ResultsDashboardProps) {
+  const [openAccordion, setOpenAccordion] = React.useState<string[]>([]);
+
+  React.useEffect(() => {
+    if (evalSchema) {
+      setOpenAccordion(["item-1"]);
+    }
+  }, [evalSchema]);
   
   return (
     <Card className="w-full">
@@ -396,7 +404,12 @@ export function ResultsDashboard({ results, loading, imageUrls, onEvaluate, onGt
             onGtFileChange={onGtFileChange}
         />
         
-        <Accordion type="single" collapsible className="w-full" defaultValue="item-1">
+        <Accordion 
+          type="multiple" 
+          className="w-full"
+          value={openAccordion}
+          onValueChange={setOpenAccordion}
+        >
             <AccordionItem value="item-1">
                 <AccordionTrigger>
                     <div className='flex items-center gap-3'>
@@ -443,5 +456,7 @@ export function ResultsDashboard({ results, loading, imageUrls, onEvaluate, onGt
     </Card>
   );
 }
+
+    
 
     
