@@ -16,6 +16,7 @@ const EvalSchemaInputSchema = z.object({
   gtFileContent: z
     .string()
     .describe('The full text content of the ground truth (GT) annotation file.'),
+  userInstructions: z.string().optional().describe("Optional plain-text instructions from the user on how to modify the evaluation logic. This should take precedence over the derived logic from the file content.")
 });
 export type EvalSchemaInput = z.infer<typeof EvalSchemaInputSchema>;
 
@@ -43,7 +44,13 @@ Based on the content, perform the following steps:
 3.  Determine if there is a specific attribute that can serve as a unique key for matching annotations (e.g., "Annotation No", "track_id"). If found, specify it as the matchKey. If not, omit the field.
 4.  Generate simple, human-readable Python-like pseudocode that describes the steps to evaluate a student's file against this GT. This pseudocode will be shown to a user and should be understandable. For example, if a label 'car' has an attribute 'license_plate_number', the pseudocode should suggest checking for a text match on that attribute. If a label has no attributes, it should only mention IoU evaluation.
 
-This entire process is for the purpose of a temporary student evaluation ('evaluate_student_annotations') and the logic should be derived solely from the file provided.
+{{#if userInstructions}}
+IMPORTANT: The user has provided specific instructions for modification. These instructions MUST be followed and should override any logic derived from the file.
+User Instructions: "{{userInstructions}}"
+You must re-generate the entire schema (labels, attributes, matchKey, and pseudocode) to reflect these instructions. For example, if the user says "ignore the color attribute", you must remove 'color' from the attributes list for all relevant labels and update the pseudocode.
+{{/if}}
+
+This entire process is for the purpose of a temporary student evaluation ('evaluate_student_annotations') and the logic should be derived solely from the file provided, as modified by user instructions.
 
 Ground Truth File Content:
 {{{gtFileContent}}}

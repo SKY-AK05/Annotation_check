@@ -4,15 +4,17 @@
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Code2, FileJson } from "lucide-react";
+import { Code2, FileJson, Sparkles, Wand2 } from "lucide-react";
 import type { EvalSchema } from "@/ai/flows/extract-eval-schema";
 import { Badge } from "./ui/badge";
 import { Textarea } from './ui/textarea';
+import { Label } from './ui/label';
+import { Button } from './ui/button';
 
 interface RuleConfigurationProps {
   schema: EvalSchema | null;
   loading: boolean;
-  onSchemaChange: (newSchema: EvalSchema) => void;
+  onRuleChange: (instructions: { pseudoCode?: string; userInstructions?: string }) => void;
 }
 
 const Placeholder = () => (
@@ -38,9 +40,25 @@ const SkeletonCard = () => (
     </Card>
   );
 
-export function RuleConfiguration({ schema, loading, onSchemaChange }: RuleConfigurationProps) {
+export function RuleConfiguration({ schema, loading, onRuleChange }: RuleConfigurationProps) {
+  const [pseudoCode, setPseudoCode] = React.useState(schema?.pseudoCode || '');
+  const [userInstructions, setUserInstructions] = React.useState('');
+
+  React.useEffect(() => {
+    if (schema) {
+      setPseudoCode(schema.pseudoCode);
+    }
+  }, [schema]);
   
-  if (loading) return <SkeletonCard />;
+  const handleRegenerate = () => {
+    onRuleChange({
+        pseudoCode: pseudoCode,
+        userInstructions: userInstructions,
+    });
+    setUserInstructions(''); // Clear instructions after submission
+  };
+
+  if (loading && !schema) return <SkeletonCard />;
   if (!schema) return <Placeholder />;
 
   return (
@@ -51,7 +69,7 @@ export function RuleConfiguration({ schema, loading, onSchemaChange }: RuleConfi
             Evaluation Rules
         </CardTitle>
         <CardDescription>
-          This logic is auto-generated from your GT file and is used to drive the evaluation.
+          This logic is auto-generated from your GT file. You can modify it below.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -71,13 +89,44 @@ export function RuleConfiguration({ schema, loading, onSchemaChange }: RuleConfi
              <Badge variant="outline" className="text-xs">{schema.matchKey || 'IoU + Label'}</Badge>
         </div>
         <div className="space-y-2">
-             <h4 className="font-semibold text-sm">Logic Pseudocode (Read-Only)</h4>
+            <Label htmlFor="plain-english-instructions" className="text-sm font-semibold flex items-center gap-2">
+                <Wand2 className="w-4 h-4" />
+                Plain English Instructions
+            </Label>
             <Textarea 
-                className="bg-muted p-4 rounded-lg text-xs text-muted-foreground overflow-x-auto font-mono h-48"
-                value={schema.pseudoCode}
-                readOnly
+                id="plain-english-instructions"
+                className="bg-background p-2 rounded-lg text-sm text-foreground font-sans h-24"
+                placeholder="e.g., 'Ignore the color attribute for cars.' or 'Only check pedestrians for IoU.'"
+                value={userInstructions}
+                onChange={(e) => setUserInstructions(e.target.value)}
+                disabled={loading}
             />
         </div>
+        <div className="space-y-2">
+            <Label htmlFor="pseudocode" className="text-sm font-semibold">Logic Pseudocode (Read-Only)</Label>
+            <Textarea 
+                id="pseudocode"
+                className="bg-muted p-4 rounded-lg text-xs text-muted-foreground overflow-x-auto font-mono h-48"
+                value={pseudoCode}
+                onChange={(e) => setPseudoCode(e.target.value)}
+                readOnly
+                disabled={loading}
+            />
+             <p className="text-xs text-muted-foreground">Editing this box is for reference; use the instruction box above to apply changes.</p>
+        </div>
+        <Button onClick={handleRegenerate} disabled={loading || !userInstructions.trim()} className="w-full">
+            {loading ? (
+                <>
+                    <Sparkles className="mr-2 h-4 w-4 animate-spin" />
+                    Regenerating...
+                </>
+            ) : (
+                 <>
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Regenerate Rules
+                </>
+            )}
+        </Button>
       </CardContent>
     </Card>
   );

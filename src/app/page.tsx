@@ -12,7 +12,7 @@ import { AnnotatorAiLogo } from '@/components/AnnotatorAiLogo';
 import type { EvaluationResult } from '@/lib/types';
 import { evaluateAnnotations } from '@/lib/evaluator';
 import { parseCvatXml } from '@/lib/cvat-xml-parser';
-import { extractEvalSchema, type EvalSchema } from '@/ai/flows/extract-eval-schema';
+import { extractEvalSchema, type EvalSchema, type EvalSchemaInput } from '@/ai/flows/extract-eval-schema';
 import SkeletonAnnotationPage from '@/components/SkeletonAnnotationPage';
 
 export default function Home() {
@@ -259,12 +259,44 @@ export default function Home() {
     }
   };
 
-  const handleSchemaChange = (newSchema: EvalSchema) => {
-    setEvalSchema(newSchema);
-  };
+  const handleRuleChange = async (instructions: { pseudoCode?: string; userInstructions?: string }) => {
+    if (!gtFileContent) {
+        toast({
+            title: "Ground Truth File Missing",
+            description: "Cannot regenerate rules without the original GT file.",
+            variant: "destructive",
+        });
+        return;
+    }
+    setIsGeneratingRules(true);
+    try {
+        const input: EvalSchemaInput = { gtFileContent };
+        if (instructions.userInstructions) {
+            input.userInstructions = instructions.userInstructions;
+        }
+        // Note: The AI flow does not currently accept pseudocode back as an input.
+        // We rely on plain English instructions to regenerate the full schema.
+        
+        const newSchema = await extractEvalSchema(input);
+        setEvalSchema(newSchema);
+        toast({
+            title: "Rules Regenerated",
+            description: "The evaluation schema has been updated based on your instructions.",
+        });
+    } catch (e: any) {
+        console.error(e);
+        toast({
+            title: "Error Regenerating Rules",
+            description: `Failed to update rules: ${e.message}`,
+            variant: "destructive",
+        });
+    } finally {
+        setIsGeneratingRules(false);
+    }
+};
 
   return (
-    <div className="min-h-screen flex flex-col items-center p-4 sm:p-8 md:p-12 bg-light-blue">
+    <div className="min-h-screen flex flex-col items-center p-4 sm:p-8 md:p-12 bg-background">
       <header className="w-full max-w-7xl flex items-center justify-start mb-8">
         <AnnotatorAiLogo className="h-10 w-10 text-primary" />
         <h1 className="text-3xl font-bold ml-4 tracking-tight">Annotator AI</h1>
@@ -283,7 +315,7 @@ export default function Home() {
                 <RuleConfiguration 
                     schema={evalSchema} 
                     loading={isGeneratingRules} 
-                    onSchemaChange={handleSchemaChange} 
+                    onRuleChange={handleRuleChange} 
                 />
             )}
             </div>
