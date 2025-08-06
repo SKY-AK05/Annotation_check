@@ -1,5 +1,7 @@
 # Annotator AI: System Architecture & Workflow
 
+*Annotator AI is a browser-based evaluation tool designed for grading annotated image datasets. It enables fast, consistent comparison of student annotations against expert-defined ground truth, with automatic rule generation and detailed scoring—all without server-side data storage.*
+
 ## 1. Website Flow Overview
 
 Annotator AI is designed to streamline the evaluation of image annotation tasks. The user journey is straightforward: an evaluator uploads a "Ground Truth" (GT) file, which serves as the correct answer key. The system instantly analyzes this file to generate a set of evaluation rules. The user can then upload one or more student submission files and the original images. Upon clicking "Run Evaluation," the system compares each student's work against the GT file using the generated rules, producing a detailed report with scores, feedback, and a visual breakdown of any errors.
@@ -23,7 +25,7 @@ The data flow is designed for clarity and efficiency:
 +------------------+      +-------------------------+      +----------------------+
 ```
 
-This hybrid approach—using AI to set up the rules and a deterministic engine to execute them—ensures both flexibility and objective, consistent scoring.
+This hybrid approach—where AI handles configuration and a deterministic engine ensures consistent evaluation—provides both flexibility and objective, consistent scoring.
 
 ---
 
@@ -36,13 +38,15 @@ The upload process is as follows:
 2.  **Extraction (if ZIP)**: If a ZIP file is provided, the system opens it in the browser, identifies the annotation file (`.json` or `.xml`), and extracts all image files, creating local URLs for them to be displayed later.
 3.  **Parsing & Validation**: The content of the annotation file is read as plain text. The system checks if it is XML or JSON and uses the appropriate parser (`DOMParser` for XML, `JSON.parse` for JSON) to convert it into a standardized internal data structure. This ensures the rest of the application can handle the data in a uniform way. If parsing fails, an error is shown to the user.
 4.  **Schema Generation**: The validated text content of the GT file is securely sent to a server-side AI model (Genkit) to generate the evaluation rules (the "Eval Schema").
-5.  **Storage**: All uploaded data (file content, extracted images, and the generated schema) is held temporarily in the application's **client-side state** (in the user's browser). **No user data is permanently stored on any server or database**, ensuring privacy and security. The data is discarded when the page is refreshed.
+5.  **Storage**: All uploaded data (file content, extracted images, and the generated schema) is stored temporarily in-memory in the user's browser during the session. **No user data is permanently stored on any server or database**, ensuring privacy and security. The data is discarded when the page is refreshed.
+
+> **Note:** Because Annotator AI runs entirely in-browser with no persistent backend, users must ensure they do not refresh the page mid-session. This architecture was chosen for maximum data privacy and portability, especially in education or regulated environments.
 
 ---
 
 ## 3. Code Modification Flow
 
-A key feature of Annotator AI is its ability to **dynamically generate evaluation logic without modifying the core application code.** This is a crucial distinction: the application's underlying code is static, secure, and does not change at runtime.
+A key feature of Annotator AI is its ability to **dynamically generate evaluation logic without modifying the core application code.** This is a crucial distinction: the core application logic is immutable and secure, and does not change at runtime.
 
 Instead, it modifies the *parameters* for the evaluation. Here's how it works:
 
@@ -86,7 +90,7 @@ This is what the object looks like when stored in the React state.
 
 ## 5. General Formula Structure
 
-The core evaluation logic is a deterministic algorithm found in `src/lib/evaluator.ts`. It does not rely on AI for the actual scoring. The general "formula" is a multi-step process that computes a final score based on several weighted metrics.
+The core evaluation logic is a deterministic algorithm found in `src/lib/evaluator.ts`. It does not rely on AI for the actual scoring. The general "formula" is a multi-step process that computes a final score based on several weighted metrics. While the evaluation algorithm is fixed and universal, its behavior is fully driven by the `EvalSchema`, which defines which labels, attributes, and match strategies are used for any given run.
 
 **Final Score Calculation (Pseudocode):**
 
@@ -166,3 +170,13 @@ This demonstrates how the system's internal API call to the AI model generates t
 ```
 
 This output `EvalSchema` is then passed as a parameter to the evaluation engine, effectively "modifying" the formula for this specific run.
+
+---
+
+## 7. Future Enhancements
+
+The current architecture provides a strong foundation for future development. Potential enhancements include:
+*   Server-side session persistence to save and restore evaluation sessions.
+*   Evaluation report export to downloadable formats like PDF or detailed CSV.
+*   Integration with Learning Management Systems (LMS) for seamless grade reporting.
+*   Support for additional annotation types, such as video or semantic segmentation.
