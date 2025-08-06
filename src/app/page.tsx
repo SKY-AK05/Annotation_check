@@ -5,15 +5,16 @@ import { useState } from 'react';
 import JSZip from 'jszip';
 import type { FormValues, CocoJson } from '@/lib/types';
 import { useToast } from "@/hooks/use-toast";
-import { EvaluationForm } from '@/components/EvaluationForm';
 import { ResultsDashboard } from '@/components/ResultsDashboard';
-import { RuleConfiguration } from '@/components/RuleConfiguration';
 import { AnnotatorAiLogo } from '@/components/AnnotatorAiLogo';
 import type { EvaluationResult } from '@/lib/types';
 import { evaluateAnnotations } from '@/lib/evaluator';
 import { parseCvatXml } from '@/lib/cvat-xml-parser';
 import { extractEvalSchema, type EvalSchema, type EvalSchemaInput } from '@/ai/flows/extract-eval-schema';
 import SkeletonAnnotationPage from '@/components/SkeletonAnnotationPage';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
+import { BoxSelect, Bone } from 'lucide-react';
 
 export default function Home() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -302,35 +303,47 @@ export default function Home() {
         <h1 className="text-3xl font-bold ml-4 tracking-tight">Annotator AI</h1>
       </header>
       <main className="w-full max-w-7xl">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-            <div className="lg:col-span-1 flex flex-col gap-8 lg:sticky lg:top-12">
-            <EvaluationForm 
-                onEvaluate={handleEvaluate} 
-                isLoading={isLoading || isGeneratingRules} 
-                onGtFileChange={handleGtFileChange}
-                onModeChange={setEvaluationMode}
-                currentMode={evaluationMode}
-            />
-            {evaluationMode === 'bounding-box' && (
-                <RuleConfiguration 
-                    schema={evalSchema} 
-                    loading={isGeneratingRules} 
-                    onRuleChange={handleRuleChange} 
-                />
-            )}
-            </div>
-            <div className="lg:col-span-2">
-            {evaluationMode === 'bounding-box' ? (
-                <ResultsDashboard 
-                    results={results} 
-                    loading={isLoading} 
-                    imageUrls={imageUrls} 
-                />
-            ) : (
-                <SkeletonAnnotationPage />
-            )}
-            </div>
-        </div>
+        <RadioGroup
+              defaultValue="bounding-box"
+              className="grid grid-cols-2 gap-4 mb-6 max-w-md mx-auto"
+              onValueChange={(mode: 'bounding-box' | 'skeleton') => setEvaluationMode(mode)}
+              value={evaluationMode}
+          >
+              <div>
+                <RadioGroupItem value="bounding-box" id="bounding-box" className="peer sr-only" />
+                <Label
+                  htmlFor="bounding-box"
+                  className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary w-full"
+                >
+                  <BoxSelect className="mb-3 h-6 w-6" />
+                  <div className="h-10 text-center flex items-center">Bounding Box</div>
+                </Label>
+              </div>
+              <div>
+                <RadioGroupItem value="skeleton" id="skeleton" className="peer sr-only" />
+                <Label
+                  htmlFor="skeleton"
+                  className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary w-full"
+                >
+                  <Bone className="mb-3 h-6 w-6" />
+                  <div className="h-10 text-center flex items-center">Skeleton</div>
+                </Label>
+              </div>
+          </RadioGroup>
+
+          {evaluationMode === 'bounding-box' ? (
+              <ResultsDashboard
+                  results={results}
+                  loading={isLoading || isGeneratingRules}
+                  imageUrls={imageUrls}
+                  onEvaluate={handleEvaluate}
+                  onGtFileChange={handleGtFileChange}
+                  evalSchema={evalSchema}
+                  onRuleChange={handleRuleChange}
+              />
+          ) : (
+              <SkeletonAnnotationPage />
+          )}
       </main>
     </div>
   );

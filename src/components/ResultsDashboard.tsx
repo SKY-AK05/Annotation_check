@@ -8,37 +8,234 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { ScoreCard } from "@/components/ScoreCard";
 import type { BboxAnnotation, EvaluationResult, ImageEvaluationResult } from "@/lib/types";
+import type { FormValues } from '@/lib/types';
+import type { EvalSchema } from "@/ai/flows/extract-eval-schema";
 import { AnnotationViewer } from "@/components/AnnotationViewer";
-import { AlertCircle, CheckCircle, Download, FileQuestion, FileText, ImageIcon, MessageSquare, ShieldAlert, User } from "lucide-react";
+import { AlertCircle, CheckCircle, Download, FileQuestion, FileText, ImageIcon, MessageSquare, ShieldAlert, User, FileCog, Code2 } from "lucide-react";
 import { Badge } from "./ui/badge";
+import { EvaluationForm } from "./EvaluationForm";
+import { RuleConfiguration } from "./RuleConfiguration";
+import { Separator } from "./ui/separator";
 
 interface ResultsDashboardProps {
   results: EvaluationResult[] | null;
   loading: boolean;
   imageUrls: Map<string, string>;
+  onEvaluate: (data: FormValues) => void;
+  onGtFileChange: (file: File | undefined) => void;
+  evalSchema: EvalSchema | null;
+  onRuleChange: (instructions: { pseudoCode?: string; userInstructions?: string }) => void;
 }
 
-const Placeholder = () => (
-  <Card className="flex flex-col items-center justify-center text-center p-8 h-full min-h-[500px] border-dashed">
-    <FileQuestion className="h-16 w-16 text-muted-foreground mb-4" />
-    <h3 className="text-xl font-semibold text-foreground">Awaiting Evaluation</h3>
-    <p className="text-muted-foreground mt-2">Upload your annotation files and run the evaluation to see the results here.</p>
-  </Card>
-);
+const ResultsDisplay = ({ results, imageUrls }: { results: EvaluationResult[], imageUrls: Map<string, string> }) => {
 
-const SkeletonDashboard = () => (
-  <Card>
-    <CardHeader>
-      <Skeleton className="h-8 w-3/4" />
-      <Skeleton className="h-4 w-1/2" />
-    </CardHeader>
-    <CardContent className="space-y-6">
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-32 w-full" />
-        <Skeleton className="h-32 w-full" />
-    </CardContent>
-  </Card>
-);
+  const handleDownloadSummaryCsv = () => {
+    let csvContent = "data:text/csv;charset=utf-8,";
+    
+    // Header
+    csvContent += "Student Filename,Score,Avg IoU,Label Accuracy,Correct Labels,Total Labels,Attribute Accuracy,Attributes Compared,Matched Count,Missed Count,Extra Count,Feedback,Critical Issues\r\n";
+
+    results.forEach(result => {
+        const studentFilename = `"${result.studentFilename}"`;
+        const score = result.score;
+        const avgIoU = result.average_iou.toFixed(3);
+        const labelAccuracy = result.label_accuracy.accuracy.toFixed(1);
+        const correctLabels = result.label_accuracy.correct;
+        const totalLabels = result.label_accuracy.total;
+        const attributeAccuracy = result.attribute_accuracy.average_similarity.toFixed(1);
+        const attributesCompared = result.attribute_accuracy.total;
+        const matchedCount = result.matched.length;
+        const missedCount = result.missed.length;
+        const extraCount = result.extra.length;
+        const feedback = `"${result.feedback.join('. ')}"`;
+        const criticalIssues = `"${result.critical_issues.join('. ')}"`;
+
+        const row = [studentFilename, score, avgIoU, labelAccuracy, correctLabels, totalLabels, attributeAccuracy, attributesCompared, matchedCount, missedCount, extraCount, feedback, criticalIssues].join(',');
+        csvContent += row + "\r\n";
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "batch_evaluation_summary.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  const handleDownloadDetailedCsv = (result: EvaluationResult) => {
+    const escapeCsv = (str: string | number | undefined) => {
+        if (str === undefined || str === null) return '""';
+        const s = String(str);
+        if (s.includes('"') || s.includes(',')) {
+            return `"${s.replace(/"/g, '""')}"`;
+        }
+        return `"${s}"`;
+    };
+
+    let csv = [];
+
+    // Summary
+    csv.push(`"Summary for ${result.studentFilename}"`);
+    csv.push(`"Metric","Value"`);
+    csv.push(`"Score",${result.score}`);
+    csv.push(`"Average IoU",${result.average_iou.toFixed(4)}`);
+    csv.push(`"Label Accuracy","${result.label_accuracy.accuracy.toFixed(2)}%"`);
+    csv.push(`"Attribute Accuracy","${result.attribute_accuracy.average_similarity.toFixed(2)}%"`);
+    csv.push(`"Matched Detections",${result.matched.length}`);
+    csv.push(`"Missed Detections",${result.missed.length}`);
+    csv.push(`"Extra Detections",${result.extra.length}`);
+    csv.push('');
+
+    // Feedback & Issues
+    csv.push('"Feedback"');
+    result.feedback.forEach(f => csv.push(escapeCsv(f)));
+    csv.push('');
+    csv.push('"Critical Issues"');
+    result.critical_issues.forEach(i => csv.push(escapeCsv(i)));
+    csv.push('');
+    csv.push('---');
+    csv.push('');
+
+    // Per-Image Breakdown
+    result.image_results.forEach(imgResult => {
+        csv.push(`"Image: ${imgResult.imageName}"`);
+        csv.push('');
+
+        // Matched
+        csv.push('"Matched Annotations"');
+        csv.push(`"GT ID","GT Label","GT Bbox","Student ID","Student Label","Student Bbox","IoU","Label Match","Attribute Similarity"`);
+        imgResult.matched.forEach(m => {
+            const row = [
+                m.gt.id,
+                m.gt.attributes?.label,
+                m.gt.bbox.join(';'),
+                m.student.id,
+                m.student.attributes?.label,
+                m.student.bbox.join(';'),
+                m.iou.toFixed(4),
+                m.isLabelMatch,
+                m.attributeSimilarity.toFixed(4),
+            ].map(escapeCsv).join(',');
+            csv.push(row);
+        });
+        csv.push('');
+
+        // Missed
+        csv.push('"Missed Annotations"');
+        csv.push(`"GT ID","GT Label","GT Bbox"`);
+        imgResult.missed.forEach(m => {
+            const row = [
+                m.gt.id,
+                m.gt.attributes?.label,
+                m.gt.bbox.join(';'),
+            ].map(escapeCsv).join(',');
+            csv.push(row);
+        });
+        csv.push('');
+
+        // Extra
+        csv.push('"Extra Annotations"');
+        csv.push(`"Student ID","Student Label","Student Bbox"`);
+        imgResult.extra.forEach(e => {
+            const row = [
+                e.student.id,
+                e.student.attributes?.label,
+                e.student.bbox.join(';'),
+            ].map(escapeCsv).join(',');
+            csv.push(row);
+        });
+        csv.push('');
+        csv.push('---');
+        csv.push('');
+    });
+
+    const csvContent = "data:text/csv;charset=utf-8," + csv.join("\r\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `${result.studentFilename.replace(/[^a-z0-9]/gi, '_')}_detailed_result.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  return (
+    <>
+      <div className="flex flex-row items-center justify-between mb-4">
+        <div>
+            <div className="flex items-center gap-3">
+                 <h2 className="text-2xl font-bold tracking-tight">
+                    Batch Evaluation Results
+                </h2>
+                 <Badge variant="outline" className={`border-0 bg-primary/10 text-primary`}>
+                    <User className="h-4 w-4 mr-1" />
+                    {results.length} Students
+                </Badge>
+            </div>
+          <p className="text-muted-foreground">
+            Summary and detailed breakdown for each student file.
+          </p>
+        </div>
+        <Button variant="outline" onClick={handleDownloadSummaryCsv}>
+          <Download className="mr-2 h-4 w-4" /> Download Summary CSV
+        </Button>
+      </div>
+
+       <Card className="mb-6">
+            <CardHeader>
+                <CardTitle>Batch Summary</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Student File</TableHead>
+                            <TableHead className="text-right">Score</TableHead>
+                            <TableHead className="text-right">Avg. IoU</TableHead>
+                            <TableHead className="text-right">Label Acc.</TableHead>
+                            <TableHead className="text-right">Attribute Acc.</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {results.map((result) => (
+                            <TableRow key={result.studentFilename}>
+                                <TableCell className="font-medium">{result.studentFilename}</TableCell>
+                                <TableCell className="text-right font-bold">{result.score}</TableCell>
+                                <TableCell className="text-right">{(result.average_iou * 100).toFixed(1)}%</TableCell>
+                                <TableCell className="text-right">{result.label_accuracy.accuracy.toFixed(1)}%</TableCell>
+                                <TableCell className="text-right">{result.attribute_accuracy.average_similarity.toFixed(1)}%</TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+        
+        <Accordion type="single" collapsible className="w-full">
+            <h3 className="text-lg font-semibold mb-2">Detailed Student Results</h3>
+            {results.map((result) => (
+                <AccordionItem value={result.studentFilename} key={result.studentFilename}>
+                    <AccordionTrigger className="font-medium">
+                       <div className="flex items-center justify-between w-full pr-4">
+                           <span>{result.studentFilename}</span>
+                           <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDownloadDetailedCsv(result); }}>
+                                <FileText className="mr-2 h-4 w-4" />
+                                Download CSV
+                            </Button>
+                       </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="p-4 bg-muted/50 rounded-md">
+                        <SingleResultDisplay result={result} onDownloadCsv={handleDownloadDetailedCsv} imageUrls={imageUrls}/>
+                    </AccordionContent>
+                </AccordionItem>
+            ))}
+        </Accordion>
+    </>
+  )
+
+}
+
 
 const Legend = () => (
     <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-muted-foreground mt-2 border-t pt-2">
@@ -181,213 +378,50 @@ const SingleResultDisplay = ({ result, onDownloadCsv, imageUrls }: { result: Eva
     );
 };
 
-export function ResultsDashboard({ results, loading, imageUrls }: ResultsDashboardProps) {
-  if (loading) return <SkeletonDashboard />;
-  if (!results || results.length === 0) return <Placeholder />;
-
-  const handleDownloadSummaryCsv = () => {
-    let csvContent = "data:text/csv;charset=utf-8,";
-    
-    // Header
-    csvContent += "Student Filename,Score,Avg IoU,Label Accuracy,Correct Labels,Total Labels,Attribute Accuracy,Attributes Compared,Matched Count,Missed Count,Extra Count,Feedback,Critical Issues\r\n";
-
-    results.forEach(result => {
-        const studentFilename = `"${result.studentFilename}"`;
-        const score = result.score;
-        const avgIoU = result.average_iou.toFixed(3);
-        const labelAccuracy = result.label_accuracy.accuracy.toFixed(1);
-        const correctLabels = result.label_accuracy.correct;
-        const totalLabels = result.label_accuracy.total;
-        const attributeAccuracy = result.attribute_accuracy.average_similarity.toFixed(1);
-        const attributesCompared = result.attribute_accuracy.total;
-        const matchedCount = result.matched.length;
-        const missedCount = result.missed.length;
-        const extraCount = result.extra.length;
-        const feedback = `"${result.feedback.join('. ')}"`;
-        const criticalIssues = `"${result.critical_issues.join('. ')}"`;
-
-        const row = [studentFilename, score, avgIoU, labelAccuracy, correctLabels, totalLabels, attributeAccuracy, attributesCompared, matchedCount, missedCount, extraCount, feedback, criticalIssues].join(',');
-        csvContent += row + "\r\n";
-    });
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "batch_evaluation_summary.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  }
-
-  const handleDownloadDetailedCsv = (result: EvaluationResult) => {
-    const escapeCsv = (str: string | number | undefined) => {
-        if (str === undefined || str === null) return '""';
-        const s = String(str);
-        if (s.includes('"') || s.includes(',')) {
-            return `"${s.replace(/"/g, '""')}"`;
-        }
-        return `"${s}"`;
-    };
-
-    let csv = [];
-
-    // Summary
-    csv.push(`"Summary for ${result.studentFilename}"`);
-    csv.push(`"Metric","Value"`);
-    csv.push(`"Score",${result.score}`);
-    csv.push(`"Average IoU",${result.average_iou.toFixed(4)}`);
-    csv.push(`"Label Accuracy","${result.label_accuracy.accuracy.toFixed(2)}%"`);
-    csv.push(`"Attribute Accuracy","${result.attribute_accuracy.average_similarity.toFixed(2)}%"`);
-    csv.push(`"Matched Detections",${result.matched.length}`);
-    csv.push(`"Missed Detections",${result.missed.length}`);
-    csv.push(`"Extra Detections",${result.extra.length}`);
-    csv.push('');
-
-    // Feedback & Issues
-    csv.push('"Feedback"');
-    result.feedback.forEach(f => csv.push(escapeCsv(f)));
-    csv.push('');
-    csv.push('"Critical Issues"');
-    result.critical_issues.forEach(i => csv.push(escapeCsv(i)));
-    csv.push('');
-    csv.push('---');
-    csv.push('');
-
-    // Per-Image Breakdown
-    result.image_results.forEach(imgResult => {
-        csv.push(`"Image: ${imgResult.imageName}"`);
-        csv.push('');
-
-        // Matched
-        csv.push('"Matched Annotations"');
-        csv.push(`"GT ID","GT Label","GT Bbox","Student ID","Student Label","Student Bbox","IoU","Label Match","Attribute Similarity"`);
-        imgResult.matched.forEach(m => {
-            const row = [
-                m.gt.id,
-                m.gt.attributes?.label,
-                m.gt.bbox.join(';'),
-                m.student.id,
-                m.student.attributes?.label,
-                m.student.bbox.join(';'),
-                m.iou.toFixed(4),
-                m.isLabelMatch,
-                m.attributeSimilarity.toFixed(4),
-            ].map(escapeCsv).join(',');
-            csv.push(row);
-        });
-        csv.push('');
-
-        // Missed
-        csv.push('"Missed Annotations"');
-        csv.push(`"GT ID","GT Label","GT Bbox"`);
-        imgResult.missed.forEach(m => {
-            const row = [
-                m.gt.id,
-                m.gt.attributes?.label,
-                m.gt.bbox.join(';'),
-            ].map(escapeCsv).join(',');
-            csv.push(row);
-        });
-        csv.push('');
-
-        // Extra
-        csv.push('"Extra Annotations"');
-        csv.push(`"Student ID","Student Label","Student Bbox"`);
-        imgResult.extra.forEach(e => {
-            const row = [
-                e.student.id,
-                e.student.attributes?.label,
-                e.student.bbox.join(';'),
-            ].map(escapeCsv).join(',');
-            csv.push(row);
-        });
-        csv.push('');
-        csv.push('---');
-        csv.push('');
-    });
-
-    const csvContent = "data:text/csv;charset=utf-8," + csv.join("\r\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `${result.studentFilename.replace(/[^a-z0-9]/gi, '_')}_detailed_result.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-
+export function ResultsDashboard({ results, loading, imageUrls, onEvaluate, onGtFileChange, evalSchema, onRuleChange }: ResultsDashboardProps) {
+  
   return (
     <Card className="w-full">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <div>
-            <div className="flex items-center gap-3">
-                 <CardTitle className="text-2xl">
-                    Batch Evaluation Results
-                </CardTitle>
-                 <Badge variant="outline" className={`border-0 bg-primary/10 text-primary`}>
-                    <User className="h-4 w-4 mr-1" />
-                    {results.length} Students
-                </Badge>
-            </div>
-          <CardDescription>
-            Summary and detailed breakdown for each student file.
-          </CardDescription>
-        </div>
-        <Button variant="outline" onClick={handleDownloadSummaryCsv}>
-          <Download className="mr-2 h-4 w-4" /> Download Summary CSV
-        </Button>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+            <FileCog className="w-6 h-6" />
+            New Evaluation
+        </CardTitle>
+        <CardDescription>Upload annotations to compare and score.</CardDescription>
       </CardHeader>
       <CardContent>
-        <Card className="mb-6">
-            <CardHeader>
-                <CardTitle>Batch Summary</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Student File</TableHead>
-                            <TableHead className="text-right">Score</TableHead>
-                            <TableHead className="text-right">Avg. IoU</TableHead>
-                            <TableHead className="text-right">Label Acc.</TableHead>
-                            <TableHead className="text-right">Attribute Acc.</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {results.map((result) => (
-                            <TableRow key={result.studentFilename}>
-                                <TableCell className="font-medium">{result.studentFilename}</TableCell>
-                                <TableCell className="text-right font-bold">{result.score}</TableCell>
-                                <TableCell className="text-right">{(result.average_iou * 100).toFixed(1)}%</TableCell>
-                                <TableCell className="text-right">{result.label_accuracy.accuracy.toFixed(1)}%</TableCell>
-                                <TableCell className="text-right">{result.attribute_accuracy.average_similarity.toFixed(1)}%</TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </CardContent>
-        </Card>
-        
-        <Accordion type="single" collapsible className="w-full">
-            <h3 className="text-lg font-semibold mb-2">Detailed Student Results</h3>
-            {results.map((result) => (
-                <AccordionItem value={result.studentFilename} key={result.studentFilename}>
-                    <AccordionTrigger className="font-medium">
-                       <div className="flex items-center justify-between w-full pr-4">
-                           <span>{result.studentFilename}</span>
-                           <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDownloadDetailedCsv(result); }}>
-                                <FileText className="mr-2 h-4 w-4" />
-                                Download CSV
-                            </Button>
-                       </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="p-4 bg-muted/50 rounded-md">
-                        <SingleResultDisplay result={result} onDownloadCsv={handleDownloadDetailedCsv} imageUrls={imageUrls}/>
-                    </AccordionContent>
-                </AccordionItem>
-            ))}
-        </Accordion>
+        <EvaluationForm 
+            onEvaluate={onEvaluate} 
+            isLoading={loading} 
+            onGtFileChange={onGtFileChange}
+        />
+        <Separator className="my-8" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+            <div className="lg:col-span-1 flex flex-col gap-8">
+              <RuleConfiguration 
+                  schema={evalSchema} 
+                  loading={loading} 
+                  onRuleChange={onRuleChange} 
+              />
+            </div>
+            <div className="lg:col-span-2">
+              {loading && !results ? (
+                  <div className="flex flex-col items-center justify-center text-center p-8 h-full min-h-[400px] border-dashed border rounded-md">
+                    <FileQuestion className="h-16 w-16 text-muted-foreground mb-4 animate-pulse" />
+                    <h3 className="text-xl font-semibold text-foreground">Evaluating...</h3>
+                    <p className="text-muted-foreground mt-2">The results will appear here once the evaluation is complete.</p>
+                  </div>
+              ) : results ? (
+                  <ResultsDisplay results={results} imageUrls={imageUrls} />
+              ) : (
+                <div className="flex flex-col items-center justify-center text-center p-8 h-full min-h-[400px] border-dashed border rounded-md">
+                  <FileQuestion className="h-16 w-16 text-muted-foreground mb-4" />
+                  <h3 className="text-xl font-semibold text-foreground">Awaiting Evaluation</h3>
+                  <p className="text-muted-foreground mt-2">Complete the form and run an evaluation to see results.</p>
+                </div>
+              )}
+            </div>
+        </div>
       </CardContent>
     </Card>
   );
