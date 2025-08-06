@@ -18,9 +18,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        body: ['Source Serif 4', 'serif'],
-        headline: ['Source Serif 4', 'serif'],
-        code: ['monospace'],
+        sans: ['var(--font-inter)'],
+        headline: ['var(--font-inter)'],
       },
       colors: {
         background: 'hsl(var(--background))',
@@ -100,6 +99,9 @@ export default {
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
+      },
+      boxShadow: {
+        hard: '4px 4px 0px 0px hsl(var(--foreground))',
       },
     },
   },

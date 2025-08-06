@@ -301,7 +301,7 @@ export default function Home() {
     <div className="min-h-screen flex flex-col items-center p-4 sm:p-8 md:p-12 bg-background">
       <header className="w-full max-w-7xl flex items-center justify-start mb-8">
         <AnnotatorAiLogo className="h-10 w-10 text-primary" />
-        <h1 className="text-3xl font-bold ml-4 tracking-tight">Annotator AI</h1>
+        <h1 className="text-3xl font-bold ml-4">Annotator AI</h1>
       </header>
       <main className="w-full max-w-7xl">
         <RadioGroup
@@ -314,20 +314,20 @@ export default function Home() {
                 <RadioGroupItem value="bounding-box" id="bounding-box" className="peer sr-only" />
                 <Label
                   htmlFor="bounding-box"
-                  className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary w-full"
+                  className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary w-full shadow-hard"
                 >
                   <BoxSelect className="mb-3 h-6 w-6" />
-                  <div className="h-10 text-center flex items-center">Bounding Box</div>
+                  <div className="h-10 text-center flex items-center font-bold">Bounding Box</div>
                 </Label>
               </div>
               <div>
                 <RadioGroupItem value="skeleton" id="skeleton" className="peer sr-only" />
                 <Label
                   htmlFor="skeleton"
-                  className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary w-full"
+                  className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary w-full shadow-hard"
                 >
                   <Bone className="mb-3 h-6 w-6" />
-                  <div className="h-10 text-center flex items-center">Skeleton</div>
+                  <div className="h-10 text-center flex items-center font-bold">Skeleton</div>
                 </Label>
               </div>
           </RadioGroup>
