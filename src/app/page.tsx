@@ -272,17 +272,18 @@ export default function Home() {
     setIsGeneratingRules(true);
     try {
         const input: EvalSchemaInput = { gtFileContent };
+        // User instructions take precedence over pseudocode editing
         if (instructions.userInstructions) {
             input.userInstructions = instructions.userInstructions;
+        } else if (instructions.pseudoCode) {
+            input.pseudoCode = instructions.pseudoCode;
         }
-        // Note: The AI flow does not currently accept pseudocode back as an input.
-        // We rely on plain English instructions to regenerate the full schema.
         
         const newSchema = await extractEvalSchema(input);
         setEvalSchema(newSchema);
         toast({
             title: "Rules Regenerated",
-            description: "The evaluation schema has been updated based on your instructions.",
+            description: "The evaluation schema has been updated based on your input.",
         });
     } catch (e: any) {
         console.error(e);

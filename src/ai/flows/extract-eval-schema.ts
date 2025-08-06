@@ -16,7 +16,8 @@ const EvalSchemaInputSchema = z.object({
   gtFileContent: z
     .string()
     .describe('The full text content of the ground truth (GT) annotation file.'),
-  userInstructions: z.string().optional().describe("Optional plain-text instructions from the user on how to modify the evaluation logic. This should take precedence over the derived logic from the file content.")
+  userInstructions: z.string().optional().describe("Optional plain-text instructions from the user on how to modify the evaluation logic. This should take precedence over the derived logic from the file content."),
+  pseudoCode: z.string().optional().describe("Optional user-edited pseudocode. If userInstructions are absent, this pseudocode should be used to regenerate the structured schema.")
 });
 export type EvalSchemaInput = z.infer<typeof EvalSchemaInputSchema>;
 
@@ -35,25 +36,49 @@ const extractEvalSchemaPrompt = ai.definePrompt({
   name: 'extractEvalSchemaPrompt',
   input: {schema: EvalSchemaInputSchema},
   output: {schema: EvalSchemaSchema},
-  prompt: `You are an expert at analyzing annotation files (like COCO JSON or CVAT XML) to determine how they should be evaluated for a temporary student assessment.
-Analyze the provided ground truth file content and extract the evaluation schema.
+  prompt: `You are an expert at analyzing annotation files (like COCO JSON or CVAT XML) and user instructions to create a structured evaluation schema for student assessments.
 
-Based on the content, perform the following steps:
-1.  Identify all unique object class labels.
-2.  For each label, list the attributes associated with it. If a label has no attributes besides its bounding box, return an empty array for its attributes.
-3.  Determine if there is a specific attribute that can serve as a unique key for matching annotations (e.g., "Annotation No", "track_id"). If found, specify it as the matchKey. If not, omit the field.
-4.  Generate simple, human-readable Python-like pseudocode that describes the steps to evaluate a student's file against this GT. This pseudocode will be shown to a user and should be understandable. For example, if a label 'car' has an attribute 'license_plate_number', the pseudocode should suggest checking for a text match on that attribute. If a label has no attributes, it should only mention IoU evaluation.
+Your goal is to generate a valid JSON object matching the requested schema.
+
+If user instructions are provided, they are the HIGHEST priority.
+If user-edited pseudocode is provided (and instructions are not), that is the second highest priority.
+If neither is provided, derive the logic from the Ground Truth file content.
+
+Follow these steps:
+
+1.  **Analyze Inputs**: Review the provided GT file content, and check for any overriding user instructions or edited pseudocode.
+
+2.  **Determine Logic Source**:
+    *   **If 'userInstructions' exists**: Generate the entire schema (labels, attributes, matchKey, and a NEW pseudocode) based *strictly* on these instructions. The GT file is only for context. Example: If the user says "ignore color", you must remove the 'color' attribute and update the pseudocode.
+    *   **Else if 'pseudoCode' exists**: The user has edited the pseudocode. Your task is to reverse-engineer it. Parse this pseudocode to create the structured 'labels', 'attributes', and 'matchKey'. The provided pseudocode becomes the canonical source. The original GT file content should be ignored.
+    *   **Else**: Derive the schema directly from the GT file content. Identify all unique labels, their attributes, a possible 'matchKey' (like "Annotation No"), and generate a clear, human-readable Python-like pseudocode describing the evaluation steps.
+
+3.  **Generate Pseudocode**: The pseudocode should be a simple, step-by-step summary of the evaluation logic. It will be displayed to a user and must be easy to understand.
+
+This entire process is for the purpose of a temporary student evaluation ('evaluate_student_annotations') and the logic should be derived based on the priority order described above.
 
 {{#if userInstructions}}
-IMPORTANT: The user has provided specific instructions for modification. These instructions MUST be followed and should override any logic derived from the file.
+----------------
+PRIMARY INSTRUCTIONS (HIGHEST PRIORITY):
+The user has provided specific plain-text instructions. These MUST be followed and override all other logic.
 User Instructions: "{{userInstructions}}"
-You must re-generate the entire schema (labels, attributes, matchKey, and pseudocode) to reflect these instructions. For example, if the user says "ignore the color attribute", you must remove 'color' from the attributes list for all relevant labels and update the pseudocode.
+You must re-generate the entire schema (labels, attributes, matchKey, and pseudocode) to reflect these instructions.
+----------------
+{{else if pseudoCode}}
+----------------
+PRIMARY INSTRUCTIONS (FROM PSEUDOCODE):
+The user has provided edited pseudocode. This is now the source of truth. Analyze it to generate the structured schema (labels, attributes, matchKey).
+User-Provided Pseudocode:
+\`\`\`
+{{{pseudoCode}}}
+\`\`\`
+----------------
 {{/if}}
 
-This entire process is for the purpose of a temporary student evaluation ('evaluate_student_annotations') and the logic should be derived solely from the file provided, as modified by user instructions.
-
-Ground Truth File Content:
+Ground Truth File Content (for context or initial generation):
+\`\`\`
 {{{gtFileContent}}}
+\`\`\`
 `,
   model: googleAI.model('gemini-1.5-flash'),
 });

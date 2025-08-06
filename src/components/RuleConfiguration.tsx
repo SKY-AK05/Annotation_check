@@ -43,20 +43,30 @@ const SkeletonCard = () => (
 export function RuleConfiguration({ schema, loading, onRuleChange }: RuleConfigurationProps) {
   const [pseudoCode, setPseudoCode] = React.useState(schema?.pseudoCode || '');
   const [userInstructions, setUserInstructions] = React.useState('');
+  const [editedPseudoCode, setEditedPseudoCode] = React.useState(schema?.pseudoCode || '');
 
   React.useEffect(() => {
     if (schema) {
       setPseudoCode(schema.pseudoCode);
+      setEditedPseudoCode(schema.pseudoCode);
     }
   }, [schema]);
   
-  const handleRegenerate = () => {
+  const handleRegenerateFromInstructions = () => {
     onRuleChange({
-        pseudoCode: pseudoCode,
         userInstructions: userInstructions,
     });
     setUserInstructions(''); // Clear instructions after submission
   };
+
+  const handleRegenerateFromPseudoCode = () => {
+    onRuleChange({
+        pseudoCode: editedPseudoCode,
+    });
+  };
+
+  const hasInstructions = userInstructions.trim().length > 0;
+  const hasPseudoCodeChanged = pseudoCode.trim() !== editedPseudoCode.trim();
 
   if (loading && !schema) return <SkeletonCard />;
 
@@ -69,7 +79,7 @@ export function RuleConfiguration({ schema, loading, onRuleChange }: RuleConfigu
                     Evaluation Rules
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                    This logic is auto-generated from your GT file. You can modify it below.
+                    This logic is auto-generated. Customize it with instructions or by editing the pseudocode directly.
                 </p>
             </div>
         </div>
@@ -94,8 +104,6 @@ export function RuleConfiguration({ schema, loading, onRuleChange }: RuleConfigu
                             <h4 className="font-semibold text-sm">Matching Key</h4>
                             <Badge variant="outline" className="text-xs">{schema.matchKey || 'IoU + Label'}</Badge>
                         </div>
-                    </div>
-                    <div className="space-y-6">
                         <div className="space-y-2">
                             <Label htmlFor="plain-english-instructions" className="text-sm font-semibold flex items-center gap-2">
                                 <Wand2 className="w-4 h-4" />
@@ -109,34 +117,31 @@ export function RuleConfiguration({ schema, loading, onRuleChange }: RuleConfigu
                                 onChange={(e) => setUserInstructions(e.target.value)}
                                 disabled={loading}
                             />
-                        </div>
-                         <div className="space-y-2">
-                            <Label htmlFor="pseudocode" className="text-sm font-semibold">Logic Pseudocode (Read-Only)</Label>
-                            <Textarea 
-                                id="pseudocode"
-                                className="bg-muted p-4 rounded-lg text-xs text-muted-foreground overflow-x-auto font-mono h-48"
-                                value={pseudoCode}
-                                onChange={(e) => setPseudoCode(e.target.value)}
-                                readOnly
-                                disabled={loading}
-                            />
-                            <p className="text-xs text-muted-foreground">This is a read-only view. Use the instruction box above to apply changes.</p>
+                             <Button onClick={handleRegenerateFromInstructions} disabled={loading || !hasInstructions} size="sm">
+                                {loading && hasInstructions ? 'Applying...' : 'Apply Instructions'}
+                            </Button>
                         </div>
                     </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="pseudocode" className="text-sm font-semibold">Logic Pseudocode (Editable)</Label>
+                        <Textarea 
+                            id="pseudocode"
+                            className="bg-muted p-4 rounded-lg text-xs text-muted-foreground overflow-x-auto font-mono h-64"
+                            value={editedPseudoCode}
+                            onChange={(e) => setEditedPseudoCode(e.target.value)}
+                            disabled={loading}
+                        />
+                        <Button onClick={handleRegenerateFromPseudoCode} disabled={loading || !hasPseudoCodeChanged} size="sm">
+                             {loading && hasPseudoCodeChanged ? 'Applying...' : 'Apply Pseudocode Changes'}
+                        </Button>
+                    </div>
                 </div>
-                <Button onClick={handleRegenerate} disabled={loading || !userInstructions.trim()} className="w-full md:w-auto mt-6">
-                    {loading ? (
-                        <>
-                            <Sparkles className="mr-2 h-4 w-4 animate-spin" />
-                            Regenerating...
-                        </>
-                    ) : (
-                        <>
-                            <Sparkles className="mr-2 h-4 w-4" />
-                            Regenerate Rules
-                        </>
-                    )}
-                </Button>
+                <div className="w-full flex justify-center">
+                    <Button onClick={() => hasInstructions ? handleRegenerateFromInstructions() : handleRegenerateFromPseudoCode() } disabled={loading || (!hasInstructions && !hasPseudoCodeChanged)} className="w-full md:w-auto mt-6">
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        Regenerate Rules
+                    </Button>
+                </div>
             </CardContent>
         </Card>
       )}
