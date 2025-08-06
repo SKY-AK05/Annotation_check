@@ -72,7 +72,7 @@ export function RuleConfiguration({ schema, loading, onRuleChange }: RuleConfigu
   if (!schema) return <Placeholder />;
 
   return (
-    <Card>
+    <Card className='card-sketch'>
         <CardContent className="space-y-6 pt-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                 <div className="space-y-6">
@@ -80,7 +80,7 @@ export function RuleConfiguration({ schema, loading, onRuleChange }: RuleConfigu
                         <h4 className="font-semibold text-sm">Labels & Attributes</h4>
                         <div className="flex flex-wrap gap-2">
                         {schema.labels.map(label => (
-                            <Badge key={label.name} variant="secondary" className="text-xs">
+                            <Badge key={label.name} variant="secondary" className="border-2 border-foreground">
                                 {label.name}
                                 {label.attributes.length > 0 && ` (${label.attributes.join(', ')})`}
                             </Badge>
@@ -89,7 +89,7 @@ export function RuleConfiguration({ schema, loading, onRuleChange }: RuleConfigu
                     </div>
                     <div className="space-y-2">
                         <h4 className="font-semibold text-sm">Matching Key</h4>
-                        <Badge variant="outline" className="text-xs">{schema.matchKey || 'IoU + Label'}</Badge>
+                        <Badge variant="outline" className="border-2 border-foreground">{schema.matchKey || 'IoU + Label'}</Badge>
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="plain-english-instructions" className="text-sm font-semibold flex items-center gap-2">
@@ -98,13 +98,13 @@ export function RuleConfiguration({ schema, loading, onRuleChange }: RuleConfigu
                         </Label>
                         <Textarea 
                             id="plain-english-instructions"
-                            className="bg-background p-2 rounded-lg text-sm text-foreground font-sans h-24"
+                            className="bg-background p-2 rounded-lg text-sm text-foreground font-sans h-24 textarea-sketch"
                             placeholder="e.g., 'Ignore the color attribute for cars.' or 'Only check pedestrians for IoU.'"
                             value={userInstructions}
                             onChange={(e) => setUserInstructions(e.target.value)}
                             disabled={loading}
                         />
-                         <Button onClick={handleRegenerateFromInstructions} disabled={loading || !hasInstructions} size="sm">
+                         <Button onClick={handleRegenerateFromInstructions} disabled={loading || !hasInstructions} size="sm" className='btn-sketch'>
                             {loading && hasInstructions ? 'Applying...' : 'Apply Instructions'}
                         </Button>
                     </div>
@@ -113,18 +113,18 @@ export function RuleConfiguration({ schema, loading, onRuleChange }: RuleConfigu
                     <Label htmlFor="pseudocode" className="text-sm font-semibold">Logic Pseudocode (Editable)</Label>
                     <Textarea 
                         id="pseudocode"
-                        className="p-4 rounded-lg text-xs text-muted-foreground overflow-x-auto font-mono h-64"
+                        className="p-4 rounded-lg text-xs text-muted-foreground overflow-x-auto font-mono h-64 textarea-sketch"
                         value={editedPseudoCode}
                         onChange={(e) => setEditedPseudoCode(e.target.value)}
                         disabled={loading}
                     />
-                    <Button onClick={handleRegenerateFromPseudoCode} disabled={loading || !hasPseudoCodeChanged} size="sm">
+                    <Button onClick={handleRegenerateFromPseudoCode} disabled={loading || !hasPseudoCodeChanged} size="sm" className='btn-sketch'>
                          {loading && hasPseudoCodeChanged ? 'Applying...' : 'Apply Pseudocode Changes'}
                     </Button>
                 </div>
             </div>
             <div className="w-full flex justify-center border-t pt-4 mt-4">
-                <Button onClick={() => hasInstructions ? handleRegenerateFromInstructions() : handleRegenerateFromPseudoCode() } disabled={loading || (!hasInstructions && !hasPseudoCodeChanged)} className="w-full md:w-auto">
+                <Button onClick={() => hasInstructions ? handleRegenerateFromInstructions() : handleRegenerateFromPseudoCode() } disabled={loading || (!hasInstructions && !hasPseudoCodeChanged)} className="w-full md:w-auto btn-sketch">
                     <Sparkles className="mr-2 h-4 w-4" />
                     Regenerate Rules
                 </Button>

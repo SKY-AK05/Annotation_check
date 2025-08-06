@@ -18,8 +18,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['var(--font-inter)'],
-        headline: ['var(--font-inter)'],
+        sans: ['var(--font-architects-daughter)'],
+        headline: ['var(--font-architects-daughter)'],
       },
       colors: {
         background: 'hsl(var(--background))',
@@ -101,7 +101,7 @@ export default {
         'accordion-up': 'accordion-up 0.2s ease-out',
       },
       boxShadow: {
-        sm: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
+        hard: '4px 4px 0px 0px hsl(var(--foreground))',
       },
     },
   },

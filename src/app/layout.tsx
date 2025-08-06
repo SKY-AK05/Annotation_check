@@ -1,9 +1,13 @@
 import type {Metadata} from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
-import { Inter } from 'next/font/google'
+import { Architects_Daughter } from 'next/font/google'
 
-const inter = Inter({ subsets: ['latin'], display: 'swap' })
+const architectsDaughter = Architects_Daughter({ 
+  subsets: ['latin'], 
+  weight: '400',
+  variable: '--font-architects-daughter',
+})
 
 export const metadata: Metadata = {
   title: 'Annotator AI',
@@ -16,7 +20,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={inter.className}>
+    <html lang="en" className={architectsDaughter.variable}>
       <body>
         {children}
         <Toaster />

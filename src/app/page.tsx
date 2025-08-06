@@ -314,7 +314,7 @@ export default function Home() {
                 <RadioGroupItem value="bounding-box" id="bounding-box" className="peer sr-only" />
                 <Label
                   htmlFor="bounding-box"
-                  className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary w-full shadow-hard"
+                  className="flex flex-col items-center justify-between rounded-md border-2 border-foreground bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary w-full shadow-hard"
                 >
                   <BoxSelect className="mb-3 h-6 w-6" />
                   <div className="h-10 text-center flex items-center font-bold">Bounding Box</div>
@@ -324,7 +324,7 @@ export default function Home() {
                 <RadioGroupItem value="skeleton" id="skeleton" className="peer sr-only" />
                 <Label
                   htmlFor="skeleton"
-                  className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary w-full shadow-hard"
+                  className="flex flex-col items-center justify-between rounded-md border-2 border-foreground bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary w-full shadow-hard"
                 >
                   <Bone className="mb-3 h-6 w-6" />
                   <div className="h-10 text-center flex items-center font-bold">Skeleton</div>

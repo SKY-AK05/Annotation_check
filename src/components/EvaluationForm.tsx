@@ -75,7 +75,7 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange, imageUrl
                       <FileCog className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                       <Input
                         type="file"
-                        className="pl-10"
+                        className="pl-10 input-sketch"
                         {...gtFileRef}
                         accept=".xml,.json,.zip"
                         onChange={(e) => {
@@ -99,7 +99,7 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange, imageUrl
                   <FormControl>
                     <div className="relative">
                       <UploadCloud className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                      <Input type="file" className="pl-10" {...studentFileRef} accept=".xml,.json,.zip" multiple />
+                      <Input type="file" className="pl-10 input-sketch" {...studentFileRef} accept=".xml,.json,.zip" multiple />
                     </div>
                   </FormControl>
                   <FormDescription>Upload one or more files, or a single ZIP archive.</FormDescription>
@@ -118,7 +118,7 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange, imageUrl
                       <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                       <Input 
                         type="file" 
-                        className="pl-10" 
+                        className="pl-10 input-sketch" 
                         {...imageFileRef} 
                         accept="image/*,.zip" 
                         multiple 
@@ -145,11 +145,11 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange, imageUrl
                   <FormLabel>Annotation Format</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
-                      <SelectTrigger>
+                      <SelectTrigger className='input-sketch'>
                           <SelectValue placeholder="Select a tool type" />
                       </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
+                      <SelectContent className='card-sketch'>
                         <SelectItem value="bounding_box">COCO JSON (Bounding Box)</SelectItem>
                         <SelectItem value="cvat_xml">CVAT XML 1.1</SelectItem>
                         <SelectItem value="polygon" disabled>Polygon (Coming Soon)</SelectItem>
@@ -162,7 +162,7 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange, imageUrl
               )}
             />
           </div>
-          <Button type="submit" disabled={isLoading} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
+          <Button type="submit" disabled={isLoading} className="w-full btn-sketch">
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

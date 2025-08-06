@@ -167,7 +167,7 @@ const ResultsDisplay = ({ results, imageUrls }: { results: EvaluationResult[], i
                  <h2 className="text-2xl font-bold tracking-tight">
                     Batch Evaluation Results
                 </h2>
-                 <Badge variant="outline" className={`border-0 bg-primary/10 text-primary`}>
+                 <Badge variant="outline" className={`border-2 border-foreground`}>
                     <User className="h-4 w-4 mr-1" />
                     {results.length} Students
                 </Badge>
@@ -176,12 +176,12 @@ const ResultsDisplay = ({ results, imageUrls }: { results: EvaluationResult[], i
             Summary and detailed breakdown for each student file.
           </p>
         </div>
-        <Button variant="outline" onClick={handleDownloadSummaryCsv}>
+        <Button variant="outline" onClick={handleDownloadSummaryCsv} className='btn-sketch'>
           <Download className="mr-2 h-4 w-4" /> Download Summary CSV
         </Button>
       </div>
 
-       <Card className="mb-6">
+       <Card className="mb-6 card-sketch">
             <CardHeader>
                 <CardTitle>Batch Summary</CardTitle>
             </CardHeader>
@@ -218,7 +218,7 @@ const ResultsDisplay = ({ results, imageUrls }: { results: EvaluationResult[], i
                     <AccordionTrigger className="font-medium">
                        <div className="flex items-center justify-between w-full pr-4">
                            <span>{result.studentFilename}</span>
-                           <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDownloadDetailedCsv(result); }}>
+                           <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDownloadDetailedCsv(result); }} className='btn-sketch'>
                                 <FileText className="mr-2 h-4 w-4" />
                                 Download CSV
                             </Button>
@@ -255,7 +255,7 @@ const ImageResultDisplay = ({ imageResult, imageUrl }: { imageResult: ImageEvalu
     };
 
     return (
-        <Card className="bg-background">
+        <Card className="bg-background card-sketch">
             <CardHeader className="p-4">
                 <CardTitle className="text-lg flex items-center gap-2">
                     <ImageIcon className="h-5 w-5"/>
@@ -278,7 +278,7 @@ const ImageResultDisplay = ({ imageResult, imageUrl }: { imageResult: ImageEvalu
                         </div>
                     )}
                 </div>
-                 <Card>
+                 <Card className='card-sketch'>
                     <CardHeader className="pb-2"><CardTitle className="text-base">{imageResult.matched.length} Matched</CardTitle></CardHeader>
                     <CardContent>
                         <Table>
@@ -287,7 +287,7 @@ const ImageResultDisplay = ({ imageResult, imageUrl }: { imageResult: ImageEvalu
                         </Table>
                     </CardContent>
                 </Card>
-                <Card>
+                <Card className='card-sketch'>
                     <CardHeader className="pb-2"><CardTitle className="text-base">{imageResult.missed.length} Missed</CardTitle></CardHeader>
                     <CardContent>
                         <Table>
@@ -296,7 +296,7 @@ const ImageResultDisplay = ({ imageResult, imageUrl }: { imageResult: ImageEvalu
                         </Table>
                     </CardContent>
                 </Card>
-                <Card>
+                <Card className='card-sketch'>
                     <CardHeader className="pb-2"><CardTitle className="text-base">{imageResult.extra.length} Extra</CardTitle></CardHeader>
                     <CardContent>
                         <Table>
@@ -319,7 +319,7 @@ const SingleResultDisplay = ({ result, onDownloadCsv, imageUrls }: { result: Eva
                     <ScoreCard score={result.score} />
                 </div>
                 <div className="md:col-span-2 space-y-4">
-                    <Card>
+                    <Card className='card-sketch'>
                         <CardHeader className="flex flex-row items-center space-x-3 space-y-0 pb-2">
                             <MessageSquare className="h-5 w-5 text-primary"/>
                             <h3 className="font-semibold">Overall Feedback</h3>
@@ -331,7 +331,7 @@ const SingleResultDisplay = ({ result, onDownloadCsv, imageUrls }: { result: Eva
                         </CardContent>
                     </Card>
                     { (result.critical_issues && result.critical_issues.length > 0) ? (
-                        <Card>
+                        <Card className='card-sketch'>
                         <CardHeader className="flex flex-row items-center space-x-3 space-y-0 pb-2">
                             <ShieldAlert className="h-5 w-5 text-destructive"/>
                             <h3 className="font-semibold">Critical Issues</h3>
@@ -347,15 +347,15 @@ const SingleResultDisplay = ({ result, onDownloadCsv, imageUrls }: { result: Eva
             </div>
 
              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-                <Card>
+                <Card className='card-sketch'>
                     <CardHeader><CardTitle>Localization Accuracy</CardTitle></CardHeader>
                     <CardContent className="text-3xl font-bold">{result.average_iou.toFixed(3)} <span className="text-sm font-normal text-muted-foreground">Avg. IoU</span></CardContent>
                 </Card>
-                <Card>
+                <Card className='card-sketch'>
                     <CardHeader><CardTitle>Label Accuracy</CardTitle></CardHeader>
                     <CardContent className="text-3xl font-bold">{result.label_accuracy.accuracy.toFixed(0)}% <span className="text-sm font-normal text-muted-foreground">({result.label_accuracy.correct}/{result.label_accuracy.total} correct)</span></CardContent>
                 </Card>
-                    <Card>
+                    <Card className='card-sketch'>
                     <CardHeader><CardTitle>Attribute Accuracy</CardTitle></CardHeader>
                     <CardContent className="text-3xl font-bold">{result.attribute_accuracy.average_similarity.toFixed(0)}% <span className="text-sm font-normal text-muted-foreground">({result.attribute_accuracy.total} attributes)</span></CardContent>
                 </Card>
@@ -387,7 +387,7 @@ export function ResultsDashboard({ results, loading, imageUrls, onEvaluate, onGt
   }, [evalSchema]);
   
   return (
-    <Card className="w-full">
+    <Card className="w-full card-sketch">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
             <FileCog className="w-6 h-6" />
