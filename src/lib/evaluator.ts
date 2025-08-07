@@ -1,7 +1,8 @@
 
 
 
-import type { EvaluationResult, CocoJson, BboxAnnotation, LabelAccuracy, AttributeAccuracy, Match, ImageEvaluationResult, SkeletonEvaluationResult, SkeletonMatch } from './types';
+
+import type { EvaluationResult, CocoJson, BboxAnnotation, LabelAccuracy, AttributeAccuracy, Match, ImageEvaluationResult, SkeletonEvaluationResult, SkeletonMatch, PolygonAnnotation } from './types';
 import type { EvalSchema } from '@/ai/flows/extract-eval-schema';
 
 // Simple IoU (Intersection over Union) calculation for bounding boxes
@@ -69,7 +70,7 @@ function getStringSimilarity(str1: string, str2: string): number {
     return (maxLength - distance) / maxLength;
 }
 
-function getAnnotationAttribute(annotation: BboxAnnotation, key: string): string | undefined {
+function getAnnotationAttribute(annotation: BboxAnnotation | PolygonAnnotation, key: string): string | undefined {
     return annotation.attributes?.[key];
 }
 

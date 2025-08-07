@@ -24,6 +24,26 @@ export interface CocoImage {
     width: number;
 }
 
+// Point is a [number, number] tuple for [x, y]
+export type Point = [number, number];
+
+// Polygon is an array of points
+export type Polygon = Point[];
+
+
+export interface PolygonAnnotation {
+    id: number;
+    image_id: number;
+    category_id: number;
+    segmentation: Polygon[];
+    area: number;
+    bbox: [number, number, number, number];
+    attributes?: {
+        [key: string]: string | undefined;
+    };
+}
+
+
 export interface BboxAnnotation {
     id: number;
     image_id: number;
@@ -34,6 +54,7 @@ export interface BboxAnnotation {
     };
     keypoints?: number[];
     num_keypoints?: number;
+    segmentation?: Polygon[];
 }
 
 export interface CocoJson {
@@ -59,6 +80,16 @@ export interface Match {
     iou: number;
     isLabelMatch: boolean;
     attributeSimilarity: number;
+}
+
+export interface PolygonMatch {
+    gt: PolygonAnnotation;
+    student: PolygonAnnotation;
+    iou: number;
+    deviation: number;
+    polygonScore: number;
+    attributeScore: number;
+    finalScore: number;
 }
 
 export interface SkeletonMatch extends Match {
@@ -101,3 +132,15 @@ export interface SkeletonEvaluationResult {
     extra: { student: BboxAnnotation }[];
 }
 
+export interface PolygonEvaluationResult {
+    studentFilename: string;
+    score: number;
+    feedback: string[];
+    averageIoU: number;
+    averageDeviation: number;
+    averagePolygonScore: number;
+    averageAttributeScore: number;
+    matched: PolygonMatch[];
+    missed: { gt: PolygonAnnotation }[];
+    extra: { student: PolygonAnnotation }[];
+}

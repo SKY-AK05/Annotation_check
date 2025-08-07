@@ -14,7 +14,8 @@ import { extractEvalSchema, type EvalSchema, type EvalSchemaInput } from '@/ai/f
 import SkeletonAnnotationPage from '@/components/SkeletonAnnotationPage';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
-import { BoxSelect, Bone } from 'lucide-react';
+import { BoxSelect, Bone, Spline } from 'lucide-react';
+import PolygonAnnotationPage from '@/components/PolygonAnnotationPage';
 
 export default function Home() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -23,7 +24,7 @@ export default function Home() {
   const [evalSchema, setEvalSchema] = useState<EvalSchema | null>(null);
   const [gtFileContent, setGtFileContent] = useState<string | null>(null);
   const [imageUrls, setImageUrls] = useState<Map<string, string>>(new Map());
-  const [evaluationMode, setEvaluationMode] = useState<'bounding-box' | 'skeleton'>('bounding-box');
+  const [evaluationMode, setEvaluationMode] = useState<'bounding-box' | 'skeleton' | 'polygon'>('bounding-box');
   const { toast } = useToast();
 
   const handleGtFileChange = async (file: File | undefined) => {
@@ -306,8 +307,8 @@ export default function Home() {
       <main className="w-full max-w-7xl">
         <RadioGroup
               defaultValue="bounding-box"
-              className="grid grid-cols-2 gap-4 mb-6 max-w-md mx-auto"
-              onValueChange={(mode: 'bounding-box' | 'skeleton') => setEvaluationMode(mode)}
+              className="grid grid-cols-3 gap-4 mb-6 max-w-lg mx-auto"
+              onValueChange={(mode: 'bounding-box' | 'skeleton' | 'polygon') => setEvaluationMode(mode)}
               value={evaluationMode}
           >
               <div>
@@ -330,6 +331,16 @@ export default function Home() {
                   <span className="font-bold text-center">Skeleton</span>
                 </Label>
               </div>
+              <div>
+                <RadioGroupItem value="polygon" id="polygon" className="peer sr-only" />
+                <Label
+                  htmlFor="polygon"
+                  className="flex flex-col items-center justify-between rounded-md border-2 border-foreground bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary w-full shadow-hard card-style"
+                >
+                  <Spline className="mb-3 h-6 w-6" />
+                  <span className="font-bold text-center">Polygon</span>
+                </Label>
+              </div>
           </RadioGroup>
 
           {evaluationMode === 'bounding-box' ? (
@@ -342,8 +353,10 @@ export default function Home() {
                   evalSchema={evalSchema}
                   onRuleChange={handleRuleChange}
               />
-          ) : (
+          ) : evaluationMode === 'skeleton' ? (
               <SkeletonAnnotationPage />
+          ) : (
+              <PolygonAnnotationPage />
           )}
       </main>
     </div>
