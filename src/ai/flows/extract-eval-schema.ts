@@ -90,44 +90,19 @@ const extractEvalSchemaFlow = ai.defineFlow(
   },
   async (input) => {
     try {
-      // First attempt with the primary, faster model
-      const { output } = await extractEvalSchemaPrompt({
-        ...input,
-      }, { model: googleAI.model('gemini-1.5-flash') });
+      const { output } = await extractEvalSchemaPrompt({ ...input }, { model: googleAI.model('gemini-1.5-flash') });
       
       if (!output) {
-        throw new Error("The AI model failed to extract an evaluation schema on the first attempt.");
+        throw new Error("The AI model failed to extract an evaluation schema.");
       }
       return output;
     } catch (error: any) {
-        console.warn("Primary model failed, attempting fallback. Error:", error.message);
-        
-        // Check if the error is a rate limit or server error to justify a fallback
-        const isRateLimitError = error.message && (error.message.includes('429') || error.message.includes('503'));
-        
-        if (isRateLimitError) {
-             try {
-                console.log("Executing fallback to gemini-1.5-pro...");
-                const fallbackModel = process.env.SECOND_GEMINI_API_KEY 
-                    ? googleAI.model('gemini-1.5-pro', { id: 'googleai-fallback' }) 
-                    : googleAI.model('gemini-1.5-pro');
-
-                const { output: fallbackOutput } = await extractEvalSchemaPrompt({
-                  ...input,
-                }, { model: fallbackModel });
-
-                if (!fallbackOutput) {
-                    throw new Error("The fallback AI model also failed to extract a schema.");
-                }
-                return fallbackOutput;
-            } catch (fallbackError: any) {
-                console.error("Fallback model also failed:", fallbackError.message);
-                throw new Error(`The AI service is currently overloaded. Primary and fallback models failed. Please try again later. Original error: ${error.message}`);
-            }
-        } else {
-            // For other types of errors (e.g., malformed input), just re-throw
-            throw error;
+        console.error("AI model failed:", error.message);
+        // Check if the error is a service availability issue from the AI model
+        if (error.cause?.status === 503 || (error.message && (error.message.includes('503') || error.message.includes('429')))) {
+            throw new Error("The AI service is temporarily unavailable. Please try again in a few moments.");
         }
+        throw new Error(`The AI model failed to process the request: ${error.message}`);
     }
   }
 );
