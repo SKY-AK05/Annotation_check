@@ -391,7 +391,7 @@ export function ResultsDashboard({ results, loading, imageUrls, onEvaluate, onGt
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
             <FileCog className="w-6 h-6" />
-            New Evaluation
+            New Bounding Box Evaluation
         </CardTitle>
         <CardDescription>Upload annotations to compare and score.</CardDescription>
       </CardHeader>
