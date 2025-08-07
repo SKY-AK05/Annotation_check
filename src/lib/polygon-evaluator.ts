@@ -1,5 +1,6 @@
 
-import type { CocoJson, PolygonAnnotation, PolygonEvaluationResult, PolygonMatch, Point, Polygon as PolygonType } from './types';
+import type { PolygonAnnotation, PolygonEvaluationResult, PolygonMatch, Point, Polygon as PolygonType } from './types';
+import type { EvalSchema } from '@/ai/flows/extract-eval-schema';
 import KDBush from 'kdbush';
 import pc from 'polygon-clipping';
 
@@ -41,14 +42,13 @@ function computeDeviations(gt_polygon: PolygonType, annot_polygon: PolygonType):
     tree.finish();
 
     return annot_polygon.map(point => {
-        const nearest = tree.within(point[0], point[1], 1)[0]; // Use a small radius and take the first point. KDBush `within` is not ideal for nearest neighbor, but for small distances it works. A more robust solution might require a different library if performance becomes an issue.
+        const nearest = tree.within(point[0], point[1], 1)[0]; 
         if (nearest !== undefined) {
              const nearestPoint = gt_polygon[nearest];
              const dx = point[0] - nearestPoint[0];
              const dy = point[1] - nearestPoint[1];
              return Math.sqrt(dx * dx + dy * dy);
         }
-        // Fallback for points far away
         let min_dist_sq = Infinity;
         for (const gt_point of gt_polygon) {
             const dist_sq = (point[0] - gt_point[0]) ** 2 + (point[1] - gt_point[1]) ** 2;
@@ -77,25 +77,30 @@ function calculateDeviationScore(gt_polygon: PolygonType, annot_polygon: Polygon
     return Math.max(0, 100 - (0.1 * p_minor + 0.3 * p_moderate + 0.5 * p_major));
 }
 
-function calculateAttributeScore(gt_attrs: { [key: string]: string | undefined }, annot_attrs: { [key: string]: string | undefined }): number {
-    const gtKeys = Object.keys(gt_attrs).filter(k => k !== 'label' && k !== 'annotation no');
-    if (gtKeys.length === 0) return 100;
+function calculateAttributeScore(gt_attrs: { [key: string]: string | undefined }, annot_attrs: { [key: string]: string | undefined }, schema: EvalSchema, label: string): number {
+    const labelSchema = schema.labels.find(l => l.name === label);
+    const attributesToCompare = labelSchema ? labelSchema.attributes.filter(a => a !== schema.matchKey && a !== 'label') : [];
+    
+    if (attributesToCompare.length === 0) return 100;
 
     let correct = 0;
-    for (const key of gtKeys) {
+    for (const key of attributesToCompare) {
         if (annot_attrs[key] !== undefined && annot_attrs[key] === gt_attrs[key]) {
             correct++;
         }
     }
-    return (correct / gtKeys.length) * 100;
+    return (correct / attributesToCompare.length) * 100;
 }
 
-export function evaluatePolygons(gtJson: any, studentJson: any): Omit<PolygonEvaluationResult, 'studentFilename'> {
+export function evaluatePolygons(gtJson: any, studentJson: any, schema: EvalSchema): Omit<PolygonEvaluationResult, 'studentFilename'> {
     const allGtAnnotations: PolygonAnnotation[] = gtJson.annotations || [];
     const allStudentAnnotations: PolygonAnnotation[] = studentJson.annotations || [];
 
+    const gtCategories = new Map((gtJson.categories || []).map(c => [c.id, c.name]));
+
     const matched: PolygonMatch[] = [];
-    const studentMatchedIndices = new Set<number>();
+    const gtMatchedIds = new Set<number>();
+    const studentMatchedIds = new Set<number>();
     
     const gtAnnsByImage = allGtAnnotations.reduce((acc, ann) => {
         (acc[ann.image_id] = acc[ann.image_id] || []).push(ann);
@@ -108,42 +113,77 @@ export function evaluatePolygons(gtJson: any, studentJson: any): Omit<PolygonEva
     }, {} as Record<number, PolygonAnnotation[]>);
 
     const imageIds = Object.keys(gtAnnsByImage).map(Number);
+    const matchKey = schema.matchKey;
 
     for (const imageId of imageIds) {
         const gtPolys = gtAnnsByImage[imageId] || [];
         const studentPolys = studentAnnsByImage[imageId] || [];
-        const usedStudentIndicesInImage = new Set<number>();
 
-        for (const gtPoly of gtPolys) {
-            let bestMatch: { student: PolygonAnnotation; iou: number, index: number } | null = null;
-            
-            const gtAnnoNo = getAnnotationAttribute(gtPoly, "annotation no");
+        // Pass 1: Key-based matching
+        if (matchKey) {
+            const studentMap = new Map<string, PolygonAnnotation>();
+             studentPolys.forEach(ann => {
+                if (studentMatchedIds.has(ann.id)) return;
+                const key = getAnnotationAttribute(ann, matchKey);
+                if(key) studentMap.set(key, ann);
+            });
 
-            for (let i = 0; i < studentPolys.length; i++) {
-                if (usedStudentIndicesInImage.has(i)) continue;
-                
-                const studentPoly = studentPolys[i];
-                const studentAnnoNo = getAnnotationAttribute(studentPoly, "annotation no");
+            for (const gtPoly of gtPolys) {
+                if (gtMatchedIds.has(gtPoly.id)) continue;
+                const key = getAnnotationAttribute(gtPoly, matchKey);
 
-                if (gtPoly.category_id === studentPoly.category_id && gtAnnoNo && studentAnnoNo && gtAnnoNo === studentAnnoNo) {
+                if (key && studentMap.has(key)) {
+                    const studentPoly = studentMap.get(key)!;
+                    
+                    gtMatchedIds.add(gtPoly.id);
+                    studentMatchedIds.add(studentPoly.id);
+
                     const iou = calculatePolygonIoU(gtPoly.segmentation[0], studentPoly.segmentation[0]);
-                    if (iou > (bestMatch?.iou || 0)) {
-                        bestMatch = { student: studentPoly, iou, index: i };
-                    }
+                    const deviationScore = calculateDeviationScore(gtPoly.segmentation[0], studentPoly.segmentation[0]);
+                    const polygonScore = (iou * 100 * 0.5) + (deviationScore * 0.5);
+                    const attributeScore = calculateAttributeScore(gtPoly.attributes || {}, studentPoly.attributes || {}, schema, gtCategories.get(gtPoly.category_id) || '');
+                    const finalScore = (polygonScore + attributeScore) / 2;
+
+                    matched.push({
+                        gt: gtPoly,
+                        student: studentPoly,
+                        iou,
+                        deviation: deviationScore,
+                        polygonScore,
+                        attributeScore,
+                        finalScore
+                    });
+
+                    studentMap.delete(key);
                 }
             }
+        }
 
-            if (bestMatch && bestMatch.iou > 0.1) {
-                usedStudentIndicesInImage.add(bestMatch.index);
-                studentMatchedIndices.add(bestMatch.student.id);
+        // Pass 2: IoU-based matching for remaining
+        for (const gtPoly of gtPolys) {
+            if (gtMatchedIds.has(gtPoly.id)) continue;
+            let bestMatch: { student: PolygonAnnotation; iou: number } | null = null;
+            
+            for (const studentPoly of studentPolys) {
+                 if (studentMatchedIds.has(studentPoly.id)) continue;
+                 if (gtPoly.category_id !== studentPoly.category_id) continue;
+
+                 const iou = calculatePolygonIoU(gtPoly.segmentation[0], studentPoly.segmentation[0]);
+                 if (iou > 0.1 && iou > (bestMatch?.iou || 0)) {
+                    bestMatch = { student: studentPoly, iou };
+                 }
+            }
+
+            if (bestMatch) {
+                gtMatchedIds.add(gtPoly.id);
+                studentMatchedIds.add(bestMatch.student.id);
 
                 const deviationScore = calculateDeviationScore(gtPoly.segmentation[0], bestMatch.student.segmentation[0]);
-                const iouScore = bestMatch.iou * 100;
-                const polygonScore = (iouScore * 0.5) + (deviationScore * 0.5);
-                const attributeScore = calculateAttributeScore(gtPoly.attributes || {}, bestMatch.student.attributes || {});
+                const polygonScore = (bestMatch.iou * 100 * 0.5) + (deviationScore * 0.5);
+                const attributeScore = calculateAttributeScore(gtPoly.attributes || {}, bestMatch.student.attributes || {}, schema, gtCategories.get(gtPoly.category_id) || '');
                 const finalScore = (polygonScore + attributeScore) / 2;
-
-                matched.push({
+                
+                 matched.push({
                     gt: gtPoly,
                     student: bestMatch.student,
                     iou: bestMatch.iou,
@@ -157,11 +197,11 @@ export function evaluatePolygons(gtJson: any, studentJson: any): Omit<PolygonEva
     }
     
     const missed = allGtAnnotations
-        .filter(gt => !matched.some(m => m.gt.id === gt.id))
+        .filter(gt => !gtMatchedIds.has(gt.id))
         .map(gt => ({ gt }));
 
     const extra = allStudentAnnotations
-        .filter(s => !studentMatchedIndices.has(s.id))
+        .filter(s => !studentMatchedIds.has(s.id))
         .map(student => ({ student }));
 
     const numMatched = matched.length;

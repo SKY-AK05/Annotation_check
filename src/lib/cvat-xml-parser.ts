@@ -83,7 +83,7 @@ export function parseCvatXml(xmlString: string): CocoJson {
 }
 
 
-export function parseCvatXmlForPolygons(xmlString: string): any {
+export function parseCvatXmlForPolygons(xmlString: string): CocoJson {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(xmlString, "text/xml");
 

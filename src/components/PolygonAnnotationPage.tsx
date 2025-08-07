@@ -4,245 +4,269 @@
 import React, { useState } from 'react';
 import JSZip from 'jszip';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { CheckCircle, Loader2, UploadCloud } from "lucide-react";
-import type { CocoJson, PolygonAnnotation, PolygonEvaluationResult } from '@/lib/types';
+import { useToast } from "@/hooks/use-toast";
+import type { FormValues, CocoJson, PolygonEvaluationResult } from '@/lib/types';
 import { evaluatePolygons } from '@/lib/polygon-evaluator';
-import { PolygonViewer } from './PolygonViewer';
-import { ScoreCard } from './ScoreCard';
-import { useToast } from '@/hooks/use-toast';
 import { parseCvatXmlForPolygons } from '@/lib/cvat-xml-parser';
+import { EvaluationForm } from './EvaluationForm';
+import { PolygonResultsDashboard } from './PolygonResultsDashboard';
+import { Spline } from 'lucide-react';
+import { RuleConfiguration } from './RuleConfiguration';
+import { extractEvalSchema, type EvalSchema, type EvalSchemaInput } from '@/ai/flows/extract-eval-schema';
 
 export default function PolygonAnnotationPage() {
-    const [gtFile, setGtFile] = useState<File | null>(null);
-    const [studentFile, setStudentFile] = useState<File | null>(null);
-    const [imageFile, setImageFile] = useState<File | null>(null);
-    
-    const [gtJson, setGtJson] = useState<any | null>(null);
-    const [studentJson, setStudentJson] = useState<any | null>(null);
-    const [imageUrl, setImageUrl] = useState<string | null>(null);
-    
     const [isLoading, setIsLoading] = useState<boolean>(false);
-    const [results, setResults] = useState<PolygonEvaluationResult | null>(null);
+    const [isGeneratingRules, setIsGeneratingRules] = useState<boolean>(false);
+    const [results, setResults] = useState<PolygonEvaluationResult[] | null>(null);
+    const [evalSchema, setEvalSchema] = useState<EvalSchema | null>(null);
+    const [gtFileContent, setGtFileContent] = useState<string | null>(null);
+    const [imageUrls, setImageUrls] = useState<Map<string, string>>(new Map());
     const { toast } = useToast();
-
-    const processFile = async (file: File, jsonSetter: React.Dispatch<React.SetStateAction<any | null>>, isGt: boolean) => {
-        let annotationContent: string | null = null;
-
-        if (file.name.endsWith('.zip')) {
-            const zip = await JSZip.loadAsync(file);
-            let annotationFile: JSZip.JSZipObject | null = null;
-            
-            const filePromises = Object.values(zip.files).map(async (fileInZip) => {
-                if (fileInZip.dir) return;
-                
-                const isAnnotationFile = fileInZip.name.endsWith('.xml') || fileInZip.name.endsWith('.json');
-
-                if (!annotationFile && isAnnotationFile) {
-                    annotationFile = fileInZip;
-                }
-                
-                if (isGt && fileInZip.name.match(/\.(jpe?g|png|gif|webp)$/i)) {
-                    const blob = await fileInZip.async('blob');
-                    const url = URL.createObjectURL(blob);
-                    setImageUrl(url); 
-                    setImageFile(new File([blob], fileInZip.name.split('/').pop()!));
-                }
-            });
-            await Promise.all(filePromises);
-
-            if (annotationFile) {
-                annotationContent = await annotationFile.async('string');
-            } else {
-                throw new Error("No .json or .xml annotation file found in the ZIP archive.");
-            }
-        } else if (file.name.endsWith('.json') || file.name.endsWith('.xml')) {
-            annotationContent = await file.text();
-        } else {
-             throw new Error("Unsupported file type. Please upload a .json, .xml or .zip file.");
+    
+    const handleGtFileChange = async (file: File | undefined) => {
+        if (!file) {
+            setEvalSchema(null);
+            setGtFileContent(null);
+            setImageUrls(new Map());
+            return;
         }
         
-        if (annotationContent) {
-            if(file.name.endsWith('.xml')) {
-                jsonSetter(parseCvatXmlForPolygons(annotationContent));
+        setIsGeneratingRules(true);
+        setResults(null);
+        setEvalSchema(null);
+        setGtFileContent(null);
+        setImageUrls(new Map());
+
+        try {
+            let fileContent: string;
+            const newImageUrls = new Map<string, string>();
+
+            if (file.name.endsWith('.zip')) {
+                toast({ title: "Processing GT ZIP file...", description: "Extracting annotations and images." });
+                const zip = await JSZip.loadAsync(file);
+                let foundFile: JSZip.JSZipObject | null = null;
+                
+                const filePromises = Object.values(zip.files).map(async (fileInZip) => {
+                    if (fileInZip.dir) return;
+                    
+                    const isAnnotationFile = fileInZip.name.endsWith('.xml') || fileInZip.name.endsWith('.json');
+
+                    if (!foundFile && isAnnotationFile) {
+                        foundFile = fileInZip;
+                    } else if (fileInZip.name.match(/\.(jpe?g|png|gif|webp)$/i)) {
+                        const blob = await fileInZip.async('blob');
+                        const url = URL.createObjectURL(blob);
+                        const filename = fileInZip.name.split('/').pop()!;
+                        newImageUrls.set(filename, url);
+                    }
+                });
+
+                await Promise.all(filePromises);
+
+                if (!foundFile) {
+                    throw new Error("No .xml or .json annotation file found inside the Ground Truth ZIP archive.");
+                }
+                fileContent = await foundFile.async('string');
+
             } else {
-                jsonSetter(JSON.parse(annotationContent));
+                fileContent = await file.text();
             }
-        }
-    };
 
-
-    const handleGtFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            setGtFile(file);
-            setResults(null);
-            try {
-                await processFile(file, setGtJson, true);
-                toast({ title: "Ground Truth processed successfully." });
-            } catch (error: any) {
-                toast({ title: "Error processing GT file", description: error.message, variant: "destructive" });
-            }
-        }
-    };
-    
-    const handleStudentFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            setStudentFile(file);
-             setResults(null);
-            try {
-                await processFile(file, setStudentJson, false);
-                 toast({ title: "Student file processed successfully." });
-            } catch (error: any) {
-                toast({ title: "Error processing student file", description: error.message, variant: "destructive" });
-            }
-        }
-    };
-
-    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            setImageFile(file);
-            setImageUrl(URL.createObjectURL(file));
-        }
-    };
-
-    const handleEvaluate = async () => {
-        if (!gtJson || !studentJson || !imageFile) {
+            setGtFileContent(fileContent);
+            setImageUrls(newImageUrls);
+            const schema = await extractEvalSchema({ gtFileContent: fileContent });
+            setEvalSchema(schema);
             toast({
-                title: "Missing Files",
-                description: "Please upload all required files: Ground Truth, Student Annotation, and the Image.",
+                title: "Evaluation Rules Generated",
+                description: "The evaluation schema has been extracted from your GT file.",
+            });
+        } catch (e: any) {
+            console.error(e);
+            toast({
+                title: "Error Generating Rules",
+                description: `Could not process the GT file: ${e.message}`,
+                variant: "destructive",
+            });
+        } finally {
+            setIsGeneratingRules(false);
+        }
+    }
+
+    const handleEvaluate = async (data: FormValues) => {
+        if (!evalSchema || !gtFileContent) {
+            toast({
+                title: "Evaluation Rules or GT File Missing",
+                description: "Please upload a Ground Truth file first to generate rules.",
                 variant: "destructive",
             });
             return;
         }
-
         setIsLoading(true);
         setResults(null);
-
+    
         try {
-            // This needs to run in a worker to avoid blocking the main thread
-            const evalResults = evaluatePolygons(gtJson, studentJson);
-            setResults({
-                ...evalResults,
-                studentFilename: studentFile?.name || 'student_file',
+            const studentFileInputs = Array.from(data.studentFiles);
+            const imageFileInputs = data.imageFiles ? Array.from(data.imageFiles) : [];
+            const batchResults: PolygonEvaluationResult[] = [];
+            
+            let studentFiles: { name: string, content: string }[] = [];
+            const newImageUrls = new Map(imageUrls);
+
+            if(imageFileInputs.length > 0) {
+                const imagePromises = imageFileInputs.map(async file => {
+                  if (file.name.endsWith('.zip')) {
+                    const zip = await JSZip.loadAsync(file);
+                    const imageInZipPromises = Object.values(zip.files).map(async (zipFile) => {
+                      if (!zipFile.dir && zipFile.name.match(/\.(jpe?g|png|gif|webp)$/i)) {
+                        const blob = await zipFile.async('blob');
+                        return { name: zipFile.name.split('/').pop()!, url: URL.createObjectURL(blob) };
+                      }
+                      return null;
+                    });
+                    return Promise.all(imageInZipPromises);
+                  } else {
+                     return { name: file.name, url: URL.createObjectURL(file) };
+                  }
+                });
+
+                const allImagesNested = await Promise.all(imagePromises);
+                allImagesNested.flat().filter(Boolean).forEach(img => {
+                    if (img) newImageUrls.set(img.name, img.url);
+                });
+            }
+            
+            if (newImageUrls.size === 0) {
+                throw new Error("No image files found. Please upload images either in the GT ZIP or the dedicated image upload field.");
+            }
+            setImageUrls(newImageUrls);
+
+            if (studentFileInputs.length === 1 && studentFileInputs[0].name.endsWith('.zip')) {
+                const zipFile = studentFileInputs[0];
+                const zip = await JSZip.loadAsync(zipFile);
+                studentFiles = await Promise.all(
+                    Object.values(zip.files)
+                        .filter(file => !file.dir && (file.name.endsWith('.xml') || file.name.endsWith('.json')))
+                        .map(async file => ({ name: file.name, content: await file.async('string') }))
+                );
+            } else {
+                studentFiles = await Promise.all(studentFileInputs.map(async file => ({
+                    name: file.name,
+                    content: await file.text()
+                })));
+            }
+
+            if (studentFiles.length === 0) {
+                throw new Error("No valid annotation files (.xml or .json) found in the upload.");
+            }
+
+            const isXmlFile = (content: string) => content.trim().startsWith('<?xml');
+            let gtAnnotations: any;
+
+            if (isXmlFile(gtFileContent)) {
+                gtAnnotations = parseCvatXmlForPolygons(gtFileContent);
+            } else {
+                gtAnnotations = JSON.parse(gtFileContent);
+            }
+
+            for (const studentFile of studentFiles) {
+                let studentAnnotations: any;
+                if (isXmlFile(studentFile.content)) {
+                    studentAnnotations = parseCvatXmlForPolygons(studentFile.content);
+                } else {
+                    studentAnnotations = JSON.parse(studentFile.content);
+                }
+            
+                const manualResult = evaluatePolygons(gtAnnotations, studentAnnotations, evalSchema);
+                batchResults.push({
+                    ...manualResult,
+                    studentFilename: studentFile.name,
+                });
+            }
+            
+            setResults(batchResults);
+
+            toast({
+                title: "Batch Evaluation Complete",
+                description: `Successfully evaluated ${batchResults.length} student files.`,
             });
 
         } catch (e: any) {
             console.error(e);
             toast({
                 title: "Evaluation Error",
-                description: `Evaluation failed: ${e.message}. Please check file formats.`,
+                description: `${e.message}. Please check file formats and try again.`,
                 variant: "destructive",
             });
         } finally {
             setIsLoading(false);
         }
     };
+    
+    const handleRuleChange = async (instructions: { pseudoCode?: string; userInstructions?: string }) => {
+        if (!gtFileContent) {
+            toast({
+                title: "Ground Truth File Missing",
+                description: "Cannot regenerate rules without the original GT file.",
+                variant: "destructive",
+            });
+            return;
+        }
+        setIsGeneratingRules(true);
+        try {
+            const input: EvalSchemaInput = { gtFileContent };
+            if (instructions.userInstructions) {
+                input.userInstructions = instructions.userInstructions;
+            } else if (instructions.pseudoCode) {
+                input.pseudoCode = instructions.pseudoCode;
+            }
+            
+            const newSchema = await extractEvalSchema(input);
+            setEvalSchema(newSchema);
+            toast({
+                title: "Rules Regenerated",
+                description: "The evaluation schema has been updated based on your input.",
+            });
+        } catch (e: any) {
+            console.error(e);
+            toast({
+                title: "Error Regenerating Rules",
+                description: `Failed to update rules: ${e.message}`,
+                variant: "destructive",
+            });
+        } finally {
+            setIsGeneratingRules(false);
+        }
+    };
+
 
     return (
         <Card className="w-full">
             <CardHeader>
-                <CardTitle>Polygon Annotation Evaluation</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                    <Spline className="w-6 h-6" />
+                    New Polygon Annotation Evaluation
+                </CardTitle>
                 <CardDescription>
-                    Upload CVAT XML or COCO Polygon files and the corresponding image to evaluate polygon annotations.
+                    Upload CVAT XML or COCO Polygon files to evaluate polygon annotations.
                 </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="space-y-2">
-                        <Label htmlFor="gt-file">1. Ground Truth (XML, JSON or ZIP)</Label>
-                        <div className="relative">
-                            <UploadCloud className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                            <Input id="gt-file" type="file" className="pl-10" accept=".json,.xml,.zip" onChange={handleGtFileChange} />
-                        </div>
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="student-file">2. Student Annotation (XML, JSON or ZIP)</Label>
-                         <div className="relative">
-                            <UploadCloud className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                            <Input id="student-file" type="file" className="pl-10" accept=".json,.xml,.zip" onChange={handleStudentFileChange} />
-                        </div>
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="image-file">3. Image File (if not in GT ZIP)</Label>
-                         <div className="relative">
-                            <UploadCloud className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                            <Input id="image-file" type="file" className="pl-10" accept="image/*" onChange={handleImageChange} />
-                        </div>
-                    </div>
-                </div>
-
-                <Button onClick={handleEvaluate} disabled={isLoading || !gtFile || !studentFile || !imageFile} className="w-full">
-                    {isLoading ? (
-                        <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Evaluating...
-                        </>
-                    ) : (
-                        'Run Polygon Evaluation'
-                    )}
-                </Button>
-
-                {isLoading && (
-                     <Card className="flex flex-col items-center justify-center text-center p-8 h-full min-h-[300px]">
-                        <Loader2 className="h-16 w-16 text-muted-foreground animate-spin mb-4" />
-                        <h3 className="text-xl font-semibold text-foreground">Calculating...</h3>
-                        <p className="text-muted-foreground mt-2">The polygon evaluation is in progress.</p>
-                    </Card>
-                )}
-
-                {results && imageUrl && (
-                    <Card className="mt-6">
-                        <CardHeader>
-                            <CardTitle>Evaluation Results for <span className="text-primary">{results.studentFilename}</span></CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-6">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div className="md:col-span-1 flex items-center justify-center">
-                                    <ScoreCard score={results.score} />
-                                </div>
-                                <div className="md:col-span-2 space-y-4">
-                                     <Alert>
-                                        <CheckCircle className="h-4 w-4" />
-                                        <AlertTitle>Overall Feedback</AlertTitle>
-                                        <AlertDescription>
-                                            <ul className="list-disc list-inside">
-                                                {results.feedback.map((item, index) => <li key={index}>{item}</li>)}
-                                            </ul>
-                                        </AlertDescription>
-                                    </Alert>
-                                    <div className="grid grid-cols-2 gap-4">
-                                    <Card>
-                                        <CardHeader><CardTitle>Avg. Polygon Score</CardTitle></CardHeader>
-                                        <CardContent className="text-3xl font-bold">{results.averagePolygonScore.toFixed(1)}</CardContent>
-                                    </Card>
-                                    <Card>
-                                        <CardHeader><CardTitle>Avg. Attribute Score</CardTitle></CardHeader>
-                                        <CardContent className="text-3xl font-bold">{results.averageAttributeScore.toFixed(1)}</CardContent>
-                                    </Card>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div>
-                                <h3 className="text-lg font-semibold mb-2">Visual Comparison</h3>
-                                <PolygonViewer 
-                                    imageUrl={imageUrl}
-                                    results={results}
-                                />
-                                <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-muted-foreground mt-2 border-t pt-2">
-                                    <div className="flex items-center gap-2"><div className="w-4 h-1 rounded-full" style={{ border: '2px solid rgba(0, 215, 255, 1)' }}></div><span>GT Polygon</span></div>
-                                    <div className="flex items-center gap-2"><div className="w-4 h-1 rounded-full" style={{ border: '2px solid rgba(255, 0, 0, 1)' }}></div><span>Student Polygon</span></div>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                )}
+            <CardContent className="space-y-8">
+                 <EvaluationForm 
+                    onEvaluate={handleEvaluate} 
+                    isLoading={isLoading || isGeneratingRules} 
+                    onGtFileChange={handleGtFileChange}
+                    imageUrls={imageUrls}
+                />
+                 <RuleConfiguration 
+                    schema={evalSchema} 
+                    loading={isGeneratingRules} 
+                    onRuleChange={handleRuleChange} 
+                />
+                <PolygonResultsDashboard
+                  results={results}
+                  loading={isLoading}
+                  imageUrls={imageUrls}
+                />
             </CardContent>
         </Card>
     );
