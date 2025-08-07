@@ -80,7 +80,6 @@ Ground Truth File Content (for context or initial generation):
 {{{gtFileContent}}}
 \`\`\`
 `,
-  model: googleAI.model('gemini-1.5-flash'),
 });
 
 const extractEvalSchemaFlow = ai.defineFlow(
@@ -90,11 +89,46 @@ const extractEvalSchemaFlow = ai.defineFlow(
     outputSchema: EvalSchemaSchema,
   },
   async (input) => {
-    const {output} = await extractEvalSchemaPrompt(input);
-    if (!output) {
-        throw new Error("The AI model failed to extract an evaluation schema. The GT file might be malformed or empty.");
+    try {
+      // First attempt with the primary, faster model
+      const { output } = await extractEvalSchemaPrompt({
+        ...input,
+      }, { model: googleAI.model('gemini-1.5-flash') });
+      
+      if (!output) {
+        throw new Error("The AI model failed to extract an evaluation schema on the first attempt.");
+      }
+      return output;
+    } catch (error: any) {
+        console.warn("Primary model failed, attempting fallback. Error:", error.message);
+        
+        // Check if the error is a rate limit or server error to justify a fallback
+        const isRateLimitError = error.message && (error.message.includes('429') || error.message.includes('503'));
+        
+        if (isRateLimitError) {
+             try {
+                console.log("Executing fallback to gemini-1.5-pro...");
+                const fallbackModel = process.env.SECOND_GEMINI_API_KEY 
+                    ? googleAI.model('gemini-1.5-pro', { id: 'googleai-fallback' }) 
+                    : googleAI.model('gemini-1.5-pro');
+
+                const { output: fallbackOutput } = await extractEvalSchemaPrompt({
+                  ...input,
+                }, { model: fallbackModel });
+
+                if (!fallbackOutput) {
+                    throw new Error("The fallback AI model also failed to extract a schema.");
+                }
+                return fallbackOutput;
+            } catch (fallbackError: any) {
+                console.error("Fallback model also failed:", fallbackError.message);
+                throw new Error(`The AI service is currently overloaded. Primary and fallback models failed. Please try again later. Original error: ${error.message}`);
+            }
+        } else {
+            // For other types of errors (e.g., malformed input), just re-throw
+            throw error;
+        }
     }
-    return output;
   }
 );
 
