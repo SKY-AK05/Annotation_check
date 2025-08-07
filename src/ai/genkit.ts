@@ -18,6 +18,7 @@ if (process.env.SECOND_GEMINI_API_KEY) {
   plugins.push(googleAI({
     apiKey: process.env.SECOND_GEMINI_API_KEY,
     id: 'googleai-fallback', // Give it a unique ID to distinguish it from the default
+    apiVersion: ['v1beta'],
   }));
 }
 
