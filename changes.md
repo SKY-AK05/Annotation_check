@@ -177,3 +177,44 @@ To address the flaws of the greedy approach, the core logic was replaced with th
 ### 3.3. Configurability and Control
 
 The new algorithm is integrated as the default fallback mechanism. The `EvalSchema` can be extended with a `biDirectionalMatching: boolean` flag in the future to allow toggling this feature, but for now, it stands as the superior replacement for the previous greedy logic, ensuring all users benefit from the improved accuracy.
+
+---
+
+## 4. Evaluation Formula & Scoring Logic
+
+The final score is a weighted average of four distinct metrics, each representing a different aspect of annotation quality. The score is scaled from 0 to 100.
+
+**Final Score = (Detection Score * 0.4) + (Localization Score * 0.3) + (Label Score * 0.2) + (Attribute Score * 0.1)**
+
+### 4.1. Detection Score (40% Weight)
+
+*   **Purpose:** Measures how well the student identified the correct number of objects. It penalizes both missed objects (false negatives) and extra, incorrect objects (false positives).
+*   **Algorithm:** **F-beta Score**, with `beta = 0.5`.
+    *   **Precision** = `Matched / Total Student Annotations`
+    *   **Recall** = `Matched / Total GT Annotations`
+    *   **F-beta Formula**: `(1 + beta²) * (precision * recall) / ((beta² * precision) + recall)`
+*   **Rationale:** The beta value is set to `0.5`, which weighs **precision more heavily than recall**. This means that adding extra, incorrect annotations is penalized more than missing an existing one. This choice encourages students to be more careful and avoid speculative annotations.
+
+### 4.2. Localization Score (30% Weight)
+
+*   **Purpose:** Measures the accuracy of bounding box placement.
+*   **Algorithm:** **Average Intersection over Union (IoU)**.
+    *   **IoU** is calculated for every matched pair of annotations.
+    *   The **Localization Score** is the average of all these IoU values, scaled to 100.
+*   **Rationale:** IoU is the industry standard for measuring how well two bounding boxes overlap. A score of 1.0 represents a perfect overlap.
+
+### 4.3. Label Score (20% Weight)
+
+*   **Purpose:** Measures whether the student correctly classified the objects.
+*   **Algorithm:** **Label Accuracy**.
+    *   **Formula**: `(Correctly Labeled Matches / Total Matched Annotations) * 100`
+*   **Rationale:** This is a straightforward measure of classification correctness. It only considers annotations that were successfully matched, isolating the classification task from the detection task.
+
+### 4.4. Attribute Score (10% Weight)
+
+*   **Purpose:** Measures the accuracy of textual or categorical attributes associated with an annotation (e.g., license plate number, color).
+*   **Algorithm:** **Average String Similarity (Levenshtein Distance)**.
+    *   For each attribute specified in the `EvalSchema`, the system calculates the similarity between the GT and student text.
+    *   The similarity is calculated using the Levenshtein distance, which measures the number of edits (insertions, deletions, substitutions) needed to change one string into the other. This score is normalized to a 0-1 range (where 1 is a perfect match).
+    *   The **Attribute Score** is the average similarity across all compared attributes, scaled to 100.
+*   **Rationale:** Using Levenshtein distance provides a nuanced text comparison that is robust to minor typos. For example, "licence" and "license" will have a high similarity score, whereas a simple equality check would fail. This provides a fairer assessment of attribute accuracy.
