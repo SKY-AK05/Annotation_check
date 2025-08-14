@@ -45,6 +45,7 @@
     "jszip": "^3.10.1",
     "kdbush": "^4.0.2",
     "lucide-react": "^0.475.0",
+    "munkres-js": "^1.2.2",
     "next": "15.3.3",
     "patch-package": "^8.0.0",
     "polygon-clipping": "^0.15.3",

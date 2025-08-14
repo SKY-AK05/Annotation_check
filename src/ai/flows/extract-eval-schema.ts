@@ -11,6 +11,20 @@
 import {ai} from '@/ai/genkit';
 import { googleAI } from '@genkit-ai/googleai';
 import {z} from 'zod';
+import type { EvalSchema, EvalSchemaInput } from '@/lib/types';
+
+
+const EvalLabelSchema = z.object({
+    name: z.string().describe("The name of the object class label, e.g., 'Person' or 'licence_plates'."),
+    attributes: z.array(z.string()).describe("A list of attributes associated with this label, e.g., ['Mask', 'Age group']. If no attributes exist, return an empty array."),
+});
+
+const EvalSchemaSchema = z.object({
+    labels: z.array(EvalLabelSchema).describe("A list of all unique object labels found in the ground truth file and their associated attributes."),
+    matchKey: z.string().optional().describe("The specific attribute name that should be used as a unique key to match annotations between the GT and student files. This is often 'Annotation No' or a similar unique identifier. If no clear key exists, this can be omitted."),
+    pseudoCode: z.string().describe("Human-readable pseudocode that summarizes the evaluation logic derived from the ground truth file schema. This should be editable by a user to adjust the evaluation logic."),
+    biDirectionalMatching: z.boolean().optional().describe("Whether to use bi-directional bipartite matching for the fallback evaluation."),
+});
 
 const EvalSchemaInputSchema = z.object({
   gtFileContent: z
@@ -19,17 +33,7 @@ const EvalSchemaInputSchema = z.object({
   userInstructions: z.string().optional().describe("Optional plain-text instructions from the user on how to modify the evaluation logic. This should take precedence over the derived logic from the file content."),
   pseudoCode: z.string().optional().describe("Optional user-edited pseudocode. If userInstructions are absent, this pseudocode should be used to regenerate the structured schema.")
 });
-export type EvalSchemaInput = z.infer<typeof EvalSchemaInputSchema>;
 
-const EvalSchemaSchema = z.object({
-    labels: z.array(z.object({
-        name: z.string().describe("The name of the object class label, e.g., 'Person' or 'licence_plates'."),
-        attributes: z.array(z.string()).describe("A list of attributes associated with this label, e.g., ['Mask', 'Age group']. If no attributes exist, return an empty array."),
-    })).describe("A list of all unique object labels found in the ground truth file and their associated attributes."),
-    matchKey: z.string().optional().describe("The specific attribute name that should be used as a unique key to match annotations between the GT and student files. This is often 'Annotation No' or a similar unique identifier. If no clear key exists, this can be omitted."),
-    pseudoCode: z.string().describe("Human-readable pseudocode that summarizes the evaluation logic derived from the ground truth file schema. This should be editable by a user to adjust the evaluation logic."),
-});
-export type EvalSchema = z.infer<typeof EvalSchemaSchema>;
 
 
 const extractEvalSchemaPrompt = ai.definePrompt({
@@ -51,7 +55,7 @@ Follow these steps:
 2.  **Determine Logic Source**:
     *   **If 'userInstructions' exists**: Generate the entire schema (labels, attributes, matchKey, and a NEW pseudocode) based *strictly* on these instructions. The GT file is only for context. Example: If the user says "ignore color", you must remove the 'color' attribute and update the pseudocode.
     *   **Else if 'pseudoCode' exists**: The user has edited the pseudocode. Your task is to reverse-engineer it. Parse this pseudocode to create the structured 'labels', 'attributes', and 'matchKey'. The provided pseudocode becomes the canonical source. The original GT file content should be ignored.
-    *   **Else**: Derive the schema directly from the GT file content. Identify all unique labels, their attributes, a possible 'matchKey' (like "Annotation No"), and generate a clear, human-readable Python-like pseudocode describing the evaluation steps.
+    *   **Else**: Derive the schema directly from the GT file content. Identify all unique labels, their attributes, a possible 'matchKey' (like "Annotation No"), and generate a clear, human-readable Python-like pseudocode describing the evaluation steps. For datasets with dense or overlapping annotations where a match key is absent, set 'biDirectionalMatching' to true.
 
 3.  **Generate Pseudocode**: The pseudocode should be a simple, step-by-step summary of the evaluation logic. It will be displayed to a user and must be easy to understand.
 

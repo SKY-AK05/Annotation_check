@@ -3,14 +3,14 @@
 
 import { useState } from 'react';
 import JSZip from 'jszip';
-import type { FormValues, CocoJson } from '@/lib/types';
 import { useToast } from "@/hooks/use-toast";
 import { ResultsDashboard } from '@/components/ResultsDashboard';
 import { AnnotatorAiLogo } from '@/components/AnnotatorAiLogo';
-import type { EvaluationResult } from '@/lib/types';
+import type { EvaluationResult, FormValues, CocoJson } from '@/lib/types';
 import { evaluateAnnotations } from '@/lib/evaluator';
 import { parseCvatXml } from '@/lib/cvat-xml-parser';
-import { extractEvalSchema, type EvalSchema, type EvalSchemaInput } from '@/ai/flows/extract-eval-schema';
+import { extractEvalSchema } from '@/ai/flows/extract-eval-schema';
+import type { EvalSchema, EvalSchemaInput } from '@/lib/types';
 import SkeletonAnnotationPage from '@/components/SkeletonAnnotationPage';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
@@ -235,7 +235,7 @@ export default function Home() {
                 });
             }
         
-            const manualResult = evaluateAnnotations(gtAnnotations, studentAnnotations, evalSchema);
+            const manualResult = evaluateAnnotations(gtAnnotations, evalSchema, studentAnnotations);
             batchResults.push({
                 ...manualResult,
                 studentFilename: studentFile.name,

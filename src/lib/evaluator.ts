@@ -2,8 +2,11 @@
 
 
 
+
 import type { EvaluationResult, CocoJson, BboxAnnotation, LabelAccuracy, AttributeAccuracy, Match, ImageEvaluationResult, SkeletonEvaluationResult, SkeletonMatch, PolygonAnnotation } from './types';
-import type { EvalSchema } from '@/ai/flows/extract-eval-schema';
+import type { EvalSchema } from './types';
+import { munkres } from 'munkres-js';
+
 
 // Simple IoU (Intersection over Union) calculation for bounding boxes
 function calculateIoU(boxA: number[], boxB: number[]): number {
@@ -74,12 +77,46 @@ function getAnnotationAttribute(annotation: BboxAnnotation | PolygonAnnotation, 
     return annotation.attributes?.[key];
 }
 
-export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, schema: EvalSchema): Omit<EvaluationResult, 'studentFilename'> {
+function findOptimalMatches(
+    gtAnns: BboxAnnotation[],
+    studentAnns: BboxAnnotation[],
+    iouThreshold: number
+): { gtIndex: number; studentIndex: number; iou: number }[] {
+    if (!gtAnns.length || !studentAnns.length) {
+        return [];
+    }
+
+    const costMatrix = gtAnns.map(gt =>
+        studentAnns.map(student => {
+            const iou = calculateIoU(gt.bbox, student.bbox);
+            // Cost is 1 - IoU. Lower cost is better. High cost for pairs below threshold.
+            return iou >= iouThreshold ? 1 - iou : 1_000_000;
+        })
+    );
+
+    const assignments = munkres(costMatrix) as [number, number][];
+
+    const matches: { gtIndex: number; studentIndex: number; iou: number }[] = [];
+    for (const [gtIndex, studentIndex] of assignments) {
+        const cost = costMatrix[gtIndex][studentIndex];
+        if (cost < 1_000_000) {
+            matches.push({
+                gtIndex,
+                studentIndex,
+                iou: 1 - cost,
+            });
+        }
+    }
+    return matches;
+}
+
+
+export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studentJson: CocoJson): Omit<EvaluationResult, 'studentFilename'> {
     const IOU_THRESHOLD = 0.5;
     const matchKey = schema.matchKey;
 
-    const allGtAnnotations = gtJson.annotations || [];
-    const allStudentAnnotations = studentJson.annotations || [];
+    const allGtAnnotations = gtJson.annotations as BboxAnnotation[];
+    const allStudentAnnotations = studentJson.annotations as BboxAnnotation[];
 
     const gtCategories = new Map((gtJson.categories || []).map(c => [c.id, c.name]));
     const studentCategories = new Map((studentJson.categories || []).map(c => [c.id, c.name]));
@@ -171,57 +208,49 @@ export function evaluateAnnotations(gtJson: CocoJson, studentJson: CocoJson, sch
             }
         }
         
-        // Second pass: Match remaining annotations using IoU + Label fallback
-        for (const gt of gtAnnotations) {
-            if (gtMatchedIds.has(gt.id)) continue;
+        // Fallback pass: For annotations not matched by key
+        const remainingGt = gtAnnotations.filter(ann => !gtMatchedIds.has(ann.id));
+        const remainingStudent = studentAnnotations.filter(ann => !studentMatchedIds.has(ann.id));
 
-            let bestMatch: { studentAnn: BboxAnnotation; iou: number } | null = null;
-            for (const student of studentAnnotations) {
-                if (studentMatchedIds.has(student.id) || imageUsedStudentIds.has(student.id)) continue;
-                
-                const iou = calculateIoU(gt.bbox, student.bbox);
-                if (iou > IOU_THRESHOLD) {
-                    if (!bestMatch || iou > bestMatch.iou) {
-                       bestMatch = { studentAnn: student, iou };
-                    }
-                }
-            }
+        const optimalMatches = findOptimalMatches(remainingGt, remainingStudent, IOU_THRESHOLD);
+
+        for (const { gtIndex, studentIndex, iou } of optimalMatches) {
+            const gt = remainingGt[gtIndex];
+            const student = remainingStudent[studentIndex];
             
-            if (bestMatch) {
-                gtMatchedIds.add(gt.id);
-                studentMatchedIds.add(bestMatch.studentAnn.id);
-                imageUsedStudentIds.add(bestMatch.studentAnn.id);
-                
-                totalIou += bestMatch.iou;
+            gtMatchedIds.add(gt.id);
+            studentMatchedIds.add(student.id);
+            imageUsedStudentIds.add(student.id);
 
-                const gtLabel = gtCategories.get(gt.category_id);
-                const studentLabel = studentCategories.get(bestMatch.studentAnn.category_id);
-                const isLabelMatch = gtLabel === studentLabel;
-                if (isLabelMatch) correctLabelCount++;
-                
-                let pairAttributeSimilarity = 0;
-                const labelSchema = schema.labels.find(l => l.name === gtLabel);
+            totalIou += iou;
 
-                if (labelSchema && labelSchema.attributes.length > 0) {
-                    let currentPairSimilaritySum = 0;
-                    let currentPairAttributeCount = 0;
-                    for (const attrName of labelSchema.attributes) {
-                        if (attrName === matchKey || attrName === 'label') continue;
-                        const gtAttr = getAnnotationAttribute(gt, attrName) || '';
-                        const studentAttr = getAnnotationAttribute(bestMatch.studentAnn, attrName) || '';
-                        currentPairSimilaritySum += getStringSimilarity(gtAttr, studentAttr);
-                        currentPairAttributeCount++;
-                    }
-                    if (currentPairAttributeCount > 0) {
-                        pairAttributeSimilarity = currentPairSimilaritySum / currentPairAttributeCount;
-                        totalAttributeSimilaritySum += currentPairSimilaritySum;
-                        attributeComparisonsCount += currentPairAttributeCount;
-                    }
+            const gtLabel = gtCategories.get(gt.category_id);
+            const studentLabel = studentCategories.get(student.category_id);
+            const isLabelMatch = gtLabel === studentLabel;
+            if (isLabelMatch) correctLabelCount++;
+            
+            let pairAttributeSimilarity = 0;
+            const labelSchema = schema.labels.find(l => l.name === gtLabel);
+
+            if (labelSchema && labelSchema.attributes.length > 0) {
+                let currentPairSimilaritySum = 0;
+                let currentPairAttributeCount = 0;
+                for (const attrName of labelSchema.attributes) {
+                    if (attrName === matchKey || attrName === 'label') continue;
+                    const gtAttr = getAnnotationAttribute(gt, attrName) || '';
+                    const studentAttr = getAnnotationAttribute(student, attrName) || '';
+                    currentPairSimilaritySum += getStringSimilarity(gtAttr, studentAttr);
+                    currentPairAttributeCount++;
                 }
-                const matchResult = { gt, student: bestMatch.studentAnn, iou: bestMatch.iou, isLabelMatch, attributeSimilarity: pairAttributeSimilarity };
-                matched.push(matchResult);
-                imageMatched.push(matchResult);
+                if (currentPairAttributeCount > 0) {
+                    pairAttributeSimilarity = currentPairSimilaritySum / currentPairAttributeCount;
+                    totalAttributeSimilaritySum += currentPairSimilaritySum;
+                    attributeComparisonsCount += currentPairAttributeCount;
+                }
             }
+            const matchResult = { gt, student, iou, isLabelMatch, attributeSimilarity: pairAttributeSimilarity };
+            matched.push(matchResult);
+            imageMatched.push(matchResult);
         }
         
         const imageGtIds = new Set(gtAnnotations.map(a => a.id));
@@ -351,8 +380,8 @@ function calculateOKS(gt: BboxAnnotation, student: BboxAnnotation, sigmas: numbe
 export function evaluateSkeletons(gtJson: CocoJson, studentJson: CocoJson): Omit<SkeletonEvaluationResult, 'studentFilename'> {
     const IOU_THRESHOLD = 0.5;
 
-    const allGtAnnotations = gtJson.annotations;
-    const allStudentAnnotations = studentJson.annotations;
+    const allGtAnnotations = gtJson.annotations as BboxAnnotation[];
+    const allStudentAnnotations = studentJson.annotations as BboxAnnotation[];
     
     // Assuming a single category for skeletons in this simplified version
     const sigmas = gtJson.categories[0]?.keypoints ? COCO_SIGMAS : [];
