@@ -165,19 +165,19 @@ export function AnnotationViewer({ imageUrl, imageResult }: AnnotationViewerProp
       <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs text-muted-foreground mt-2 border-t pt-2">
           <div className="flex items-center gap-2">
               <Checkbox id="gt-check" checked={visibility.gt} onCheckedChange={(checked) => handleVisibilityChange('gt', !!checked)} />
-              <Label htmlFor='gt-check' className="flex items-center gap-2"><div className="w-4 h-4 rounded-sm border-2" style={{ borderColor: 'rgba(0, 255, 0, 0.7)' }}></div>GT (Matched)</Label>
+              <Label htmlFor='gt-check' className="flex items-center gap-2"><div className="w-4 h-4 rounded-sm" style={{ backgroundColor: 'rgba(0, 255, 0, 0.7)' }}></div>GT (Matched)</Label>
           </div>
           <div className="flex items-center gap-2">
               <Checkbox id="student-check" checked={visibility.student} onCheckedChange={(checked) => handleVisibilityChange('student', !!checked)} />
-              <Label htmlFor='student-check' className="flex items-center gap-2"><div className="w-4 h-4 rounded-sm border-2" style={{ borderColor: 'rgba(0, 0, 255, 0.7)' }}></div>Student (Matched)</Label>
+              <Label htmlFor='student-check' className="flex items-center gap-2"><div className="w-4 h-4 rounded-sm" style={{ backgroundColor: 'rgba(0, 0, 255, 0.7)' }}></div>Student (Matched)</Label>
           </div>
            <div className="flex items-center gap-2">
               <Checkbox id="missed-check" checked={visibility.missed} onCheckedChange={(checked) => handleVisibilityChange('missed', !!checked)} />
-              <Label htmlFor='missed-check' className="flex items-center gap-2"><div className="w-4 h-4 rounded-sm border-2" style={{ borderColor: 'rgba(255, 0, 0, 0.9)' }}></div>Missed</Label>
+              <Label htmlFor='missed-check' className="flex items-center gap-2"><div className="w-4 h-4 rounded-sm" style={{ backgroundColor: 'rgba(255, 0, 0, 0.9)' }}></div>Missed</Label>
           </div>
            <div className="flex items-center gap-2">
               <Checkbox id="extra-check" checked={visibility.extra} onCheckedChange={(checked) => handleVisibilityChange('extra', !!checked)} />
-              <Label htmlFor='extra-check' className="flex items-center gap-2"><div className="w-4 h-4 rounded-sm border-2" style={{ borderColor: 'rgba(255, 165, 0, 0.9)' }}></div>Extra</Label>
+              <Label htmlFor='extra-check' className="flex items-center gap-2"><div className="w-4 h-4 rounded-sm" style={{ backgroundColor: 'rgba(255, 165, 0, 0.9)' }}></div>Extra</Label>
           </div>
       </div>
     );
