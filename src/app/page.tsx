@@ -16,6 +16,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { BoxSelect, Bone, Spline } from 'lucide-react';
 import PolygonAnnotationPage from '@/components/PolygonAnnotationPage';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 export default function Home() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -300,9 +301,12 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex flex-col items-center p-4 sm:p-8 md:p-12">
-      <header className="w-full max-w-7xl flex items-center justify-start mb-8">
-        <AnnotatorAiLogo className="h-10 w-10 text-primary" />
-        <h1 className="text-4xl ml-4">Annotator AI</h1>
+      <header className="w-full max-w-7xl flex items-center justify-between mb-8">
+        <div className="flex items-center">
+            <AnnotatorAiLogo className="h-10 w-10 text-primary" />
+            <h1 className="text-4xl ml-4">Annotator AI</h1>
+        </div>
+        <ThemeToggle />
       </header>
       <main className="w-full max-w-7xl">
         <RadioGroup
