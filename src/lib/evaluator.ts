@@ -1,11 +1,7 @@
 
-
-
-
-
 import type { EvaluationResult, CocoJson, BboxAnnotation, LabelAccuracy, AttributeAccuracy, Match, ImageEvaluationResult, SkeletonEvaluationResult, SkeletonMatch, PolygonAnnotation } from './types';
 import type { EvalSchema } from './types';
-import { munkres } from 'munkres-js';
+import munkres from 'munkres-js';
 
 
 // Simple IoU (Intersection over Union) calculation for bounding boxes
