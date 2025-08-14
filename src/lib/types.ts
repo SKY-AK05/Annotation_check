@@ -1,6 +1,4 @@
 
-
-
 import type { z } from "zod";
 
 const EvalLabelSchema = z.object({
@@ -105,6 +103,12 @@ export interface Match {
     iou: number;
     isLabelMatch: boolean;
     attributeSimilarity: number;
+}
+
+export interface SelectedAnnotation {
+    imageId: number;
+    annotationId: number;
+    type: 'match' | 'missed' | 'extra';
 }
 
 export interface PolygonMatch {

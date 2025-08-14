@@ -6,7 +6,7 @@ import JSZip from 'jszip';
 import { useToast } from "@/hooks/use-toast";
 import { ResultsDashboard } from '@/components/ResultsDashboard';
 import { AnnotatorAiLogo } from '@/components/AnnotatorAiLogo';
-import type { EvaluationResult, FormValues, CocoJson } from '@/lib/types';
+import type { EvaluationResult, FormValues, CocoJson, SelectedAnnotation } from '@/lib/types';
 import { evaluateAnnotations } from '@/lib/evaluator';
 import { parseCvatXml } from '@/lib/cvat-xml-parser';
 import { extractEvalSchema } from '@/ai/flows/extract-eval-schema';
@@ -26,6 +26,7 @@ export default function Home() {
   const [gtFileContent, setGtFileContent] = useState<string | null>(null);
   const [imageUrls, setImageUrls] = useState<Map<string, string>>(new Map());
   const [evaluationMode, setEvaluationMode] = useState<'bounding-box' | 'skeleton' | 'polygon'>('bounding-box');
+  const [selectedAnnotation, setSelectedAnnotation] = useState<SelectedAnnotation | null>(null);
   const { toast } = useToast();
 
   const handleGtFileChange = async (file: File | undefined) => {
@@ -41,6 +42,7 @@ export default function Home() {
     setEvalSchema(null);
     setGtFileContent(null);
     setImageUrls(new Map());
+    setSelectedAnnotation(null);
 
     try {
       let fileContent: string;
@@ -113,6 +115,7 @@ export default function Home() {
     }
     setIsLoading(true);
     setResults(null);
+    setSelectedAnnotation(null);
   
     try {
         const studentFileInputs = Array.from(data.studentFiles);
@@ -299,6 +302,10 @@ export default function Home() {
     }
 };
 
+  const handleAnnotationSelect = (annotation: SelectedAnnotation | null) => {
+    setSelectedAnnotation(annotation);
+  };
+
   return (
     <div className="min-h-screen flex flex-col items-center p-4 sm:p-8 md:p-12">
       <header className="w-full max-w-7xl flex items-center justify-between mb-8">
@@ -356,6 +363,8 @@ export default function Home() {
                   onGtFileChange={handleGtFileChange}
                   evalSchema={evalSchema}
                   onRuleChange={handleRuleChange}
+                  selectedAnnotation={selectedAnnotation}
+                  onAnnotationSelect={handleAnnotationSelect}
               />
           ) : evaluationMode === 'skeleton' ? (
               <SkeletonAnnotationPage />

@@ -7,14 +7,15 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { ScoreCard } from "@/components/ScoreCard";
-import type { BboxAnnotation, EvaluationResult, ImageEvaluationResult } from "@/lib/types";
+import type { BboxAnnotation, EvaluationResult, ImageEvaluationResult, SelectedAnnotation } from "@/lib/types";
 import type { FormValues } from '@/lib/types';
 import type { EvalSchema } from "@/ai/flows/extract-eval-schema";
 import { AnnotationViewer } from "@/components/AnnotationViewer";
-import { AlertCircle, CheckCircle, Download, FileQuestion, FileText, ImageIcon, MessageSquare, ShieldAlert, User, FileCog, Code2 } from "lucide-react";
+import { AlertCircle, CheckCircle, Download, FileQuestion, FileText, ImageIcon, MessageSquare, ShieldAlert, User, FileCog, Code2, XCircle } from "lucide-react";
 import { Badge } from "./ui/badge";
 import { EvaluationForm } from "./EvaluationForm";
 import { RuleConfiguration } from "./RuleConfiguration";
+import { cn } from '@/lib/utils';
 
 interface ResultsDashboardProps {
   results: EvaluationResult[] | null;
@@ -24,9 +25,11 @@ interface ResultsDashboardProps {
   onGtFileChange: (file: File | undefined) => void;
   evalSchema: EvalSchema | null;
   onRuleChange: (instructions: { pseudoCode?: string; userInstructions?: string }) => void;
+  selectedAnnotation: SelectedAnnotation | null;
+  onAnnotationSelect: (annotation: SelectedAnnotation | null) => void;
 }
 
-const ResultsDisplay = ({ results, imageUrls }: { results: EvaluationResult[], imageUrls: Map<string, string> }) => {
+const ResultsDisplay = ({ results, imageUrls, selectedAnnotation, onAnnotationSelect }: { results: EvaluationResult[], imageUrls: Map<string, string>, selectedAnnotation: SelectedAnnotation | null, onAnnotationSelect: (annotation: SelectedAnnotation | null) => void }) => {
 
   const handleDownloadSummaryCsv = () => {
     let csvContent = "data:text/csv;charset=utf-8,";
@@ -173,7 +176,7 @@ const ResultsDisplay = ({ results, imageUrls }: { results: EvaluationResult[], i
                 </Badge>
             </div>
           <p className="text-muted-foreground">
-            Summary and detailed breakdown for each student file.
+            Summary and detailed breakdown for each student file. Click a row to inspect an annotation.
           </p>
         </div>
         <Button variant="outline" onClick={handleDownloadSummaryCsv}>
@@ -225,7 +228,7 @@ const ResultsDisplay = ({ results, imageUrls }: { results: EvaluationResult[], i
                        </div>
                     </AccordionTrigger>
                     <AccordionContent className="p-4 bg-muted">
-                        <SingleResultDisplay result={result} onDownloadCsv={handleDownloadDetailedCsv} imageUrls={imageUrls}/>
+                        <SingleResultDisplay result={result} imageUrls={imageUrls} selectedAnnotation={selectedAnnotation} onAnnotationSelect={onAnnotationSelect}/>
                     </AccordionContent>
                 </AccordionItem>
             ))}
@@ -235,7 +238,7 @@ const ResultsDisplay = ({ results, imageUrls }: { results: EvaluationResult[], i
 
 }
 
-const ImageResultDisplay = ({ imageResult, imageUrl }: { imageResult: ImageEvaluationResult, imageUrl: string | undefined }) => {
+const ImageResultDisplay = ({ imageResult, imageUrl, selectedAnnotation, onAnnotationSelect }: { imageResult: ImageEvaluationResult, imageUrl: string | undefined, selectedAnnotation: SelectedAnnotation | null, onAnnotationSelect: (annotation: SelectedAnnotation | null) => void }) => {
     const getAnnotationLabel = (ann: BboxAnnotation) => {
       const categoryName = ann.attributes?.['label']
       const annotationId = `ID ${ann.id}`
@@ -243,13 +246,24 @@ const ImageResultDisplay = ({ imageResult, imageUrl }: { imageResult: ImageEvalu
       return `${categoryName || 'Unknown'}${matchKey || ` (${annotationId})`}`
     };
 
+    const isAnnotationSelected = (ann: BboxAnnotation, type: 'gt' | 'student') => {
+      if (!selectedAnnotation) return false;
+      return selectedAnnotation.imageId === imageResult.imageId && selectedAnnotation.annotationId === ann.id;
+    }
+
     return (
         <Card>
-            <CardHeader className="p-4">
+            <CardHeader className="p-4 flex flex-row items-center justify-between">
                 <CardTitle className="text-xl flex items-center gap-2">
                     <ImageIcon className="h-5 w-5"/>
                     {imageResult.imageName}
                 </CardTitle>
+                {selectedAnnotation && selectedAnnotation.imageId === imageResult.imageId && (
+                    <Button variant="ghost" size="sm" onClick={() => onAnnotationSelect(null)}>
+                        <XCircle className="mr-2 h-4 w-4" />
+                        Clear Selection
+                    </Button>
+                )}
             </CardHeader>
             <CardContent className="p-4 pt-0 grid grid-cols-1 md:grid-cols-3 gap-4">
                  <div className="md:col-span-3">
@@ -258,6 +272,7 @@ const ImageResultDisplay = ({ imageResult, imageUrl }: { imageResult: ImageEvalu
                             <AnnotationViewer
                                 imageUrl={imageUrl}
                                 imageResult={imageResult}
+                                selectedAnnotation={selectedAnnotation}
                             />
                         </div>
                     ) : (
@@ -271,7 +286,18 @@ const ImageResultDisplay = ({ imageResult, imageUrl }: { imageResult: ImageEvalu
                     <CardContent>
                         <Table>
                             <TableHeader><TableRow><TableHead>GT</TableHead><TableHead>Student</TableHead><TableHead>IoU</TableHead></TableRow></TableHeader>
-                            <TableBody>{imageResult.matched.map((m, i) => <TableRow key={i}><TableCell>{getAnnotationLabel(m.gt)}</TableCell><TableCell>{getAnnotationLabel(m.student)}</TableCell><TableCell>{m.iou.toFixed(2)}</TableCell></TableRow>)}</TableBody>
+                            <TableBody>{imageResult.matched.map((m, i) => 
+                                <TableRow 
+                                    key={i} 
+                                    className="cursor-pointer" 
+                                    onClick={() => onAnnotationSelect({ imageId: imageResult.imageId, annotationId: m.gt.id, type: 'match' })}
+                                    data-selected={isAnnotationSelected(m.gt, 'gt')}
+                                >
+                                    <TableCell>{getAnnotationLabel(m.gt)}</TableCell>
+                                    <TableCell>{getAnnotationLabel(m.student)}</TableCell>
+                                    <TableCell>{m.iou.toFixed(2)}</TableCell>
+                                </TableRow>
+                            )}</TableBody>
                         </Table>
                     </CardContent>
                 </Card>
@@ -280,7 +306,16 @@ const ImageResultDisplay = ({ imageResult, imageUrl }: { imageResult: ImageEvalu
                     <CardContent>
                         <Table>
                             <TableHeader><TableRow><TableHead>GT Label</TableHead></TableRow></TableHeader>
-                            <TableBody>{imageResult.missed.map((m, i) => <TableRow key={i}><TableCell>{getAnnotationLabel(m.gt)}</TableCell></TableRow>)}</TableBody>
+                            <TableBody>{imageResult.missed.map((m, i) => 
+                                <TableRow 
+                                    key={i} 
+                                    className="cursor-pointer" 
+                                    onClick={() => onAnnotationSelect({ imageId: imageResult.imageId, annotationId: m.gt.id, type: 'missed' })}
+                                    data-selected={isAnnotationSelected(m.gt, 'gt')}
+                                >
+                                    <TableCell>{getAnnotationLabel(m.gt)}</TableCell>
+                                </TableRow>
+                            )}</TableBody>
                         </Table>
                     </CardContent>
                 </Card>
@@ -289,7 +324,16 @@ const ImageResultDisplay = ({ imageResult, imageUrl }: { imageResult: ImageEvalu
                     <CardContent>
                         <Table>
                             <TableHeader><TableRow><TableHead>Student Label</TableHead></TableRow></TableHeader>
-                            <TableBody>{imageResult.extra.map((m, i) => <TableRow key={i}><TableCell>{getAnnotationLabel(m.student)}</TableCell></TableRow>)}</TableBody>
+                            <TableBody>{imageResult.extra.map((m, i) => 
+                                <TableRow 
+                                    key={i} 
+                                    className="cursor-pointer" 
+                                    onClick={() => onAnnotationSelect({ imageId: imageResult.imageId, annotationId: m.student.id, type: 'extra' })}
+                                    data-selected={isAnnotationSelected(m.student, 'student')}
+                                >
+                                    <TableCell>{getAnnotationLabel(m.student)}</TableCell>
+                                </TableRow>
+                            )}</TableBody>
                         </Table>
                     </CardContent>
                 </Card>
@@ -298,7 +342,7 @@ const ImageResultDisplay = ({ imageResult, imageUrl }: { imageResult: ImageEvalu
     )
 }
 
-const SingleResultDisplay = ({ result, onDownloadCsv, imageUrls }: { result: EvaluationResult; onDownloadCsv: (result: EvaluationResult) => void; imageUrls: Map<string, string>; }) => {
+const SingleResultDisplay = ({ result, onDownloadCsv, imageUrls, selectedAnnotation, onAnnotationSelect }: { result: EvaluationResult; onDownloadCsv: (result: EvaluationResult) => void; imageUrls: Map<string, string>; selectedAnnotation: SelectedAnnotation | null, onAnnotationSelect: (annotation: SelectedAnnotation | null) => void; }) => {
     
     return (
         <div className="space-y-6">
@@ -348,7 +392,7 @@ const SingleResultDisplay = ({ result, onDownloadCsv, imageUrls }: { result: Eva
                     <CardContent className="text-3xl font-bold">{result.attribute_accuracy.average_similarity.toFixed(0)}% <span className="text-sm font-normal text-muted-foreground">({result.attribute_accuracy.total} attributes)</span></CardContent>
                 </Card>
             </div>
-             <Accordion type="single" collapsible className="w-full mt-6">
+             <Accordion type="single" collapsible className="w-full mt-6" defaultValue={result.image_results.length > 0 ? result.image_results[0].imageName : undefined}>
                 <h3 className="font-semibold mb-2">Per-Image Breakdown</h3>
                  {result.image_results.map((imageResult) => (
                     <AccordionItem value={imageResult.imageName} key={imageResult.imageName}>
@@ -356,7 +400,7 @@ const SingleResultDisplay = ({ result, onDownloadCsv, imageUrls }: { result: Eva
                             {imageResult.imageName}
                         </AccordionTrigger>
                         <AccordionContent className="p-2">
-                           <ImageResultDisplay imageResult={imageResult} imageUrl={imageUrls.get(imageResult.imageName)} />
+                           <ImageResultDisplay imageResult={imageResult} imageUrl={imageUrls.get(imageResult.imageName)} selectedAnnotation={selectedAnnotation} onAnnotationSelect={onAnnotationSelect} />
                         </AccordionContent>
                     </AccordionItem>
                 ))}
@@ -365,7 +409,7 @@ const SingleResultDisplay = ({ result, onDownloadCsv, imageUrls }: { result: Eva
     );
 };
 
-export function ResultsDashboard({ results, loading, imageUrls, onEvaluate, onGtFileChange, evalSchema, onRuleChange }: ResultsDashboardProps) {
+export function ResultsDashboard({ results, loading, imageUrls, onEvaluate, onGtFileChange, evalSchema, onRuleChange, selectedAnnotation, onAnnotationSelect }: ResultsDashboardProps) {
   const [openAccordion, setOpenAccordion] = React.useState<string[]>([]);
 
   React.useEffect(() => {
@@ -430,7 +474,7 @@ export function ResultsDashboard({ results, loading, imageUrls, onEvaluate, onGt
                     <p className="text-muted-foreground mt-2">The results will appear here once the evaluation is complete.</p>
                 </div>
             ) : results ? (
-                <ResultsDisplay results={results} imageUrls={imageUrls} />
+                <ResultsDisplay results={results} imageUrls={imageUrls} selectedAnnotation={selectedAnnotation} onAnnotationSelect={onAnnotationSelect} />
             ) : (
                 <div className="flex flex-col items-center justify-center text-center p-8 h-full min-h-[300px] border-dashed border-2 rounded-md bg-card">
                     <FileQuestion className="h-16 w-16 text-muted-foreground mb-4" />

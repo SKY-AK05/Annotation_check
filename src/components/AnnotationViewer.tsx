@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useRef, useEffect, useState } from 'react';
-import type { ImageEvaluationResult } from '@/lib/types';
+import type { ImageEvaluationResult, BboxAnnotation, SelectedAnnotation, Match } from '@/lib/types';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
 import { Label } from './ui/label';
@@ -11,9 +11,10 @@ import { ZoomIn, ZoomOut, RefreshCcw, Eye, EyeOff } from 'lucide-react';
 interface AnnotationViewerProps {
   imageUrl: string;
   imageResult: ImageEvaluationResult;
+  selectedAnnotation: SelectedAnnotation | null;
 }
 
-export function AnnotationViewer({ imageUrl, imageResult }: AnnotationViewerProps) {
+export function AnnotationViewer({ imageUrl, imageResult, selectedAnnotation }: AnnotationViewerProps) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [scale, setScale] = useState(1);
     const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
@@ -59,27 +60,55 @@ export function AnnotationViewer({ imageUrl, imageResult }: AnnotationViewerProp
                 context.fillText(label, textX, textY);
             }
         };
-        
-        if (visibility.missed) {
-          imageResult.missed.forEach(m => drawBbox(m.gt.bbox, 'rgba(255, 0, 0, 0.9)', `Missed: ${m.gt.attributes?.['label'] || m.gt.id}`, 'top'));
-        }
-        
-        if (visibility.extra) {
-          imageResult.extra.forEach(e => drawBbox(e.student.bbox, 'rgba(255, 165, 0, 0.9)', `Extra: ${e.student.attributes?.['label'] || e.student.id}`, 'bottom'));
-        }
 
-        imageResult.matched.forEach(m => {
-            if (visibility.gt) {
-              drawBbox(m.gt.bbox, 'rgba(0, 255, 0, 0.7)');
+        if (selectedAnnotation && selectedAnnotation.imageId === imageResult.imageId) {
+            let itemToDraw: Match | { gt: BboxAnnotation } | { student: BboxAnnotation } | undefined;
+            switch(selectedAnnotation.type) {
+                case 'match':
+                    itemToDraw = imageResult.matched.find(m => m.gt.id === selectedAnnotation.annotationId || m.student.id === selectedAnnotation.annotationId);
+                    if (itemToDraw) {
+                        drawBbox(itemToDraw.gt.bbox, 'rgba(0, 255, 0, 0.7)');
+                        const studentBbox = [...itemToDraw.student.bbox];
+                        studentBbox[0] += 2 / scale;
+                        studentBbox[1] += 2 / scale;
+                        drawBbox(studentBbox, 'rgba(0, 0, 255, 0.7)');
+                    }
+                    break;
+                case 'missed':
+                    itemToDraw = imageResult.missed.find(m => m.gt.id === selectedAnnotation.annotationId);
+                     if (itemToDraw) {
+                        drawBbox(itemToDraw.gt.bbox, 'rgba(255, 0, 0, 0.9)', `Missed: ${itemToDraw.gt.attributes?.['label'] || itemToDraw.gt.id}`, 'top');
+                    }
+                    break;
+                case 'extra':
+                    itemToDraw = imageResult.extra.find(e => e.student.id === selectedAnnotation.annotationId);
+                    if (itemToDraw) {
+                        drawBbox(itemToDraw.student.bbox, 'rgba(255, 165, 0, 0.9)', `Extra: ${itemToDraw.student.attributes?.['label'] || itemToDraw.student.id}`, 'bottom');
+                    }
+                    break;
             }
-            if (visibility.student) {
-              const studentBbox = [...m.student.bbox];
-              studentBbox[0] += 2 / scale;
-              studentBbox[1] += 2 / scale;
-              drawBbox(studentBbox, 'rgba(0, 0, 255, 0.7)');
+        } else {
+            // Default view: draw all annotations based on visibility
+            if (visibility.missed) {
+                imageResult.missed.forEach(m => drawBbox(m.gt.bbox, 'rgba(255, 0, 0, 0.9)', `Missed: ${m.gt.attributes?.['label'] || m.gt.id}`, 'top'));
             }
-        });
+            
+            if (visibility.extra) {
+                imageResult.extra.forEach(e => drawBbox(e.student.bbox, 'rgba(255, 165, 0, 0.9)', `Extra: ${e.student.attributes?.['label'] || e.student.id}`, 'bottom'));
+            }
 
+            imageResult.matched.forEach(m => {
+                if (visibility.gt) {
+                    drawBbox(m.gt.bbox, 'rgba(0, 255, 0, 0.7)');
+                }
+                if (visibility.student) {
+                    const studentBbox = [...m.student.bbox];
+                    studentBbox[0] += 2 / scale;
+                    studentBbox[1] += 2 / scale;
+                    drawBbox(studentBbox, 'rgba(0, 0, 255, 0.7)');
+                }
+            });
+        }
         context.restore();
     };
 
@@ -112,7 +141,7 @@ export function AnnotationViewer({ imageUrl, imageResult }: AnnotationViewerProp
 
     useEffect(() => {
         draw();
-    }, [scale, panOffset, imageResult, imageUrl, visibility]);
+    }, [scale, panOffset, imageResult, imageUrl, visibility, selectedAnnotation]);
 
     const handleZoom = (direction: 'in' | 'out') => {
         const zoomFactor = 1.2;
@@ -206,7 +235,7 @@ export function AnnotationViewer({ imageUrl, imageResult }: AnnotationViewerProp
                     </Button>
                 </div>
             </div>
-            <Legend />
+            { !selectedAnnotation && <Legend /> }
         </div>
     );
 }
