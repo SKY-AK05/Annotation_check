@@ -271,3 +271,5 @@ To truly differentiate Annotator AI, we must move beyond simple scoring and prov
     *   **Mitigation:** Make this a premium feature or add request throttling. Cache results for identical error patterns.
     *   **Quality & Consistency:** LLM output can be variable.
     *   **Mitigation:** Use rigorous prompt engineering, few-shot examples, and potentially a fine-tuned model to ensure high-quality, consistent feedback.
+
+    
