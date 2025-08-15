@@ -1,4 +1,3 @@
-
 # **Annotator AI: Performance & Scalability Bottleneck Analysis**
 
 **Report Version:** 1.0
