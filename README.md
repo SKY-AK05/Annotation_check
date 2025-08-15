@@ -1,191 +1,223 @@
-# Annotator AI: System Architecture & Workflow
 
-*Annotator AI is a browser-based evaluation tool designed for grading annotated image datasets. It enables fast, consistent comparison of student annotations against expert-defined ground truth, with automatic rule generation and detailed scoring—all without server-side data storage.*
+# PyEnv-Manager: The Ultimate CLI for Data Science Environments
 
-| Feature                 | Description                                                              |
-| ----------------------- | ------------------------------------------------------------------------ |
-| **Data Privacy**        | 100% browser-based, no persistent server-side storage of user data.      |
-| **Evaluation Logic**    | AI-generated, user-editable, and applied at runtime in the browser.      |
-| **Scoring System**      | Fixed algorithm using a weighted score of F-beta, IoU, labels, and attributes. |
-| **Supported Formats**   | COCO JSON, CVAT XML 1.1, or ZIP archives containing either format.       |
-| **Extensibility**       | Configurable schema, with future plans for LMS/export integrations.      |
+PyEnv-Manager is a powerful, intuitive command-line tool designed to streamline the creation, management, and replication of Python virtual environments for data science and machine learning projects. It eliminates the boilerplate and potential for error associated with manual environment setup, allowing you to focus on what matters most: your code and your models.
 
-## 1. Website Flow Overview
+## 1. Why PyEnv-Manager?
 
-Annotator AI is designed to streamline the evaluation of image annotation tasks. The user journey is straightforward: an evaluator uploads a "Ground Truth" (GT) file, which serves as the correct answer key. The system instantly analyzes this file to generate a set of evaluation rules. The user can then upload one or more student submission files and the original images. Upon clicking "Run Evaluation," the system uses the currently active `EvalSchema` to compare student submissions against the GT annotations. This happens entirely within the browser and returns instant feedback, including a detailed report with scores, feedback, and a visual breakdown of any errors.
+Managing dependencies and virtual environments is a critical but often tedious part of any data science workflow. Inconsistencies between local, staging, and production environments can lead to "it works on my machine" syndromes, costing hours of debugging.
 
-The data flow is designed for clarity and efficiency:
+PyEnv-Manager addresses these challenges by providing a simple, robust, and automated interface for environment management, directly from your terminal.
 
-```
-+------------------+      +-------------------------+      +----------------------+
-| 1. User Uploads  |----->| 2. AI Analyzes GT File  |----->| 3. Evaluation Rules  |
-| Ground Truth File|      | & Extracts Schema       |      | are Displayed to User|
-| (JSON/XML/ZIP)   |      | (Server-Side)           |      | (Editable Pseudocode)|
-+------------------+      +-------------------------+      +----------------------+
-        |                                                            |
-        | (User uploads student files & images)                      |
-        V                                                            V
-+------------------+      +-------------------------+      +----------------------+
-| 4. User Clicks   |----->| 5. System Evaluates     |----->| 6. Results Dashboard |
-| "Run Evaluation" |      | Annotations using Rules |      | is Displayed         |
-|                  |      | (Client-Side)           |      | (Score, Feedback,   |
-|                  |      |                         |      |   Visuals)         |
-+------------------+      +-------------------------+      +----------------------+
-```
-
-This hybrid approach—where AI handles configuration and a deterministic engine ensures consistent evaluation—provides both flexibility and objective, consistent scoring.
+-   **Speed & Efficiency**: Create, activate, and manage environments with single-line commands.
+-   **Reproducibility**: Ensure your environment can be perfectly replicated by colleagues or in production with a single command.
+-   **No Context Switching**: Stay focused in your terminal, the primary workspace for most developers and data scientists.
+-   **Best Practices by Default**: The tool is built on Python's native `venv` module, encouraging industry-standard practices without the overhead.
 
 ---
 
-## 2. GT Upload Process
+## 2. Features
 
-**Ground Truth (GT)** data is the master reference file containing the perfectly annotated data, created by an expert. It is the "answer key" that all student submissions are measured against.
-
-The upload process is as follows:
-1.  **Upload**: The user uploads a single GT file via the "Ground Truth Annotations" input. The system accepts standard formats like **COCO JSON** and **CVAT XML 1.1**. For convenience, a **.ZIP archive** containing both the annotation file and the associated images can also be uploaded.
-2.  **Extraction (if ZIP)**: If a ZIP file is provided, the system opens it in the browser, identifies the annotation file (`.json` or `.xml`), and extracts all image files, creating local URLs for them to be displayed later.
-3.  **Parsing & Validation**: The content of the annotation file is read as plain text. The system checks if it is XML or JSON and uses the appropriate parser (`DOMParser` for XML, `JSON.parse` for JSON) to convert it into a standardized internal data structure. This ensures the rest of the application can handle the data in a uniform way. If parsing fails, an error is shown to the user.
-4.  **Schema Generation**: The validated text content of the GT file is securely sent to a server-side AI model (Genkit) to generate the evaluation rules (the "Eval Schema").
-5.  **Storage**: All uploaded data (file content, extracted images, and the generated schema) is stored temporarily in-memory in the user's browser during the session. **No user data is permanently stored on any server or database**, ensuring privacy and security. The data is discarded when the page is refreshed.
-
-> **Note on Privacy & Data Handling:** Because Annotator AI runs almost entirely in-browser with no persistent backend, users must ensure they do not refresh the page mid-session. This architecture was chosen for maximum data privacy and portability. Only the annotation file's text content (not images or personal data) is sent to the server-side Genkit model for schema generation. All evaluation runs and full data processing happen locally.
+-   **Automated Environment Creation**: Initialize a new, isolated Python environment within your project directory with one command.
+-   **Simplified Package Management**: Install, uninstall, and manage packages using `pip` through a clean interface, with automatic updates to your requirements file.
+-   **Automatic Dependency Tracking**: All package installations and removals are automatically recorded in a `requirements.txt` file, ensuring your dependencies are always up to date.
+-   **One-Command Activation**: Activate the virtual environment without needing to remember complex file paths (`source .venv/bin/activate`).
+-   **Seamless Replication**: Re-create an exact environment from a `requirements.txt` file, perfect for onboarding new team members or deploying to a new server.
+-   **Environment Exporting**: Easily export your current environment's state to a `requirements.txt` or `requirements.lock` file for version control.
+-   **Clear & Informative Status**: Quickly check the status of your environment, including the Python version and a list of installed packages.
 
 ---
 
-## 3. Rule Customization Without Code Changes
+## 3. Installation
 
-A key feature of Annotator AI is its ability to **dynamically generate evaluation logic without modifying the core application code.** The core application logic is immutable and secure, and does not change at runtime. Instead, it modifies the *parameters* for the evaluation.
+PyEnv-Manager is distributed as a Python package and can be installed using `pip`.
 
-Here's how it works:
-1.  **Dynamic Rule Generation**: When the GT file is uploaded, its content is sent to an AI model. The model's sole purpose is to analyze the structure of the data and return a configuration object, called an `EvalSchema`. This object contains the labels, attributes, and a human-readable pseudocode representation of the evaluation logic.
-2.  **User-Editable Logic**: The generated pseudocode is displayed in a text box. A user can **manually edit this pseudocode** to adjust the evaluation logic before running it. For instance, they could remove an attribute from being checked.
-3.  **In-Memory Changes**: These changes, whether generated by the AI or edited by the user, exist only in the application's state for the current session. They are temporary and are not saved to any file or database.
-4.  **No Code Deployment or Testing Needed**: Because the core evaluation engine is fixed and only its *input parameters* (the `EvalSchema`) change, there is no need for code commits, version control, or staging environments for this process. The system is designed to be safely configured at runtime.
-5.  **Rollback**: To revert to the original AI-generated rules after making a manual edit, the user can simply re-upload the Ground Truth file, which will trigger the rule generation process again.
+### 3.1. System Requirements
+
+-   **Operating System**: macOS, Linux, or Windows.
+-   **Python**: Version **3.8 or higher** is required.
+-   **Pip**: Version **20.0 or higher** is required.
+
+It is highly recommended to install PyEnv-Manager at the user or system level so it can be accessed from anywhere in your terminal.
+
+### 3.2. Installation Steps
+
+You can install the tool using `pip`. The following command will install it for the current user:
+
+```bash
+# Install the package from PyPI
+pip install pyenv-manager
+
+# Verify the installation
+pyenv --version
+```
+
+**Expected Output:**
+```
+pyenv-manager 1.0.0
+```
+
+### 3.3. Troubleshooting
+
+-   **`command not found: pyenv`**: This error occurs when the directory containing the installed script is not in your system's `PATH`.
+    -   **Solution (Linux/macOS)**: Find your Python user scripts directory by running `python3 -m site --user-base`. The scripts are usually in the `bin` subdirectory (e.g., `~/.local/bin`). Add `export PATH="$HOME/.local/bin:$PATH"` to your `~/.bashrc`, `~/.zshrc`, or `~/.profile` file, then restart your terminal.
+    -   **Solution (Windows)**: Find the scripts directory by running `py -m site --user-site`. It's usually in a path like `C:\Users\YourUser\AppData\Roaming\Python\Python3X\Scripts`. Add this directory to your system's `PATH` environment variable.
+
+-   **Permissions Errors during Installation**: If you are installing system-wide, you might encounter permission errors. It is generally safer to install for the current user. If you must install globally, you may need to use `sudo pip install pyenv-manager` on Linux/macOS, but this is not recommended.
 
 ---
 
-## 4. Formula Storage
+## 4. Usage Examples
 
-The "formulas" in Annotator AI are the evaluation rules, which are stored in the `EvalSchema` object. This object is not stored in a traditional database but is managed as follows:
+All commands follow the structure `pyenv <command> [options]`.
 
-1.  **Generation**: The `EvalSchema` is generated in real-time by the AI model when the GT file is uploaded.
-2.  **Storage Location**: It is stored in a **React state variable** within the main page component (`src/app/page.tsx`). This means it resides in the user's browser memory for the duration of their session.
-3.  **Retrieval and Application**: When the user clicks "Run Evaluation," the `evaluateAnnotations` function is called. This function receives the current `EvalSchema` object directly from the component's state as an argument. The evaluator then uses the properties of this object to guide its logic.
+### 4.1. Creating a New Environment
 
-**Example of the `EvalSchema` Storage Format (JSON):**
-This is what the object looks like when stored in the React state.
+This is typically the first command you'll run in a new project directory. It creates a `.venv` folder containing an isolated Python environment.
 
-```json
-{
-  "labels": [
-    {
-      "name": "car",
-      "attributes": ["license_plate_number", "color"]
-    },
-    {
-      "name": "pedestrian",
-      "attributes": []
-    }
-  ],
-  "matchKey": "Annotation No",
-  "pseudoCode": "def evaluate_student_annotations(gt, student):\n  # 1. Match annotations using 'Annotation No' as the unique key.\n  # 2. For each matched 'car' annotation:\n  #    a. Calculate IoU for the bounding box.\n  #    b. Check for an exact match on the 'color' attribute.\n  #    c. Check for a text similarity match on the 'license_plate_number' attribute.\n  # 3. For each matched 'pedestrian' annotation:\n  #    a. Calculate IoU for the bounding box.\n  # 4. Identify any annotations present in GT but not in student (missed).\n  # 5. Identify any annotations present in student but not in GT (extra)."
-}
+**Command:**
+```bash
+# Initialize a new virtual environment in the current directory
+pyenv init
+```
+
+**Expected Output:**
+```
+✔ Virtual environment created successfully at ./.venv
+✔ Activated environment.
+To manually activate in the future, run: pyenv activate
+```
+
+### 4.2. Installing Packages
+
+Install packages into the active environment. The tool automatically updates `requirements.txt`.
+
+**Command:**
+```bash
+# Install pandas and scikit-learn
+pyenv install pandas scikit-learn
+```
+
+**Expected Output:**
+```
+✔ Installing packages: pandas, scikit-learn...
+... (pip install output) ...
+✔ Successfully installed pandas-x.y.z scikit-learn-a.b.c
+✔ requirements.txt has been updated.
+```
+
+### 4.3. Activating and Deactivating the Environment
+
+**Activating:**
+```bash
+# Activate the environment in the current shell session
+pyenv activate
+```
+**Expected Output:**
+Your terminal prompt will change to indicate the active environment, for example:
+`(.venv) $`
+
+**Deactivating:**
+```bash
+# Deactivate the environment
+deactivate
+```
+
+### 4.4. Checking Environment Status
+
+View a summary of the current environment.
+
+**Command:**
+```bash
+pyenv status
+```
+**Expected Output:**
+```
+┌────────────────────────┬───────────────────────────────────────────┐
+│ Property               │ Value                                     │
+├────────────────────────┼───────────────────────────────────────────┤
+│ Environment Active     │ True                                      │
+│ Path                   │ /path/to/your/project/.venv               │
+│ Python Version         │ 3.10.4                                    │
+│ Packages Installed     │ 25                                        │
+└────────────────────────┴───────────────────────────────────────────┘
+```
+
+### 4.5. Listing Installed Packages
+
+**Command:**
+```bash
+pyenv list
+```
+**Expected Output:**
+```
+┌──────────────────┬─────────┐
+│ Package          │ Version │
+├──────────────────┼─────────┤
+│ numpy            │ 1.26.2  │
+│ pandas           │ 2.1.4   │
+│ scikit-learn     │ 1.3.2   │
+│ ...              │ ...     │
+└──────────────────┴─────────┘
+```
+
+### 4.6. Reproducing an Environment from a File
+
+This is perfect for setting up a project on a new machine.
+
+**Command:**
+```bash
+# Create and populate an environment from requirements.txt
+pyenv install --from-file requirements.txt
+```
+**Expected Output:**
+```
+✔ Found requirements.txt. Installing dependencies...
+... (pip install output) ...
+✔ Environment is ready and all dependencies are installed.
 ```
 
 ---
 
-## 5. Evaluation Formula & Scoring Logic
+## 5. Contributing
 
-The core evaluation logic is a deterministic algorithm found in `src/lib/evaluator.ts`. It does not rely on AI for the actual scoring. **While the evaluation algorithm is fixed and universal, its behavior is fully driven by the `EvalSchema`, which defines which labels, attributes, and match strategies are used for any given run.** The general "formula" is a multi-step process that computes a final score based on several weighted metrics.
+We welcome contributions from the community! Whether it's a bug report, a new feature suggestion, or a code contribution, we appreciate your help in making PyEnv-Manager better.
 
-**Final Score Calculation (Pseudocode):**
+### 5.1. Reporting Issues
 
-```
-# Weights for each component of the score
-detection_weight = 0.40
-localization_weight = 0.30
-label_weight = 0.20
-attribute_weight = 0.10
+If you find a bug or have a feature request, please [submit an issue on our GitHub repository](https://github.com/your-org/pyenv-manager/issues). Please provide as much detail as possible, including:
+-   Your operating system and Python version.
+-   Steps to reproduce the issue.
+-   The expected behavior and the actual behavior.
 
-# 1. Detection Score (F-beta Score) - How well did the student find the objects?
-precision = matched_annotations / total_student_annotations
-recall = matched_annotations / total_gt_annotations
-f_beta_score = (1.25 * precision * recall) / (0.25 * precision + recall)
+### 5.2. Submitting Pull Requests
 
-# 2. Localization Score (IoU) - How well were the bounding boxes placed?
-average_iou = sum_of_all_ious / number_of_matched_annotations
+1.  Fork the repository on GitHub.
+2.  Create a new branch for your feature or bug fix (`git checkout -b feature/my-new-feature`).
+3.  Make your changes and commit them with clear, descriptive messages.
+4.  Push your branch to your fork (`git push origin feature/my-new-feature`).
+5.  Submit a pull request to the `main` branch of the official repository.
 
-# 3. Label Score - How accurately were the objects classified?
-label_accuracy = correctly_labeled_annotations / number_of_matched_annotations
+Please ensure your code follows the existing style, includes tests where appropriate, and passes all existing tests.
 
-# 4. Attribute Score - How accurate was the text in the attributes?
-average_attribute_similarity = sum_of_all_attribute_similarities / number_of_attributes_compared
+### 5.3. Code of Conduct
 
-# Final Weighted Score
-final_score = (f_beta_score * detection_weight) +
-              (average_iou * localization_weight) +
-              (label_accuracy * label_weight) +
-              (average_attribute_similarity * attribute_weight)
-
-# Result is scaled to a 0-100 score.
-```
-
-**Component Breakdown:**
-*   **Detection (Precision/Recall)**: Measures whether the student found all the required objects without adding extra, incorrect ones. It's a balance between "not missing anything" and "not adding anything extra."
-*   **Localization (IoU)**: Intersection over Union measures how much the student's bounding box overlaps with the expert's box. A score of 1.0 is a perfect overlap.
-*   **Label Accuracy**: Checks if the matched object was given the correct category (e.g., correctly identified as a "car" vs. a "truck").
-*   **Attribute Accuracy**: For text attributes (like a license plate number), it uses the Levenshtein distance algorithm to calculate a similarity percentage. This allows for minor typos while still penalizing significant errors.
+We are committed to providing a welcoming and inclusive environment. All contributors are expected to adhere to our **Code of Conduct**. Please read it before participating.
 
 ---
 
-## 6. How Evaluation Logic Adjusts Automatically
+## 6. Known Limitations & Future Enhancements
 
-The "formula" (the evaluation process described above) is dynamically modified by the `EvalSchema` object that is generated from the GT file. The core algorithm remains the same, but the schema tells it *what* to focus on.
+-   **Single Environment per Directory**: The tool is designed to manage one `.venv` environment in the root of the project directory. It does not currently support managing multiple named environments within the same project.
+-   **No Python Version Management**: PyEnv-Manager manages packages within an environment, but it does not install different versions of Python itself. For that, we recommend using a tool like `pyenv` (the original) or `asdf`.
 
-**Key Dynamic Parts:**
-1.  **`matchKey`**: This is the most critical dynamic modification.
-    *   **If the GT file has a unique ID for each annotation (e.g., "Annotation No" or "track_id")**, the AI will identify it and set it as the `matchKey`. The evaluator will then use this key for a perfect 1-to-1 match, which is highly reliable.
-    *   **If no such key exists**, the `matchKey` property is omitted. The evaluator then falls back to a different strategy: matching annotations based on a combination of their IoU overlap and whether their labels are the same.
-2.  **`labels` and `attributes`**: The schema's list of labels and their associated attributes tells the evaluator which text fields to compare.
-    *   **Example (Before)**: If the `EvalSchema` only lists `{"name": "car", "attributes": []}`, the evaluator will only check the IoU and label for cars.
-    *   **Example (After)**: If a new GT file is uploaded that includes license plates, the schema will change to `{"name": "car", "attributes": ["license_plate_number"]}`. The evaluator, reading this new schema, will now *also* perform a text similarity check on the `license_plate_number` attribute for any matched cars.
-
-**API/IO Example for Rule Generation:**
-
-This demonstrates how the system's internal API call to the AI model generates the dynamic rules.
-
-**Input (sent to the Genkit `extractEvalSchema` flow):**
-```json
-{
-  "gtFileContent": "{\"images\":[...], \"categories\":[{\"id\":1, \"name\":\"vehicle\"}], \"annotations\":[{\"image_id\":1, \"category_id\":1, \"bbox\":[...], \"attributes\":{\"color\":\"red\", \"Annotation No\":\"123\"}}]}"
-}
-```
-
-**Output (returned by the AI and stored in state):**
-```json
-{
-  "labels": [
-    {
-      "name": "vehicle",
-      "attributes": ["color", "Annotation No"]
-    }
-  ],
-  "matchKey": "Annotation No",
-  "pseudoCode": "def evaluate_student_annotations(...):\n  # 1. Match annotations using 'Annotation No' as the unique key.\n  # 2. For each matched 'vehicle' annotation:\n  #    a. Calculate IoU for the bounding box.\n  #    b. Check for an exact match on the 'color' attribute."
-}
-```
-
-This output `EvalSchema` is then passed as a parameter to the evaluation engine, effectively "modifying" the formula for this specific run.
+**Future Roadmap:**
+-   Integration with `conda` environments.
+-   An interactive mode for selecting packages to install or uninstall.
+-   Plugins for project scaffolding (e.g., creating a standard data science project structure).
 
 ---
 
-## 7. Future Enhancements
+## 7. License
 
-The current architecture provides a strong foundation for future development. Potential enhancements include:
-*   Server-side session persistence to save and restore evaluation sessions.
-*   Evaluation report export to downloadable formats like PDF or detailed CSV.
-*   Integration with Learning Management Systems (LMS) for seamless grade reporting.
-*   Support for additional annotation types, such as video or semantic segmentation.
-
-    
+PyEnv-Manager is licensed under the **MIT License**. A copy of the license is included in the project repository. You are free to use, modify, and distribute this software, provided you include the original copyright and license notice.
