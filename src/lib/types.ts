@@ -173,3 +173,23 @@ export interface PolygonEvaluationResult {
     missed: { gt: PolygonAnnotation }[];
     extra: { student: PolygonAnnotation }[];
 }
+
+
+// NEW TYPES FOR FEEDBACK
+export interface FeedbackInput {
+    gt: BboxAnnotation;
+    student: BboxAnnotation;
+    imageBase64: string;
+}
+
+export interface FeedbackIssue {
+    edge: 'top' | 'bottom' | 'left' | 'right';
+    status: 'gap' | 'cut_off' | 'aligned';
+    message: string;
+}
+
+export interface Feedback {
+    annotationId: number;
+    feedbackId: string;
+    issues: FeedbackIssue[];
+}

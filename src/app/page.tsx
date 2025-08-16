@@ -6,9 +6,9 @@ import JSZip from 'jszip';
 import { useToast } from "@/hooks/use-toast";
 import { ResultsDashboard } from '@/components/ResultsDashboard';
 import { AnnotatorAiLogo } from '@/components/AnnotatorAiLogo';
-import type { EvaluationResult, FormValues, CocoJson, SelectedAnnotation } from '@/lib/types';
+import type { EvaluationResult, FormValues, CocoJson, SelectedAnnotation, Feedback } from '@/lib/types';
 import { evaluateAnnotations } from '@/lib/evaluator';
-import { parseCvatXml } from '@/lib/cvat-xml-parser';
+import { parseCvatXml, parseCvatXmlForPolygons } from '@/lib/cvat-xml-parser';
 import { extractEvalSchema } from '@/ai/flows/extract-eval-schema';
 import type { EvalSchema, EvalSchemaInput } from '@/lib/types';
 import SkeletonAnnotationPage from '@/components/SkeletonAnnotationPage';
@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label';
 import { BoxSelect, Bone, Spline } from 'lucide-react';
 import PolygonAnnotationPage from '@/components/PolygonAnnotationPage';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { getAnnotationFeedback } from '@/ai/flows/annotation-feedback-flow';
 
 export default function Home() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -27,6 +28,7 @@ export default function Home() {
   const [imageUrls, setImageUrls] = useState<Map<string, string>>(new Map());
   const [evaluationMode, setEvaluationMode] = useState<'bounding-box' | 'skeleton' | 'polygon'>('bounding-box');
   const [selectedAnnotation, setSelectedAnnotation] = useState<SelectedAnnotation | null>(null);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
   const { toast } = useToast();
 
   const handleGtFileChange = async (file: File | undefined) => {
@@ -43,6 +45,7 @@ export default function Home() {
     setGtFileContent(null);
     setImageUrls(new Map());
     setSelectedAnnotation(null);
+    setFeedback(null);
 
     try {
       let fileContent: string;
@@ -104,6 +107,53 @@ export default function Home() {
     }
   }
 
+  const handleGetFeedback = async (annotation: SelectedAnnotation) => {
+    if (!results || !imageUrls) return;
+    
+    // Find the annotation data from the results
+    const result = results.find(r => r.image_results.some(ir => ir.imageId === annotation.imageId));
+    if (!result) return;
+    
+    const imageResult = result.image_results.find(ir => ir.imageId === annotation.imageId);
+    if (!imageResult) return;
+    
+    const match = imageResult.matched.find(m => m.gt.id === annotation.annotationId);
+    if (!match) return;
+
+    const imageUrl = imageUrls.get(imageResult.imageName);
+    if (!imageUrl) return;
+
+    toast({ title: 'Getting AI Feedback...', description: 'Please wait while we analyze the annotation.' });
+
+    try {
+        // Convert image URL to base64
+        const response = await fetch(imageUrl);
+        const blob = await response.blob();
+        const reader = new FileReader();
+        reader.readAsDataURL(blob);
+        reader.onloadend = async () => {
+            const base64data = reader.result as string;
+            
+            const feedbackResponse = await getAnnotationFeedback({
+                gt: match.gt,
+                student: match.student,
+                imageBase64: base64data,
+            });
+
+            setFeedback({ ...feedbackResponse, annotationId: annotation.annotationId });
+            toast({ title: 'Feedback Received', description: feedbackResponse.issues.length > 0 ? feedbackResponse.issues[0].message : "Annotation is well aligned." });
+        };
+    } catch (error) {
+        console.error("Failed to get feedback from AI model:", error);
+        toast({
+            title: "Feedback Error",
+            description: `Failed to get feedback from AI model: ${(error as Error).message}`,
+            variant: "destructive"
+        });
+    }
+  };
+
+
   const handleEvaluate = async (data: FormValues) => {
     if (!evalSchema || !gtFileContent) {
       toast({
@@ -116,6 +166,7 @@ export default function Home() {
     setIsLoading(true);
     setResults(null);
     setSelectedAnnotation(null);
+    setFeedback(null);
   
     try {
         const studentFileInputs = Array.from(data.studentFiles);
@@ -304,6 +355,10 @@ export default function Home() {
 
   const handleAnnotationSelect = (annotation: SelectedAnnotation | null) => {
     setSelectedAnnotation(annotation);
+    setFeedback(null); // Clear previous feedback when selecting a new annotation
+    if (annotation && annotation.type === 'match') {
+      handleGetFeedback(annotation);
+    }
   };
 
   return (
@@ -365,6 +420,7 @@ export default function Home() {
                   onRuleChange={handleRuleChange}
                   selectedAnnotation={selectedAnnotation}
                   onAnnotationSelect={handleAnnotationSelect}
+                  feedback={feedback}
               />
           ) : evaluationMode === 'skeleton' ? (
               <SkeletonAnnotationPage />

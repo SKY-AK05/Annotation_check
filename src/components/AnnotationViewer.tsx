@@ -2,19 +2,20 @@
 'use client';
 
 import React, { useRef, useEffect, useState } from 'react';
-import type { ImageEvaluationResult, BboxAnnotation, SelectedAnnotation, Match } from '@/lib/types';
+import type { ImageEvaluationResult, BboxAnnotation, SelectedAnnotation, Match, Feedback } from '@/lib/types';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
 import { Label } from './ui/label';
-import { ZoomIn, ZoomOut, RefreshCcw, Eye, EyeOff } from 'lucide-react';
+import { ZoomIn, ZoomOut, RefreshCcw } from 'lucide-react';
 
 interface AnnotationViewerProps {
   imageUrl: string;
   imageResult: ImageEvaluationResult;
   selectedAnnotation: SelectedAnnotation | null;
+  feedback: Feedback | null;
 }
 
-export function AnnotationViewer({ imageUrl, imageResult, selectedAnnotation }: AnnotationViewerProps) {
+export function AnnotationViewer({ imageUrl, imageResult, selectedAnnotation, feedback }: AnnotationViewerProps) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [scale, setScale] = useState(1);
     const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
@@ -43,70 +44,146 @@ export function AnnotationViewer({ imageUrl, imageResult, selectedAnnotation }: 
         context.scale(scale, scale);
         context.drawImage(image, 0, 0, image.naturalWidth, image.naturalHeight);
 
-        const drawBbox = (bbox: number[], color: string, label?: string, textPosition?: 'top' | 'bottom') => {
+        const drawBbox = (bbox: number[], color: string, lineWidth: number = 2) => {
             const [x, y, w, h] = bbox;
             context.strokeStyle = color;
-            context.lineWidth = 2 / scale; // Keep line width consistent when zooming
+            context.lineWidth = lineWidth / scale; // Keep line width consistent when zooming
             context.strokeRect(x, y, w, h);
-            
-            if (label) {
-                context.fillStyle = color;
-                const fontSize = 14 / scale;
-                context.font = `bold ${fontSize}px Arial`;
-                
-                let textX = x;
-                let textY = textPosition === 'bottom' ? y + h + (15 / scale) : y - (5 / scale);
-                
-                context.fillText(label, textX, textY);
-            }
         };
+        
+        const drawFeedbackText = (text: string, x: number, y: number, color: string) => {
+            context.fillStyle = color;
+            const fontSize = 14 / scale;
+            context.font = `bold ${fontSize}px Arial`;
+            context.shadowColor = "black";
+            context.shadowBlur = 4 / scale;
+            context.fillText(text, x, y);
+            context.shadowBlur = 0;
+        };
+        
+        const drawArrow = (fromX: number, fromY: number, toX: number, toY: number, color: string) => {
+            const headlen = 10 / scale;
+            const dx = toX - fromX;
+            const dy = toY - fromY;
+            const angle = Math.atan2(dy, dx);
+            context.strokeStyle = color;
+            context.lineWidth = 2 / scale;
+            context.beginPath();
+            context.moveTo(fromX, fromY);
+            context.lineTo(toX, toY);
+            context.lineTo(toX - headlen * Math.cos(angle - Math.PI / 6), toY - headlen * Math.sin(angle - Math.PI / 6));
+            context.moveTo(toX, toY);
+            context.lineTo(toX - headlen * Math.cos(angle + Math.PI / 6), toY - headlen * Math.sin(angle + Math.PI / 6));
+            context.stroke();
+        }
 
         if (selectedAnnotation && selectedAnnotation.imageId === imageResult.imageId) {
-            let itemToDraw: Match | { gt: BboxAnnotation } | { student: BboxAnnotation } | undefined;
-            switch(selectedAnnotation.type) {
-                case 'match':
-                    itemToDraw = imageResult.matched.find(m => m.gt.id === selectedAnnotation.annotationId || m.student.id === selectedAnnotation.annotationId);
-                    if (itemToDraw) {
-                        drawBbox(itemToDraw.gt.bbox, 'rgba(0, 255, 0, 0.7)');
-                        const studentBbox = [...itemToDraw.student.bbox];
-                        studentBbox[0] += 2 / scale;
-                        studentBbox[1] += 2 / scale;
-                        drawBbox(studentBbox, 'rgba(0, 0, 255, 0.7)');
+            let itemToDraw: Match | undefined;
+            if (selectedAnnotation.type === 'match') {
+                itemToDraw = imageResult.matched.find(m => m.gt.id === selectedAnnotation.annotationId);
+            }
+
+            if (itemToDraw) {
+                // Draw GT and Student boxes
+                drawBbox(itemToDraw.gt.bbox, 'rgba(0, 255, 0, 0.9)'); // Green for GT
+                drawBbox(itemToDraw.student.bbox, 'rgba(255, 0, 0, 0.9)'); // Red for Student
+
+                // If feedback is available for this annotation, draw it
+                if (feedback && feedback.annotationId === selectedAnnotation.annotationId) {
+                    const studentBox = itemToDraw.student.bbox;
+                    
+                    feedback.issues.forEach(issue => {
+                        let x, y, textX, textY, arrowFromX, arrowFromY, arrowToX, arrowToY;
+                        const margin = 20 / scale;
+
+                        switch (issue.edge) {
+                            case 'top':
+                                x = studentBox[0] + studentBox[2] / 2;
+                                y = studentBox[1];
+                                textX = x;
+                                textY = y - margin;
+                                if (issue.status === 'gap') { // Arrow points out
+                                    arrowFromX = x; arrowFromY = y;
+                                    arrowToX = x; arrowToY = y - margin;
+                                } else { // Arrow points in
+                                    arrowFromX = x; arrowFromY = y - margin;
+                                    arrowToX = x; arrowToY = y;
+                                }
+                                drawArrow(arrowFromX, arrowFromY, arrowToX, arrowToY, 'yellow');
+                                drawFeedbackText(issue.message, textX, textY, 'yellow');
+                                break;
+                            case 'bottom':
+                                x = studentBox[0] + studentBox[2] / 2;
+                                y = studentBox[1] + studentBox[3];
+                                textX = x;
+                                textY = y + margin;
+                                if (issue.status === 'gap') { // Arrow points out
+                                    arrowFromX = x; arrowFromY = y;
+                                    arrowToX = x; arrowToY = y + margin;
+                                } else { // Arrow points in
+                                    arrowFromX = x; arrowFromY = y + margin;
+                                    arrowToX = x; arrowToY = y;
+                                }
+                                drawArrow(arrowFromX, arrowFromY, arrowToX, arrowToY, 'yellow');
+                                drawFeedbackText(issue.message, textX, textY, 'yellow');
+                                break;
+                            case 'left':
+                                x = studentBox[0];
+                                y = studentBox[1] + studentBox[3] / 2;
+                                textX = x - margin;
+                                textY = y;
+                                if (issue.status === 'gap') { // Arrow points out
+                                    arrowFromX = x; arrowFromY = y;
+                                    arrowToX = x - margin; arrowToY = y;
+                                } else { // Arrow points in
+                                    arrowFromX = x - margin; arrowFromY = y;
+                                    arrowToX = x; arrowToY = y;
+                                }
+                                drawArrow(arrowFromX, arrowFromY, arrowToX, arrowToY, 'yellow');
+                                drawFeedbackText(issue.message, textX, textY, 'yellow');
+                                break;
+                            case 'right':
+                                x = studentBox[0] + studentBox[2];
+                                y = studentBox[1] + studentBox[3] / 2;
+                                textX = x + margin;
+                                textY = y;
+                                if (issue.status === 'gap') { // Arrow points out
+                                    arrowFromX = x; arrowFromY = y;
+                                    arrowToX = x + margin; arrowToY = y;
+                                } else { // Arrow points in
+                                    arrowFromX = x + margin; arrowFromY = y;
+                                    arrowToX = x; arrowToY = y;
+                                }
+                                drawArrow(arrowFromX, arrowFromY, arrowToX, arrowToY, 'yellow');
+                                drawFeedbackText(issue.message, textX, textY, 'yellow');
+                                break;
+                        }
+                    });
+                     if (feedback.issues.length === 0) {
+                        drawFeedbackText("Annotation is well aligned.", studentBox[0], studentBox[1] - margin, 'lightgreen');
                     }
-                    break;
-                case 'missed':
-                    itemToDraw = imageResult.missed.find(m => m.gt.id === selectedAnnotation.annotationId);
-                     if (itemToDraw) {
-                        drawBbox(itemToDraw.gt.bbox, 'rgba(255, 0, 0, 0.9)', `Missed: ${itemToDraw.gt.attributes?.['label'] || itemToDraw.gt.id}`, 'top');
-                    }
-                    break;
-                case 'extra':
-                    itemToDraw = imageResult.extra.find(e => e.student.id === selectedAnnotation.annotationId);
-                    if (itemToDraw) {
-                        drawBbox(itemToDraw.student.bbox, 'rgba(255, 165, 0, 0.9)', `Extra: ${itemToDraw.student.attributes?.['label'] || itemToDraw.student.id}`, 'bottom');
-                    }
-                    break;
+                }
+            } else {
+                // Handle drawing for selected missed/extra annotations if needed
+                const missed = imageResult.missed.find(m => selectedAnnotation.type === 'missed' && m.gt.id === selectedAnnotation.annotationId);
+                if (missed) drawBbox(missed.gt.bbox, 'rgba(255, 0, 0, 0.9)', 4);
+                
+                const extra = imageResult.extra.find(e => selectedAnnotation.type === 'extra' && e.student.id === selectedAnnotation.annotationId);
+                if (extra) drawBbox(extra.student.bbox, 'rgba(255, 165, 0, 0.9)', 4);
             }
         } else {
             // Default view: draw all annotations based on visibility
             if (visibility.missed) {
-                imageResult.missed.forEach(m => drawBbox(m.gt.bbox, 'rgba(255, 0, 0, 0.9)', `Missed: ${m.gt.attributes?.['label'] || m.gt.id}`, 'top'));
+                imageResult.missed.forEach(m => drawBbox(m.gt.bbox, 'rgba(255, 0, 0, 0.9)'));
             }
             
             if (visibility.extra) {
-                imageResult.extra.forEach(e => drawBbox(e.student.bbox, 'rgba(255, 165, 0, 0.9)', `Extra: ${e.student.attributes?.['label'] || e.student.id}`, 'bottom'));
+                imageResult.extra.forEach(e => drawBbox(e.student.bbox, 'rgba(255, 165, 0, 0.9)'));
             }
 
             imageResult.matched.forEach(m => {
-                if (visibility.gt) {
-                    drawBbox(m.gt.bbox, 'rgba(0, 255, 0, 0.7)');
-                }
-                if (visibility.student) {
-                    const studentBbox = [...m.student.bbox];
-                    studentBbox[0] += 2 / scale;
-                    studentBbox[1] += 2 / scale;
-                    drawBbox(studentBbox, 'rgba(0, 0, 255, 0.7)');
-                }
+                if (visibility.gt) drawBbox(m.gt.bbox, 'rgba(0, 255, 0, 0.7)');
+                if (visibility.student) drawBbox(m.student.bbox, 'rgba(0, 0, 255, 0.7)');
             });
         }
         context.restore();
@@ -141,7 +218,7 @@ export function AnnotationViewer({ imageUrl, imageResult, selectedAnnotation }: 
 
     useEffect(() => {
         draw();
-    }, [scale, panOffset, imageResult, imageUrl, visibility, selectedAnnotation]);
+    }, [scale, panOffset, imageResult, imageUrl, visibility, selectedAnnotation, feedback]);
 
     const handleZoom = (direction: 'in' | 'out') => {
         const zoomFactor = 1.2;

@@ -7,7 +7,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { ScoreCard } from "@/components/ScoreCard";
-import type { BboxAnnotation, EvaluationResult, ImageEvaluationResult, SelectedAnnotation } from "@/lib/types";
+import type { BboxAnnotation, EvaluationResult, ImageEvaluationResult, SelectedAnnotation, Feedback } from "@/lib/types";
 import type { FormValues } from '@/lib/types';
 import type { EvalSchema } from "@/ai/flows/extract-eval-schema";
 import { AnnotationViewer } from "@/components/AnnotationViewer";
@@ -27,9 +27,10 @@ interface ResultsDashboardProps {
   onRuleChange: (instructions: { pseudoCode?: string; userInstructions?: string }) => void;
   selectedAnnotation: SelectedAnnotation | null;
   onAnnotationSelect: (annotation: SelectedAnnotation | null) => void;
+  feedback: Feedback | null;
 }
 
-const ResultsDisplay = ({ results, imageUrls, selectedAnnotation, onAnnotationSelect }: { results: EvaluationResult[], imageUrls: Map<string, string>, selectedAnnotation: SelectedAnnotation | null, onAnnotationSelect: (annotation: SelectedAnnotation | null) => void }) => {
+const ResultsDisplay = ({ results, imageUrls, selectedAnnotation, onAnnotationSelect, feedback }: { results: EvaluationResult[], imageUrls: Map<string, string>, selectedAnnotation: SelectedAnnotation | null, onAnnotationSelect: (annotation: SelectedAnnotation | null) => void, feedback: Feedback | null }) => {
 
   const handleDownloadSummaryCsv = () => {
     let csvContent = "data:text/csv;charset=utf-8,";
@@ -228,7 +229,7 @@ const ResultsDisplay = ({ results, imageUrls, selectedAnnotation, onAnnotationSe
                        </div>
                     </AccordionTrigger>
                     <AccordionContent className="p-4 bg-muted">
-                        <SingleResultDisplay result={result} imageUrls={imageUrls} selectedAnnotation={selectedAnnotation} onAnnotationSelect={onAnnotationSelect}/>
+                        <SingleResultDisplay result={result} imageUrls={imageUrls} selectedAnnotation={selectedAnnotation} onAnnotationSelect={onAnnotationSelect} feedback={feedback}/>
                     </AccordionContent>
                 </AccordionItem>
             ))}
@@ -238,7 +239,7 @@ const ResultsDisplay = ({ results, imageUrls, selectedAnnotation, onAnnotationSe
 
 }
 
-const ImageResultDisplay = ({ imageResult, imageUrl, selectedAnnotation, onAnnotationSelect }: { imageResult: ImageEvaluationResult, imageUrl: string | undefined, selectedAnnotation: SelectedAnnotation | null, onAnnotationSelect: (annotation: SelectedAnnotation | null) => void }) => {
+const ImageResultDisplay = ({ imageResult, imageUrl, selectedAnnotation, onAnnotationSelect, feedback }: { imageResult: ImageEvaluationResult, imageUrl: string | undefined, selectedAnnotation: SelectedAnnotation | null, onAnnotationSelect: (annotation: SelectedAnnotation | null) => void, feedback: Feedback | null }) => {
     const getAnnotationLabel = (ann: BboxAnnotation) => {
       const categoryName = ann.attributes?.['label']
       const annotationId = `ID ${ann.id}`
@@ -246,9 +247,9 @@ const ImageResultDisplay = ({ imageResult, imageUrl, selectedAnnotation, onAnnot
       return `${categoryName || 'Unknown'}${matchKey || ` (${annotationId})`}`
     };
 
-    const isAnnotationSelected = (ann: BboxAnnotation, type: 'gt' | 'student') => {
-      if (!selectedAnnotation) return false;
-      return selectedAnnotation.imageId === imageResult.imageId && selectedAnnotation.annotationId === ann.id;
+    const isAnnotationSelected = (annId: number) => {
+        if (!selectedAnnotation) return false;
+        return selectedAnnotation.imageId === imageResult.imageId && selectedAnnotation.annotationId === annId;
     }
 
     return (
@@ -273,6 +274,7 @@ const ImageResultDisplay = ({ imageResult, imageUrl, selectedAnnotation, onAnnot
                                 imageUrl={imageUrl}
                                 imageResult={imageResult}
                                 selectedAnnotation={selectedAnnotation}
+                                feedback={feedback}
                             />
                         </div>
                     ) : (
@@ -291,7 +293,7 @@ const ImageResultDisplay = ({ imageResult, imageUrl, selectedAnnotation, onAnnot
                                     key={i} 
                                     className="cursor-pointer" 
                                     onClick={() => onAnnotationSelect({ imageId: imageResult.imageId, annotationId: m.gt.id, type: 'match' })}
-                                    data-selected={isAnnotationSelected(m.gt, 'gt')}
+                                    data-state={isAnnotationSelected(m.gt.id) ? 'selected' : undefined}
                                 >
                                     <TableCell>{getAnnotationLabel(m.gt)}</TableCell>
                                     <TableCell>{getAnnotationLabel(m.student)}</TableCell>
@@ -311,7 +313,7 @@ const ImageResultDisplay = ({ imageResult, imageUrl, selectedAnnotation, onAnnot
                                     key={i} 
                                     className="cursor-pointer" 
                                     onClick={() => onAnnotationSelect({ imageId: imageResult.imageId, annotationId: m.gt.id, type: 'missed' })}
-                                    data-selected={isAnnotationSelected(m.gt, 'gt')}
+                                    data-state={isAnnotationSelected(m.gt.id) ? 'selected' : undefined}
                                 >
                                     <TableCell>{getAnnotationLabel(m.gt)}</TableCell>
                                 </TableRow>
@@ -329,7 +331,7 @@ const ImageResultDisplay = ({ imageResult, imageUrl, selectedAnnotation, onAnnot
                                     key={i} 
                                     className="cursor-pointer" 
                                     onClick={() => onAnnotationSelect({ imageId: imageResult.imageId, annotationId: m.student.id, type: 'extra' })}
-                                    data-selected={isAnnotationSelected(m.student, 'student')}
+                                    data-state={isAnnotationSelected(m.student.id) ? 'selected' : undefined}
                                 >
                                     <TableCell>{getAnnotationLabel(m.student)}</TableCell>
                                 </TableRow>
@@ -342,7 +344,7 @@ const ImageResultDisplay = ({ imageResult, imageUrl, selectedAnnotation, onAnnot
     )
 }
 
-const SingleResultDisplay = ({ result, onDownloadCsv, imageUrls, selectedAnnotation, onAnnotationSelect }: { result: EvaluationResult; onDownloadCsv: (result: EvaluationResult) => void; imageUrls: Map<string, string>; selectedAnnotation: SelectedAnnotation | null, onAnnotationSelect: (annotation: SelectedAnnotation | null) => void; }) => {
+const SingleResultDisplay = ({ result, imageUrls, selectedAnnotation, onAnnotationSelect, feedback }: { result: EvaluationResult; imageUrls: Map<string, string>; selectedAnnotation: SelectedAnnotation | null; onAnnotationSelect: (annotation: SelectedAnnotation | null) => void; feedback: Feedback | null; }) => {
     
     return (
         <div className="space-y-6">
@@ -400,7 +402,7 @@ const SingleResultDisplay = ({ result, onDownloadCsv, imageUrls, selectedAnnotat
                             {imageResult.imageName}
                         </AccordionTrigger>
                         <AccordionContent className="p-2">
-                           <ImageResultDisplay imageResult={imageResult} imageUrl={imageUrls.get(imageResult.imageName)} selectedAnnotation={selectedAnnotation} onAnnotationSelect={onAnnotationSelect} />
+                           <ImageResultDisplay imageResult={imageResult} imageUrl={imageUrls.get(imageResult.imageName)} selectedAnnotation={selectedAnnotation} onAnnotationSelect={onAnnotationSelect} feedback={feedback}/>
                         </AccordionContent>
                     </AccordionItem>
                 ))}
@@ -409,7 +411,7 @@ const SingleResultDisplay = ({ result, onDownloadCsv, imageUrls, selectedAnnotat
     );
 };
 
-export function ResultsDashboard({ results, loading, imageUrls, onEvaluate, onGtFileChange, evalSchema, onRuleChange, selectedAnnotation, onAnnotationSelect }: ResultsDashboardProps) {
+export function ResultsDashboard({ results, loading, imageUrls, onEvaluate, onGtFileChange, evalSchema, onRuleChange, selectedAnnotation, onAnnotationSelect, feedback }: ResultsDashboardProps) {
   const [openAccordion, setOpenAccordion] = React.useState<string[]>([]);
 
   React.useEffect(() => {
@@ -474,7 +476,7 @@ export function ResultsDashboard({ results, loading, imageUrls, onEvaluate, onGt
                     <p className="text-muted-foreground mt-2">The results will appear here once the evaluation is complete.</p>
                 </div>
             ) : results ? (
-                <ResultsDisplay results={results} imageUrls={imageUrls} selectedAnnotation={selectedAnnotation} onAnnotationSelect={onAnnotationSelect} />
+                <ResultsDisplay results={results} imageUrls={imageUrls} selectedAnnotation={selectedAnnotation} onAnnotationSelect={onAnnotationSelect} feedback={feedback} />
             ) : (
                 <div className="flex flex-col items-center justify-center text-center p-8 h-full min-h-[300px] border-dashed border-2 rounded-md bg-card">
                     <FileQuestion className="h-16 w-16 text-muted-foreground mb-4" />
