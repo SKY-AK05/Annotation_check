@@ -327,67 +327,69 @@ const ImageResultDisplay = ({ imageResult, imageUrl, selectedAnnotation, onAnnot
                     )}
                 </div>
                 <div className={cn(
-                    "transition-all duration-300",
+                    "transition-all duration-300 md:col-span-1",
                     feedback ? "md:col-span-1" : "md:col-span-0 hidden"
                 )}>
                     <FeedbackPanel feedback={feedback} />
                 </div>
-                 <Card className="md:col-span-1">
-                    <CardHeader className="pb-2"><CardTitle className="text-lg">{imageResult.matched.length} Matched</CardTitle></CardHeader>
-                    <CardContent>
-                        <Table>
-                            <TableHeader><TableRow><TableHead>GT</TableHead><TableHead>Student</TableHead><TableHead>IoU</TableHead></TableRow></TableHeader>
-                            <TableBody>{imageResult.matched.map((m, i) => 
-                                <TableRow 
-                                    key={i} 
-                                    className="cursor-pointer" 
-                                    onClick={() => onAnnotationSelect({ imageId: imageResult.imageId, annotationId: m.gt.id, type: 'match' })}
-                                    data-state={isAnnotationSelected(m.gt.id, 'match') ? 'selected' : undefined}
-                                >
-                                    <TableCell>{getAnnotationLabel(m.gt)}</TableCell>
-                                    <TableCell>{getAnnotationLabel(m.student)}</TableCell>
-                                    <TableCell>{m.iou.toFixed(2)}</TableCell>
-                                </TableRow>
-                            )}</TableBody>
-                        </Table>
-                    </CardContent>
-                </Card>
-                <Card className="md:col-span-1">
-                    <CardHeader className="pb-2"><CardTitle className="text-lg">{imageResult.missed.length} Missed</CardTitle></CardHeader>
-                    <CardContent>
-                        <Table>
-                            <TableHeader><TableRow><TableHead>GT Label</TableHead></TableRow></TableHeader>
-                            <TableBody>{imageResult.missed.map((m, i) => 
-                                <TableRow 
-                                    key={i} 
-                                    className="cursor-pointer" 
-                                    onClick={() => onAnnotationSelect({ imageId: imageResult.imageId, annotationId: m.gt.id, type: 'missed' })}
-                                    data-state={isAnnotationSelected(m.gt.id, 'missed') ? 'selected' : undefined}
-                                >
-                                    <TableCell>{getAnnotationLabel(m.gt)}</TableCell>
-                                </TableRow>
-                            )}</TableBody>
-                        </Table>
-                    </CardContent>
-                </Card>
-                <Card className="md:col-span-1">
-                    <CardHeader className="pb-2"><CardTitle className="text-lg">{imageResult.extra.length} Extra</CardTitle></CardHeader>
-                    <CardContent>
-                        <Table>
-                            <TableHeader><TableRow><TableHead>Student Label</TableHead></TableRow></TableHeader>
-                            <TableBody>{imageResult.extra.map((m, i) => 
-                                <TableRow 
-                                    key={i} 
-                                    className="cursor-pointer" 
-                                    onClick={() => onAnnotationSelect({ imageId: imageResult.imageId, annotationId: m.student.id, type: 'extra' })}
-                                    data-state={isAnnotationSelected(m.student.id, 'extra') ? 'selected' : undefined}
-                                >
-                                    <TableCell>{getAnnotationLabel(m.student)}</TableCell>
-                                </TableRow>
-                            )}</TableBody>
-                        </Table>
-                    </CardContent>
-                </Card>
+                 <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Card className="md:col-span-1">
+                        <CardHeader className="pb-2"><CardTitle className="text-lg">{imageResult.matched.length} Matched</CardTitle></CardHeader>
+                        <CardContent>
+                            <Table>
+                                <TableHeader><TableRow><TableHead>GT</TableHead><TableHead>Student</TableHead><TableHead>IoU</TableHead></TableRow></TableHeader>
+                                <TableBody>{imageResult.matched.map((m, i) => 
+                                    <TableRow 
+                                        key={i} 
+                                        className="cursor-pointer" 
+                                        onClick={() => onAnnotationSelect({ imageId: imageResult.imageId, annotationId: m.gt.id, type: 'match' })}
+                                        data-state={isAnnotationSelected(m.gt.id, 'match') ? 'selected' : undefined}
+                                    >
+                                        <TableCell>{getAnnotationLabel(m.gt)}</TableCell>
+                                        <TableCell>{getAnnotationLabel(m.student)}</TableCell>
+                                        <TableCell>{m.iou.toFixed(2)}</TableCell>
+                                    </TableRow>
+                                )}</TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                    <Card className="md:col-span-1">
+                        <CardHeader className="pb-2"><CardTitle className="text-lg">{imageResult.missed.length} Missed</CardTitle></CardHeader>
+                        <CardContent>
+                            <Table>
+                                <TableHeader><TableRow><TableHead>GT Label</TableHead></TableRow></TableHeader>
+                                <TableBody>{imageResult.missed.map((m, i) => 
+                                    <TableRow 
+                                        key={i} 
+                                        className="cursor-pointer" 
+                                        onClick={() => onAnnotationSelect({ imageId: imageResult.imageId, annotationId: m.gt.id, type: 'missed' })}
+                                        data-state={isAnnotationSelected(m.gt.id, 'missed') ? 'selected' : undefined}
+                                    >
+                                        <TableCell>{getAnnotationLabel(m.gt)}</TableCell>
+                                    </TableRow>
+                                )}</TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                    <Card className="md:col-span-1">
+                        <CardHeader className="pb-2"><CardTitle className="text-lg">{imageResult.extra.length} Extra</CardTitle></CardHeader>
+                        <CardContent>
+                            <Table>
+                                <TableHeader><TableRow><TableHead>Student Label</TableHead></TableRow></TableHeader>
+                                <TableBody>{imageResult.extra.map((m, i) => 
+                                    <TableRow 
+                                        key={i} 
+                                        className="cursor-pointer" 
+                                        onClick={() => onAnnotationSelect({ imageId: imageResult.imageId, annotationId: m.student.id, type: 'extra' })}
+                                        data-state={isAnnotationSelected(m.student.id, 'extra') ? 'selected' : undefined}
+                                    >
+                                        <TableCell>{getAnnotationLabel(m.student)}</TableCell>
+                                    </TableRow>
+                                )}</TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                </div>
             </CardContent>
         </Card>
     )
