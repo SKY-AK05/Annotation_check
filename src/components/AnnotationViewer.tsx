@@ -52,33 +52,11 @@ export function AnnotationViewer({ imageUrl, imageResult, selectedAnnotation, fe
             context.strokeRect(x, y, w, h);
         };
         
-        const drawFeedbackText = (text: string, x: number, y: number, color: string) => {
+        const drawOverlay = (bbox: number[], color: string) => {
+            const [x, y, w, h] = bbox;
             context.fillStyle = color;
-            const fontSize = 14 / scale;
-            context.font = `bold ${fontSize}px Arial`;
-            context.shadowColor = "black";
-            context.shadowBlur = 4 / scale;
-            context.textAlign = "center";
-            context.fillText(text, x, y);
-            context.shadowBlur = 0;
-            context.textAlign = "left"; // Reset alignment
+            context.fillRect(x, y, w, h);
         };
-        
-        const drawArrow = (fromX: number, fromY: number, toX: number, toY: number, color: string) => {
-            const headlen = 10 / scale;
-            const dx = toX - fromX;
-            const dy = toY - fromY;
-            const angle = Math.atan2(dy, dx);
-            context.strokeStyle = color;
-            context.lineWidth = 2 / scale;
-            context.beginPath();
-            context.moveTo(fromX, fromY);
-            context.lineTo(toX, toY);
-            context.lineTo(toX - headlen * Math.cos(angle - Math.PI / 6), toY - headlen * Math.sin(angle - Math.PI / 6));
-            context.moveTo(toX, toY);
-            context.lineTo(toX - headlen * Math.cos(angle + Math.PI / 6), toY - headlen * Math.sin(angle + Math.PI / 6));
-            context.stroke();
-        }
 
         if (selectedAnnotation && selectedAnnotation.imageId === imageResult.imageId) {
             let itemToDraw: Match | undefined;
@@ -93,81 +71,29 @@ export function AnnotationViewer({ imageUrl, imageResult, selectedAnnotation, fe
 
                 // If feedback is available for this annotation, draw it
                 if (feedback && feedback.annotationId === selectedAnnotation.annotationId) {
-                    const studentBox = itemToDraw.student.bbox;
-                    
-                    if (feedback.issues.length === 0) {
-                        drawFeedbackText("Annotation is well aligned.", studentBox[0] + studentBox[2]/2, studentBox[1] - (20/scale), 'lightgreen');
-                    } else {
-                        feedback.issues.forEach(issue => {
-                            let x, y, textX, textY, arrowFromX, arrowFromY, arrowToX, arrowToY;
-                            const margin = 20 / scale;
+                    const [gtX, gtY, gtW, gtH] = itemToDraw.gt.bbox;
+                    const [stX, stY, stW, stH] = itemToDraw.student.bbox;
+                    const gtRight = gtX + gtW;
+                    const gtBottom = gtY + gtH;
+                    const stRight = stX + stW;
+                    const stBottom = stY + stH;
 
-                            switch (issue.edge) {
-                                case 'top':
-                                    x = studentBox[0] + studentBox[2] / 2;
-                                    y = studentBox[1];
-                                    textX = x;
-                                    textY = y - margin;
-                                    if (issue.status === 'gap') { 
-                                        arrowFromX = x; arrowFromY = y;
-                                        arrowToX = x; arrowToY = y - margin;
-                                    } else { 
-                                        arrowFromX = x; arrowFromY = y - margin;
-                                        arrowToX = x; arrowToY = y;
-                                    }
-                                    drawArrow(arrowFromX, arrowFromY, arrowToX, arrowToY, 'yellow');
-                                    drawFeedbackText(issue.message, textX, textY, 'yellow');
-                                    break;
-                                case 'bottom':
-                                    x = studentBox[0] + studentBox[2] / 2;
-                                    y = studentBox[1] + studentBox[3];
-                                    textX = x;
-                                    textY = y + margin * 1.5;
-                                    if (issue.status === 'gap') { 
-                                        arrowFromX = x; arrowFromY = y;
-                                        arrowToX = x; arrowToY = y + margin;
-                                    } else { 
-                                        arrowFromX = x; arrowFromY = y + margin;
-                                        arrowToX = x; arrowToY = y;
-                                    }
-                                    drawArrow(arrowFromX, arrowFromY, arrowToX, arrowToY, 'yellow');
-                                    drawFeedbackText(issue.message, textX, textY, 'yellow');
-                                    break;
-                                case 'left':
-                                    x = studentBox[0];
-                                    y = studentBox[1] + studentBox[3] / 2;
-                                    textX = x - margin;
-                                    textY = y;
-                                    context.textAlign = 'right';
-                                    if (issue.status === 'gap') {
-                                        arrowFromX = x; arrowFromY = y;
-                                        arrowToX = x - margin; arrowToY = y;
-                                    } else {
-                                        arrowFromX = x - margin; arrowFromY = y;
-                                        arrowToX = x; arrowToY = y;
-                                    }
-                                    drawArrow(arrowFromX, arrowFromY, arrowToX, arrowToY, 'yellow');
-                                    drawFeedbackText(issue.message, textX, textY, 'yellow');
-                                    break;
-                                case 'right':
-                                    x = studentBox[0] + studentBox[2];
-                                    y = studentBox[1] + studentBox[3] / 2;
-                                    textX = x + margin;
-                                    textY = y;
-                                    context.textAlign = 'left';
-                                    if (issue.status === 'gap') {
-                                        arrowFromX = x; arrowFromY = y;
-                                        arrowToX = x + margin; arrowToY = y;
-                                    } else {
-                                        arrowFromX = x + margin; arrowFromY = y;
-                                        arrowToX = x; arrowToY = y;
-                                    }
-                                    drawArrow(arrowFromX, arrowFromY, arrowToX, arrowToY, 'yellow');
-                                    drawFeedbackText(issue.message, textX, textY, 'yellow');
-                                    break;
-                            }
-                        });
-                    }
+                    feedback.issues.forEach(issue => {
+                        // Cut off (Student box is larger than GT): Show red overlay on the area outside GT
+                        if (issue.status === 'cut_off') {
+                            if (issue.edge === 'top' && stY < gtY) drawOverlay([stX, stY, stW, gtY - stY], 'rgba(255,0,0,0.4)');
+                            if (issue.edge === 'bottom' && stBottom > gtBottom) drawOverlay([stX, gtBottom, stW, stBottom - gtBottom], 'rgba(255,0,0,0.4)');
+                            if (issue.edge === 'left' && stX < gtX) drawOverlay([stX, stY, gtX - stX, stH], 'rgba(255,0,0,0.4)');
+                            if (issue.edge === 'right' && stRight > gtRight) drawOverlay([gtRight, stY, stRight - gtRight, stH], 'rgba(255,0,0,0.4)');
+                        }
+                        // Gap (Student box is smaller than GT): Show blue overlay on the missed area
+                        else if (issue.status === 'gap') {
+                            if (issue.edge === 'top' && stY > gtY) drawOverlay([gtX, gtY, gtW, stY - gtY], 'rgba(0,0,255,0.4)');
+                            if (issue.edge === 'bottom' && stBottom < gtBottom) drawOverlay([gtX, stBottom, gtW, gtBottom - stBottom], 'rgba(0,0,255,0.4)');
+                            if (issue.edge === 'left' && stX > gtX) drawOverlay([gtX, gtY, stX - gtX, gtH], 'rgba(0,0,255,0.4)');
+                            if (issue.edge === 'right' && stRight < gtRight) drawOverlay([stRight, gtY, gtRight - stRight, gtH], 'rgba(0,0,255,0.4)');
+                        }
+                    });
                 }
             } else {
                 // Handle drawing for selected missed/extra annotations if needed
@@ -277,11 +203,11 @@ export function AnnotationViewer({ imageUrl, imageResult, selectedAnnotation, fe
       <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs text-muted-foreground mt-2 border-t pt-2">
           <div className="flex items-center gap-2">
               <Checkbox id="gt-check" checked={visibility.gt} onCheckedChange={(checked) => handleVisibilityChange('gt', !!checked)} />
-              <Label htmlFor='gt-check' className="flex items-center gap-2"><div className="w-4 h-4 rounded-sm" style={{ backgroundColor: 'rgba(0, 255, 0, 0.7)' }}></div>GT (Matched)</Label>
+              <Label htmlFor='gt-check' className="flex items-center gap-2"><div className="w-4 h-4 rounded-sm" style={{ border: '2px solid rgba(0, 255, 0, 1)' }}></div>GT (Matched)</Label>
           </div>
           <div className="flex items-center gap-2">
               <Checkbox id="student-check" checked={visibility.student} onCheckedChange={(checked) => handleVisibilityChange('student', !!checked)} />
-              <Label htmlFor='student-check' className="flex items-center gap-2"><div className="w-4 h-4 rounded-sm" style={{ backgroundColor: 'rgba(0, 0, 255, 0.7)' }}></div>Student (Matched)</Label>
+              <Label htmlFor='student-check' className="flex items-center gap-2"><div className="w-4 h-4 rounded-sm" style={{ border: '2px solid rgba(255, 0, 0, 1)' }}></div>Student (Matched)</Label>
           </div>
            <div className="flex items-center gap-2">
               <Checkbox id="missed-check" checked={visibility.missed} onCheckedChange={(checked) => handleVisibilityChange('missed', !!checked)} />

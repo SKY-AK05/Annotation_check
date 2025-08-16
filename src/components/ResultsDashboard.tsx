@@ -7,11 +7,11 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { ScoreCard } from "@/components/ScoreCard";
-import type { BboxAnnotation, EvaluationResult, ImageEvaluationResult, SelectedAnnotation, Feedback } from "@/lib/types";
+import type { BboxAnnotation, EvaluationResult, ImageEvaluationResult, SelectedAnnotation, Feedback, FeedbackIssue } from "@/lib/types";
 import type { FormValues } from '@/lib/types';
 import type { EvalSchema } from "@/ai/flows/extract-eval-schema";
 import { AnnotationViewer } from "@/components/AnnotationViewer";
-import { AlertCircle, CheckCircle, Download, FileQuestion, FileText, ImageIcon, MessageSquare, ShieldAlert, User, FileCog, Code2, XCircle } from "lucide-react";
+import { AlertCircle, CheckCircle, Download, FileQuestion, FileText, ImageIcon, MessageSquare, ShieldAlert, User, FileCog, Code2, XCircle, Lightbulb } from "lucide-react";
 import { Badge } from "./ui/badge";
 import { EvaluationForm } from "./EvaluationForm";
 import { RuleConfiguration } from "./RuleConfiguration";
@@ -29,6 +29,47 @@ interface ResultsDashboardProps {
   onAnnotationSelect: (annotation: SelectedAnnotation | null) => void;
   feedback: Feedback | null;
 }
+
+const FeedbackPanel = ({ feedback }: { feedback: Feedback | null }) => {
+    if (!feedback) return null;
+
+    const getIssueColor = (status: FeedbackIssue['status']) => {
+        switch (status) {
+            case 'gap': return 'text-blue-500';
+            case 'cut_off': return 'text-red-500';
+            default: return 'text-green-500';
+        }
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                    <Lightbulb className="h-5 w-5" />
+                    AI Feedback
+                </CardTitle>
+            </CardHeader>
+            <CardContent>
+                {feedback.issues.length === 0 ? (
+                    <p className="text-sm text-green-600 flex items-center gap-2"><CheckCircle className="h-4 w-4" />Annotation is well aligned.</p>
+                ) : (
+                    <ul className="space-y-2 text-sm">
+                        {feedback.issues.map((issue, index) => (
+                            <li key={index} className={cn("flex items-start gap-2", getIssueColor(issue.status))}>
+                                <div className="mt-1">
+                                    {issue.status === 'gap' && <div className="w-2 h-2 rounded-full bg-blue-500" />}
+                                    {issue.status === 'cut_off' && <div className="w-2 h-2 rounded-full bg-red-500" />}
+                                </div>
+                                <span>{issue.message}</span>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </CardContent>
+        </Card>
+    );
+};
+
 
 const ResultsDisplay = ({ results, imageUrls, selectedAnnotation, onAnnotationSelect, feedback }: { results: EvaluationResult[], imageUrls: Map<string, string>, selectedAnnotation: SelectedAnnotation | null, onAnnotationSelect: (annotation: SelectedAnnotation | null) => void, feedback: Feedback | null }) => {
 
@@ -267,24 +308,25 @@ const ImageResultDisplay = ({ imageResult, imageUrl, selectedAnnotation, onAnnot
                 )}
             </CardHeader>
             <CardContent className="p-4 pt-0 grid grid-cols-1 md:grid-cols-3 gap-4">
-                 <div className="md:col-span-3">
-                   {imageUrl ? (
-                        <div>
-                            <AnnotationViewer
-                                imageUrl={imageUrl}
-                                imageResult={imageResult}
-                                selectedAnnotation={selectedAnnotation}
-                                feedback={feedback}
-                                onAnnotationSelect={onAnnotationSelect}
-                            />
-                        </div>
+                <div className="md:col-span-2">
+                    {imageUrl ? (
+                        <AnnotationViewer
+                            imageUrl={imageUrl}
+                            imageResult={imageResult}
+                            selectedAnnotation={selectedAnnotation}
+                            feedback={feedback}
+                            onAnnotationSelect={onAnnotationSelect}
+                        />
                     ) : (
                         <div className="w-full aspect-video bg-muted rounded-md flex items-center justify-center text-sm text-muted-foreground">
                             Image not provided
                         </div>
                     )}
                 </div>
-                 <Card>
+                <div className="md:col-span-1">
+                    <FeedbackPanel feedback={feedback} />
+                </div>
+                 <Card className="md:col-span-1">
                     <CardHeader className="pb-2"><CardTitle className="text-lg">{imageResult.matched.length} Matched</CardTitle></CardHeader>
                     <CardContent>
                         <Table>
@@ -304,7 +346,7 @@ const ImageResultDisplay = ({ imageResult, imageUrl, selectedAnnotation, onAnnot
                         </Table>
                     </CardContent>
                 </Card>
-                <Card>
+                <Card className="md:col-span-1">
                     <CardHeader className="pb-2"><CardTitle className="text-lg">{imageResult.missed.length} Missed</CardTitle></CardHeader>
                     <CardContent>
                         <Table>
@@ -322,7 +364,7 @@ const ImageResultDisplay = ({ imageResult, imageUrl, selectedAnnotation, onAnnot
                         </Table>
                     </CardContent>
                 </Card>
-                <Card>
+                <Card className="md:col-span-1">
                     <CardHeader className="pb-2"><CardTitle className="text-lg">{imageResult.extra.length} Extra</CardTitle></CardHeader>
                     <CardContent>
                         <Table>
