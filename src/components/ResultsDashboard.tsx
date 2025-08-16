@@ -327,13 +327,13 @@ const ImageResultDisplay = ({ imageResult, imageUrl, selectedAnnotation, onAnnot
                     )}
                 </div>
                 <div className={cn(
-                    "transition-all duration-300 md:col-span-1",
+                    "transition-all duration-300",
                     feedback ? "md:col-span-1" : "md:col-span-0 hidden"
                 )}>
                     <FeedbackPanel feedback={feedback} />
                 </div>
-                 <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Card className="md:col-span-1">
+                 <div className="md:col-span-3 grid grid-cols-1 gap-4">
+                    <Card>
                         <CardHeader className="pb-2"><CardTitle className="text-lg">{imageResult.matched.length} Matched</CardTitle></CardHeader>
                         <CardContent>
                             <Table>
@@ -353,7 +353,7 @@ const ImageResultDisplay = ({ imageResult, imageUrl, selectedAnnotation, onAnnot
                             </Table>
                         </CardContent>
                     </Card>
-                    <Card className="md:col-span-1">
+                    <Card>
                         <CardHeader className="pb-2"><CardTitle className="text-lg">{imageResult.missed.length} Missed</CardTitle></CardHeader>
                         <CardContent>
                             <Table>
@@ -371,7 +371,7 @@ const ImageResultDisplay = ({ imageResult, imageUrl, selectedAnnotation, onAnnot
                             </Table>
                         </CardContent>
                     </Card>
-                    <Card className="md:col-span-1">
+                    <Card>
                         <CardHeader className="pb-2"><CardTitle className="text-lg">{imageResult.extra.length} Extra</CardTitle></CardHeader>
                         <CardContent>
                             <Table>
