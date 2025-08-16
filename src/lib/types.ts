@@ -176,13 +176,6 @@ export interface PolygonEvaluationResult {
 }
 
 
-// NEW TYPES FOR FEEDBACK
-export interface FeedbackInput {
-    gt: BboxAnnotation;
-    student: BboxAnnotation;
-    imageBase64: string;
-}
-
 export interface FeedbackIssue {
     edge: 'top' | 'bottom' | 'left' | 'right';
     status: 'gap' | 'cut_off' | 'aligned';

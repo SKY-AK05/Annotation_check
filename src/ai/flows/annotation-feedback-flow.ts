@@ -1,6 +1,7 @@
 
 'use server';
-import type { BboxAnnotation, Feedback, FeedbackInput, FeedbackIssue } from '@/lib/types';
+import type { BboxAnnotation, Feedback, FeedbackIssue } from '@/lib/types';
+
 
 /**
  * Compares GT and Student bounding boxes and determines if each edge
@@ -9,10 +10,10 @@ import type { BboxAnnotation, Feedback, FeedbackInput, FeedbackIssue } from '@/l
  * @param student - Student bounding box
  * @returns A list of identified issues without human-readable messages.
  */
-function checkAllEdges(gt: BboxAnnotation, student: BboxAnnotation): Omit<FeedbackIssue, 'message'>[] {
+function checkAllEdges(gt_bbox: number[], student_bbox: number[]): Omit<FeedbackIssue, 'message'>[] {
+    const [gt_x, gt_y, gt_w, gt_h] = gt_bbox;
+    const [st_x, st_y, st_w, st_h] = student_bbox;
     const issues: Omit<FeedbackIssue, 'message'>[] = [];
-    const [gt_x, gt_y, gt_w, gt_h] = gt.bbox;
-    const [st_x, st_y, st_w, st_h] = student.bbox;
 
     // Top edge
     if (st_y < gt_y) {
@@ -32,28 +33,20 @@ function checkAllEdges(gt: BboxAnnotation, student: BboxAnnotation): Omit<Feedba
 
     // Left edge
     if (st_x < gt_x) {
-        issues.push({ edge: "left", status: "cut_off" });
+        issues.push({ edge: "left", "status": "cut_off" });
     } else if (st_x > gt_x) {
-        issues.push({ edge: "left", status: "gap" });
+        issues.push({ edge: "left", "status": "gap" });
     }
 
     // Right edge
     const gt_right = gt_x + gt_w;
     const st_right = st_x + st_w;
     if (st_right > gt_right) {
-        issues.push({ edge: "right", status: "cut_off" });
+        issues.push({ edge: "right", "status": "cut_off" });
     } else if (st_right < gt_right) {
-        issues.push({ edge: "right", status: "gap" });
+        issues.push({ edge: "right", "status": "gap" });
     }
-
-    // If no issues were found, add an 'aligned' status.
-    if (issues.length === 0) {
-        const allEdges: ('top' | 'bottom' | 'left' | 'right')[] = ['top', 'bottom', 'left', 'right'];
-        allEdges.forEach(edge => {
-            issues.push({ edge, status: 'aligned' });
-        });
-    }
-
+    
     return issues;
 }
 
@@ -80,8 +73,8 @@ function generateRuleBasedMessage(issue: Omit<FeedbackIssue, 'message'>): string
  * @param input - The GT and Student annotations.
  * @returns A Feedback object with templated messages.
  */
-export async function getAnnotationFeedback(input: FeedbackInput): Promise<Feedback> {
-    const provisionalIssues = checkAllEdges(input.gt, input.student);
+export async function getAnnotationFeedback(input: { gt: BboxAnnotation; student: BboxAnnotation }): Promise<Feedback> {
+    const provisionalIssues = checkAllEdges(input.gt.bbox, input.student.bbox);
 
     const issues: FeedbackIssue[] = provisionalIssues.map(issue => ({
         ...issue,
@@ -91,9 +84,17 @@ export async function getAnnotationFeedback(input: FeedbackInput): Promise<Feedb
     // Filter out 'aligned' messages if there are other significant issues.
     const significantIssues = issues.filter(issue => issue.status !== 'aligned');
 
+    if (issues.length > 0 && significantIssues.length === 0) {
+      return {
+        annotationId: input.student.id,
+        feedbackId: `rule_${Date.now()}`,
+        issues: [{ edge: 'top', status: 'aligned', message: 'Annotation is well-aligned.' }], // top is arbitrary
+      }
+    }
+
     return {
         annotationId: input.student.id,
         feedbackId: `rule_${Date.now()}`,
-        issues: significantIssues.length > 0 ? significantIssues : [],
+        issues: significantIssues,
     };
 }

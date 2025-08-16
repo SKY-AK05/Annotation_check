@@ -29,6 +29,7 @@ export default function Home() {
   const [evaluationMode, setEvaluationMode] = useState<'bounding-box' | 'skeleton' | 'polygon'>('bounding-box');
   const [selectedAnnotation, setSelectedAnnotation] = useState<SelectedAnnotation | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [feedbackCache, setFeedbackCache] = useState<Map<string, Feedback>>(new Map());
   const { toast } = useToast();
 
   const handleGtFileChange = async (file: File | undefined) => {
@@ -46,6 +47,7 @@ export default function Home() {
     setImageUrls(new Map());
     setSelectedAnnotation(null);
     setFeedback(null);
+    setFeedbackCache(new Map());
 
     try {
       let fileContent: string;
@@ -106,51 +108,32 @@ export default function Home() {
       setIsGeneratingRules(false);
     }
   }
+  
+  const prefetchAndCacheFeedback = async (resultsToCache: EvaluationResult[]) => {
+      const newCache = new Map<string, Feedback>();
+      const feedbackPromises: Promise<void>[] = [];
 
-  const handleGetFeedback = async (annotation: SelectedAnnotation) => {
-    if (!results || !imageUrls) return;
-    
-    // Find the annotation data from the results
-    const result = results.find(r => r.image_results.some(ir => ir.imageId === annotation.imageId));
-    if (!result) return;
-    
-    const imageResult = result.image_results.find(ir => ir.imageId === annotation.imageId);
-    if (!imageResult) return;
-    
-    const match = imageResult.matched.find(m => m.gt.id === annotation.annotationId);
-    if (!match) return;
+      for (const result of resultsToCache) {
+          for (const imageResult of result.image_results) {
+              for (const match of imageResult.matched) {
+                  const cacheKey = `${imageResult.imageId}-${match.gt.id}`;
+                  if (!newCache.has(cacheKey)) {
+                      const promise = getAnnotationFeedback({ gt: match.gt, student: match.student })
+                          .then(feedbackResponse => {
+                              newCache.set(cacheKey, feedbackResponse);
+                          })
+                          .catch(error => {
+                              console.error(`Failed to prefetch feedback for ${cacheKey}:`, error);
+                          });
+                      feedbackPromises.push(promise);
+                  }
+              }
+          }
+      }
 
-    const imageUrl = imageUrls.get(imageResult.imageName);
-    if (!imageUrl) return;
-
-    toast({ title: 'Getting AI Feedback...', description: 'Please wait while we analyze the annotation.' });
-
-    try {
-        // Convert image URL to base64
-        const response = await fetch(imageUrl);
-        const blob = await response.blob();
-        const reader = new FileReader();
-        reader.readAsDataURL(blob);
-        reader.onloadend = async () => {
-            const base64data = reader.result as string;
-            
-            const feedbackResponse = await getAnnotationFeedback({
-                gt: match.gt,
-                student: match.student,
-                imageBase64: base64data,
-            });
-
-            setFeedback({ ...feedbackResponse, annotationId: annotation.annotationId });
-            toast({ title: 'Feedback Received', description: feedbackResponse.issues.length > 0 ? feedbackResponse.issues[0].message : "Annotation is well aligned." });
-        };
-    } catch (error) {
-        console.error("Failed to get feedback from AI model:", error);
-        toast({
-            title: "Feedback Error",
-            description: `Failed to get feedback from AI model: ${(error as Error).message}`,
-            variant: "destructive"
-        });
-    }
+      await Promise.all(feedbackPromises);
+      setFeedbackCache(newCache);
+      console.log("Feedback cache populated:", newCache);
   };
 
 
@@ -167,6 +150,7 @@ export default function Home() {
     setResults(null);
     setSelectedAnnotation(null);
     setFeedback(null);
+    setFeedbackCache(new Map());
   
     try {
         const studentFileInputs = Array.from(data.studentFiles);
@@ -297,10 +281,13 @@ export default function Home() {
         }
         
         setResults(batchResults);
+        
+        // After evaluation, prefetch and cache all feedback
+        prefetchAndCacheFeedback(batchResults);
 
         toast({
             title: "Batch Evaluation Complete",
-            description: `Successfully evaluated ${batchResults.length} student files.`,
+            description: `Successfully evaluated ${batchResults.length} student files. Caching feedback...`,
         });
 
     } catch (e) {
@@ -353,11 +340,43 @@ export default function Home() {
     }
 };
 
-  const handleAnnotationSelect = (annotation: SelectedAnnotation | null) => {
+  const handleAnnotationSelect = async (annotation: SelectedAnnotation | null) => {
     setSelectedAnnotation(annotation);
-    setFeedback(null); // Clear previous feedback when selecting a new annotation
-    if (annotation && annotation.type === 'match') {
-      handleGetFeedback(annotation);
+    
+    if (!annotation) {
+      setFeedback(null);
+      return;
+    }
+    
+    const cacheKey = `${annotation.imageId}-${annotation.annotationId}`;
+
+    if (feedbackCache.has(cacheKey)) {
+        setFeedback(feedbackCache.get(cacheKey)!);
+        return;
+    }
+    
+    // Fallback if not in cache (should be rare)
+    if (!results || annotation.type !== 'match') {
+      setFeedback(null);
+      return;
+    }
+
+    const result = results.find(r => r.image_results.some(ir => ir.imageId === annotation.imageId));
+    const imageResult = result?.image_results.find(ir => ir.imageId === annotation.imageId);
+    const match = imageResult?.matched.find(m => m.gt.id === annotation.annotationId);
+
+    if (match) {
+        try {
+            const feedbackResponse = await getAnnotationFeedback({ gt: match.gt, student: match.student });
+            setFeedback(feedbackResponse);
+            // Also update the cache
+            setFeedbackCache(prev => new Map(prev).set(cacheKey, feedbackResponse));
+        } catch (error) {
+             console.error("Failed to get feedback:", error);
+             toast({ title: "Error", description: "Could not generate feedback for this annotation.", variant: "destructive" });
+        }
+    } else {
+      setFeedback(null);
     }
   };
 
