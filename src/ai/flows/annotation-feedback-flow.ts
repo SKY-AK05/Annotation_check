@@ -23,70 +23,59 @@ const FeedbackInputSchema = z.object({
 });
 
 /**
- * Checks a single edge of the bounding box.
- * @param gtVal - The ground truth coordinate for the edge.
- * @param stVal - The student coordinate for the edge.
- * @param threshold - The tolerance for alignment.
- * @returns 'gap', 'cut_off', or 'aligned'.
- */
-function checkEdge(gtVal: number, stVal: number, threshold: number): 'gap' | 'cut_off' | 'aligned' {
-  const diff = stVal - gtVal;
-  if (Math.abs(diff) <= threshold) {
-    return 'aligned';
-  }
-  // If student coordinate is "smaller" (top/left) or "larger" (right/bottom in terms of position)
-  // it indicates a gap or cut-off differently based on the edge.
-  // This logic is simplified and might need adjustment based on coordinate system (e.g. y-axis direction)
-  if (diff > 0) {
-    return 'gap'; // e.g., student's top edge is below GT's top edge
-  } else {
-    return 'cut_off'; // e.g., student's top edge is above GT's top edge
-  }
-}
-
-/**
- * A more robust checkEdge function that handles each edge explicitly.
+ * Compares GT and Student bounding boxes and determines if each edge
+ * is a cut_off or gap. This is a direct translation of the correct Python logic.
  * @param gt - Ground Truth bounding box
  * @param student - Student bounding box
- * @param threshold - Tolerance for alignment
- * @returns A list of identified issues.
+ * @returns A list of identified issues without human-readable messages.
  */
-function checkAllEdges(gt: BboxAnnotation, student: BboxAnnotation, threshold: number) {
-  const issues: z.infer<typeof FeedbackIssueSchema>[] = [];
-  const gtRight = gt.bbox[0] + gt.bbox[2];
-  const stRight = student.bbox[0] + student.bbox[2];
-  const gtBottom = gt.bbox[1] + gt.bbox[3];
-  const stBottom = student.bbox[1] + student.bbox[3];
+function checkAllEdges(gt: BboxAnnotation, student: BboxAnnotation): Omit<z.infer<typeof FeedbackIssueSchema>, 'message'>[] {
+    const issues: Omit<z.infer<typeof FeedbackIssueSchema>, 'message'>[] = [];
+    const [gt_x, gt_y, gt_w, gt_h] = gt.bbox;
+    const [st_x, st_y, st_w, st_h] = student.bbox;
 
-  // Top Edge
-  if (student.bbox[1] > gt.bbox[1] + threshold) {
-    issues.push({ edge: 'top', status: 'gap', message: 'Top edge has a gap.' });
-  } else if (student.bbox[1] < gt.bbox[1] - threshold) {
-    issues.push({ edge: 'top', status: 'cut_off', message: 'Top edge is cut off.' });
-  }
+    // Top edge
+    if (st_y < gt_y) {
+        issues.push({ edge: "top", status: "cut_off" });
+    } else if (st_y > gt_y) {
+        issues.push({ edge: "top", status: "gap" });
+    }
 
-  // Bottom Edge
-  if (stBottom < gtBottom - threshold) {
-    issues.push({ edge: 'bottom', status: 'gap', message: 'Bottom edge has a gap.' });
-  } else if (stBottom > gtBottom + threshold) {
-    issues.push({ edge: 'bottom', status: 'cut_off', message: 'Bottom edge is cut off.' });
-  }
+    // Bottom edge
+    const gt_bottom = gt_y + gt_h;
+    const st_bottom = st_y + st_h;
+    if (st_bottom > gt_bottom) {
+        issues.push({ edge: "bottom", status: "cut_off" });
+    } else if (st_bottom < gt_bottom) {
+        issues.push({ edge: "bottom", status: "gap" });
+    }
 
-  // Left Edge
-  if (student.bbox[0] > gt.bbox[0] + threshold) {
-    issues.push({ edge: 'left', status: 'gap', message: 'Left edge has a gap.' });
-  } else if (student.bbox[0] < gt.bbox[0] - threshold) {
-    issues.push({ edge: 'left', status: 'cut_off', message: 'Left edge is cut off.' });
-  }
+    // Left edge
+    if (st_x < gt_x) {
+        issues.push({ edge: "left", status: "cut_off" });
+    } else if (st_x > gt_x) {
+        issues.push({ edge: "left", status: "gap" });
+    }
 
-  // Right Edge
-  if (stRight < gtRight - threshold) {
-    issues.push({ edge: 'right', status: 'gap', message: 'Right edge has a gap.' });
-  } else if (stRight > gtRight + threshold) {
-    issues.push({ edge: 'right', status: 'cut_off', message: 'Right edge is cut off.' });
-  }
+    // Right edge
+    const gt_right = gt_x + gt_w;
+    const st_right = st_x + st_w;
+    if (st_right > gt_right) {
+        issues.push({ edge: "right", status: "cut_off" });
+    } else if (st_right < gt_right) {
+        issues.push({ edge: "right", status: "gap" });
+    }
 
-  return issues;
+    // Add aligned status for edges with no issues
+    const issueEdges = new Set(issues.map(i => i.edge));
+    const allEdges: ('top' | 'bottom' | 'left' | 'right')[] = ['top', 'bottom', 'left', 'right'];
+    allEdges.forEach(edge => {
+        if (!issueEdges.has(edge)) {
+            issues.push({ edge, status: 'aligned' });
+        }
+    });
+
+    return issues;
 }
 
 
@@ -101,28 +90,24 @@ const getAnnotationFeedbackFlow = ai.defineFlow(
     // Stage 1: Rule-based geometric check
     const gt = input.gt as BboxAnnotation;
     const student = input.student as BboxAnnotation;
-
-    // Use a dynamic threshold, e.g., 2% of the GT box's smaller dimension
-    const threshold = Math.min(gt.bbox[2], gt.bbox[3]) * 0.05;
     
-    const provisionalIssues = checkAllEdges(gt, student, threshold);
+    const provisionalIssues = checkAllEdges(gt, student);
 
     const significantIssues = provisionalIssues.filter(issue => issue.status !== 'aligned');
 
-    // If rules find no significant issues, still run AI verification
-    // to catch cases the rules might miss (semantic issues, etc.).
-    
     // Stage 2: AI-powered verification and message generation
     const prompt = `
-      You are an expert annotation reviewer.
-      A user has annotated an object. I have performed a preliminary rule-based check and found the following potential issues:
+      You are an expert annotation reviewer. Your task is to provide human-readable feedback based on a rule-based analysis.
+      
+      I have analyzed a student's bounding box against the ground truth and found these specific issues:
       ${significantIssues.length > 0 ? JSON.stringify(significantIssues) : "No geometric issues were detected by the rules."}
 
-      Your task is to:
-      1.  Look at the provided image ({{media url=imageBase64}}).
-      2.  Analyze the ground truth bounding box (approximated by coordinates) and the student's bounding box.
-      3.  **Verify the rule-based findings.** If the rules flagged an issue (e.g., a "gap"), confirm if it's a real issue in the image context. If the rules found nothing, perform your own visual check.
-      4.  **Generate human-readable feedback.** For each confirmed issue, create a concise, helpful message. If there are no issues, confirm that the annotation is well-aligned.
+      Please perform two tasks:
+      1.  **Visually verify these findings** against the provided image ({{media url=imageBase64}}). Sometimes the rules are too strict. For example, a tiny 1-pixel 'gap' might be irrelevant.
+      2.  For each *confirmed* issue, generate a concise, helpful, human-readable message. 
+          - If the status is 'gap', the message should indicate that the box needs to be extended.
+          - If the status is 'cut_off', the message should indicate the box is too large and needs to be shrunk.
+      3.  If you look at the image and disagree with the rules, or if no issues were found and the annotation looks good, return an empty "issues" array.
 
       **CRITICAL:** Your entire response must be a single, valid JSON object that conforms to the following Zod schema. Do not include any explanatory text, Markdown formatting, or anything outside of the JSON object.
 
@@ -142,7 +127,7 @@ const getAnnotationFeedbackFlow = ai.defineFlow(
       {
         "feedbackId": "fb_12345",
         "issues": [
-          { "edge": "top", "status": "gap", "message": "The box is slightly too low, leaving a gap at the top of the car." }
+          { "edge": "top", "status": "gap", "message": "There's a small gap at the top; the box should be moved up to include the roof." }
         ]
       }
 
@@ -153,7 +138,6 @@ const getAnnotationFeedbackFlow = ai.defineFlow(
       }
     `;
 
-    // The AI call now includes the image and the provisional findings for context
     const llmResponse = await ai.generate({
       model: 'googleai/gemini-1.5-flash',
       prompt: [
@@ -169,18 +153,7 @@ const getAnnotationFeedbackFlow = ai.defineFlow(
     let aiOutput = llmResponse.output;
 
     if (!aiOutput) {
-        // Fallback if AI provides no output
-        if (significantIssues.length > 0) {
-            return {
-                feedbackId: `fallback_${Date.now()}`,
-                issues: significantIssues.map(issue => ({ ...issue, message: `Rule-based detection: ${issue.status} on ${issue.edge} edge.` }))
-            };
-        } else {
-             return {
-                feedbackId: `fallback_aligned_${Date.now()}`,
-                issues: []
-            };
-        }
+      throw new Error("AI model failed to provide a response.");
     }
     
     // The response should already be parsed because of the output schema, but as a safeguard:
@@ -198,19 +171,19 @@ const getAnnotationFeedbackFlow = ai.defineFlow(
             // Provide rule-based feedback as a fallback
             return {
                 feedbackId: `fallback_error_${Date.now()}`,
-                issues: significantIssues.length > 0 ? significantIssues : []
+                issues: significantIssues.length > 0 ? significantIssues.map(issue => ({...issue, message: `Rule-based detection: ${issue.status} on ${issue.edge} edge.`})) : []
             };
         }
     }
     
     const validatedResponse = FeedbackResponseSchema.parse(aiOutput);
 
-    // If the AI says it's aligned but rules found something, trust the rules as a fail-safe.
+    // If the AI says it's aligned but rules found something significant, trust the rules as a fail-safe.
     // This handles cases where the AI might hallucinate alignment.
     if (validatedResponse.issues.length === 0 && significantIssues.length > 0) {
         return {
             feedbackId: validatedResponse.feedbackId || `override_${Date.now()}`,
-            issues: significantIssues.map(issue => ({ ...issue, message: `Rule-based detection: ${issue.status} on ${issue.edge} edge.` }))
+            issues: significantIssues.map(issue => ({ ...issue, message: `Rule-based detection: A '${issue.status}' was found on the ${issue.edge} edge.` }))
         };
     }
 
@@ -227,7 +200,7 @@ export async function getAnnotationFeedback(input: FeedbackInput): Promise<Feedb
         imageBase64: input.imageBase64,
     });
     return {
-        annotationId: input.student.id, // Or GT id, depending on your needs
+        annotationId: input.student.id,
         ...response,
     };
 }
