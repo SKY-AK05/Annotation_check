@@ -247,9 +247,9 @@ const ImageResultDisplay = ({ imageResult, imageUrl, selectedAnnotation, onAnnot
       return `${categoryName || 'Unknown'}${matchKey || ` (${annotationId})`}`
     };
 
-    const isAnnotationSelected = (annId: number) => {
+    const isAnnotationSelected = (annId: number, type: 'match' | 'missed' | 'extra') => {
         if (!selectedAnnotation) return false;
-        return selectedAnnotation.imageId === imageResult.imageId && selectedAnnotation.annotationId === annId;
+        return selectedAnnotation.imageId === imageResult.imageId && selectedAnnotation.annotationId === annId && selectedAnnotation.type === type;
     }
 
     return (
@@ -275,6 +275,7 @@ const ImageResultDisplay = ({ imageResult, imageUrl, selectedAnnotation, onAnnot
                                 imageResult={imageResult}
                                 selectedAnnotation={selectedAnnotation}
                                 feedback={feedback}
+                                onAnnotationSelect={onAnnotationSelect}
                             />
                         </div>
                     ) : (
@@ -293,7 +294,7 @@ const ImageResultDisplay = ({ imageResult, imageUrl, selectedAnnotation, onAnnot
                                     key={i} 
                                     className="cursor-pointer" 
                                     onClick={() => onAnnotationSelect({ imageId: imageResult.imageId, annotationId: m.gt.id, type: 'match' })}
-                                    data-state={isAnnotationSelected(m.gt.id) ? 'selected' : undefined}
+                                    data-state={isAnnotationSelected(m.gt.id, 'match') ? 'selected' : undefined}
                                 >
                                     <TableCell>{getAnnotationLabel(m.gt)}</TableCell>
                                     <TableCell>{getAnnotationLabel(m.student)}</TableCell>
@@ -313,7 +314,7 @@ const ImageResultDisplay = ({ imageResult, imageUrl, selectedAnnotation, onAnnot
                                     key={i} 
                                     className="cursor-pointer" 
                                     onClick={() => onAnnotationSelect({ imageId: imageResult.imageId, annotationId: m.gt.id, type: 'missed' })}
-                                    data-state={isAnnotationSelected(m.gt.id) ? 'selected' : undefined}
+                                    data-state={isAnnotationSelected(m.gt.id, 'missed') ? 'selected' : undefined}
                                 >
                                     <TableCell>{getAnnotationLabel(m.gt)}</TableCell>
                                 </TableRow>
@@ -331,7 +332,7 @@ const ImageResultDisplay = ({ imageResult, imageUrl, selectedAnnotation, onAnnot
                                     key={i} 
                                     className="cursor-pointer" 
                                     onClick={() => onAnnotationSelect({ imageId: imageResult.imageId, annotationId: m.student.id, type: 'extra' })}
-                                    data-state={isAnnotationSelected(m.student.id) ? 'selected' : undefined}
+                                    data-state={isAnnotationSelected(m.student.id, 'extra') ? 'selected' : undefined}
                                 >
                                     <TableCell>{getAnnotationLabel(m.student)}</TableCell>
                                 </TableRow>

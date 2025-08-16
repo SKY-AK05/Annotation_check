@@ -13,13 +13,14 @@ interface AnnotationViewerProps {
   imageResult: ImageEvaluationResult;
   selectedAnnotation: SelectedAnnotation | null;
   feedback: Feedback | null;
+  onAnnotationSelect: (annotation: SelectedAnnotation | null) => void;
 }
 
-export function AnnotationViewer({ imageUrl, imageResult, selectedAnnotation, feedback }: AnnotationViewerProps) {
+export function AnnotationViewer({ imageUrl, imageResult, selectedAnnotation, feedback, onAnnotationSelect }: AnnotationViewerProps) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [scale, setScale] = useState(1);
     const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
-    const [isPanning, setIsPanning] = useState(false);
+    const [isPanning, setPanning] = useState(false);
     const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
     const imageRef = useRef<HTMLImageElement | null>(null);
     const baseScale = useRef(1);
@@ -57,8 +58,10 @@ export function AnnotationViewer({ imageUrl, imageResult, selectedAnnotation, fe
             context.font = `bold ${fontSize}px Arial`;
             context.shadowColor = "black";
             context.shadowBlur = 4 / scale;
+            context.textAlign = "center";
             context.fillText(text, x, y);
             context.shadowBlur = 0;
+            context.textAlign = "left"; // Reset alignment
         };
         
         const drawArrow = (fromX: number, fromY: number, toX: number, toY: number, color: string) => {
@@ -84,83 +87,86 @@ export function AnnotationViewer({ imageUrl, imageResult, selectedAnnotation, fe
             }
 
             if (itemToDraw) {
-                // Draw GT and Student boxes
-                drawBbox(itemToDraw.gt.bbox, 'rgba(0, 255, 0, 0.9)'); // Green for GT
-                drawBbox(itemToDraw.student.bbox, 'rgba(255, 0, 0, 0.9)'); // Red for Student
+                // Draw GT and Student boxes with higher visibility
+                drawBbox(itemToDraw.gt.bbox, 'rgba(0, 255, 0, 1)', 4); // Green for GT
+                drawBbox(itemToDraw.student.bbox, 'rgba(255, 0, 0, 1)', 4); // Red for Student
 
                 // If feedback is available for this annotation, draw it
                 if (feedback && feedback.annotationId === selectedAnnotation.annotationId) {
                     const studentBox = itemToDraw.student.bbox;
                     
-                    feedback.issues.forEach(issue => {
-                        let x, y, textX, textY, arrowFromX, arrowFromY, arrowToX, arrowToY;
-                        const margin = 20 / scale;
+                    if (feedback.issues.length === 0) {
+                        drawFeedbackText("Annotation is well aligned.", studentBox[0] + studentBox[2]/2, studentBox[1] - (20/scale), 'lightgreen');
+                    } else {
+                        feedback.issues.forEach(issue => {
+                            let x, y, textX, textY, arrowFromX, arrowFromY, arrowToX, arrowToY;
+                            const margin = 20 / scale;
 
-                        switch (issue.edge) {
-                            case 'top':
-                                x = studentBox[0] + studentBox[2] / 2;
-                                y = studentBox[1];
-                                textX = x;
-                                textY = y - margin;
-                                if (issue.status === 'gap') { // Arrow points out
-                                    arrowFromX = x; arrowFromY = y;
-                                    arrowToX = x; arrowToY = y - margin;
-                                } else { // Arrow points in
-                                    arrowFromX = x; arrowFromY = y - margin;
-                                    arrowToX = x; arrowToY = y;
-                                }
-                                drawArrow(arrowFromX, arrowFromY, arrowToX, arrowToY, 'yellow');
-                                drawFeedbackText(issue.message, textX, textY, 'yellow');
-                                break;
-                            case 'bottom':
-                                x = studentBox[0] + studentBox[2] / 2;
-                                y = studentBox[1] + studentBox[3];
-                                textX = x;
-                                textY = y + margin;
-                                if (issue.status === 'gap') { // Arrow points out
-                                    arrowFromX = x; arrowFromY = y;
-                                    arrowToX = x; arrowToY = y + margin;
-                                } else { // Arrow points in
-                                    arrowFromX = x; arrowFromY = y + margin;
-                                    arrowToX = x; arrowToY = y;
-                                }
-                                drawArrow(arrowFromX, arrowFromY, arrowToX, arrowToY, 'yellow');
-                                drawFeedbackText(issue.message, textX, textY, 'yellow');
-                                break;
-                            case 'left':
-                                x = studentBox[0];
-                                y = studentBox[1] + studentBox[3] / 2;
-                                textX = x - margin;
-                                textY = y;
-                                if (issue.status === 'gap') { // Arrow points out
-                                    arrowFromX = x; arrowFromY = y;
-                                    arrowToX = x - margin; arrowToY = y;
-                                } else { // Arrow points in
-                                    arrowFromX = x - margin; arrowFromY = y;
-                                    arrowToX = x; arrowToY = y;
-                                }
-                                drawArrow(arrowFromX, arrowFromY, arrowToX, arrowToY, 'yellow');
-                                drawFeedbackText(issue.message, textX, textY, 'yellow');
-                                break;
-                            case 'right':
-                                x = studentBox[0] + studentBox[2];
-                                y = studentBox[1] + studentBox[3] / 2;
-                                textX = x + margin;
-                                textY = y;
-                                if (issue.status === 'gap') { // Arrow points out
-                                    arrowFromX = x; arrowFromY = y;
-                                    arrowToX = x + margin; arrowToY = y;
-                                } else { // Arrow points in
-                                    arrowFromX = x + margin; arrowFromY = y;
-                                    arrowToX = x; arrowToY = y;
-                                }
-                                drawArrow(arrowFromX, arrowFromY, arrowToX, arrowToY, 'yellow');
-                                drawFeedbackText(issue.message, textX, textY, 'yellow');
-                                break;
-                        }
-                    });
-                     if (feedback.issues.length === 0) {
-                        drawFeedbackText("Annotation is well aligned.", studentBox[0], studentBox[1] - margin, 'lightgreen');
+                            switch (issue.edge) {
+                                case 'top':
+                                    x = studentBox[0] + studentBox[2] / 2;
+                                    y = studentBox[1];
+                                    textX = x;
+                                    textY = y - margin;
+                                    if (issue.status === 'gap') { 
+                                        arrowFromX = x; arrowFromY = y;
+                                        arrowToX = x; arrowToY = y - margin;
+                                    } else { 
+                                        arrowFromX = x; arrowFromY = y - margin;
+                                        arrowToX = x; arrowToY = y;
+                                    }
+                                    drawArrow(arrowFromX, arrowFromY, arrowToX, arrowToY, 'yellow');
+                                    drawFeedbackText(issue.message, textX, textY, 'yellow');
+                                    break;
+                                case 'bottom':
+                                    x = studentBox[0] + studentBox[2] / 2;
+                                    y = studentBox[1] + studentBox[3];
+                                    textX = x;
+                                    textY = y + margin * 1.5;
+                                    if (issue.status === 'gap') { 
+                                        arrowFromX = x; arrowFromY = y;
+                                        arrowToX = x; arrowToY = y + margin;
+                                    } else { 
+                                        arrowFromX = x; arrowFromY = y + margin;
+                                        arrowToX = x; arrowToY = y;
+                                    }
+                                    drawArrow(arrowFromX, arrowFromY, arrowToX, arrowToY, 'yellow');
+                                    drawFeedbackText(issue.message, textX, textY, 'yellow');
+                                    break;
+                                case 'left':
+                                    x = studentBox[0];
+                                    y = studentBox[1] + studentBox[3] / 2;
+                                    textX = x - margin;
+                                    textY = y;
+                                    context.textAlign = 'right';
+                                    if (issue.status === 'gap') {
+                                        arrowFromX = x; arrowFromY = y;
+                                        arrowToX = x - margin; arrowToY = y;
+                                    } else {
+                                        arrowFromX = x - margin; arrowFromY = y;
+                                        arrowToX = x; arrowToY = y;
+                                    }
+                                    drawArrow(arrowFromX, arrowFromY, arrowToX, arrowToY, 'yellow');
+                                    drawFeedbackText(issue.message, textX, textY, 'yellow');
+                                    break;
+                                case 'right':
+                                    x = studentBox[0] + studentBox[2];
+                                    y = studentBox[1] + studentBox[3] / 2;
+                                    textX = x + margin;
+                                    textY = y;
+                                    context.textAlign = 'left';
+                                    if (issue.status === 'gap') {
+                                        arrowFromX = x; arrowFromY = y;
+                                        arrowToX = x + margin; arrowToY = y;
+                                    } else {
+                                        arrowFromX = x + margin; arrowFromY = y;
+                                        arrowToX = x; arrowToY = y;
+                                    }
+                                    drawArrow(arrowFromX, arrowFromY, arrowToX, arrowToY, 'yellow');
+                                    drawFeedbackText(issue.message, textX, textY, 'yellow');
+                                    break;
+                            }
+                        });
                     }
                 }
             } else {
@@ -247,7 +253,7 @@ export function AnnotationViewer({ imageUrl, imageResult, selectedAnnotation, fe
     };
 
     const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-        setIsPanning(true);
+        setPanning(true);
         setLastPanPoint({ x: e.clientX, y: e.clientY });
     };
 
@@ -260,7 +266,7 @@ export function AnnotationViewer({ imageUrl, imageResult, selectedAnnotation, fe
     };
 
     const handleMouseUp = () => {
-        setIsPanning(false);
+        setPanning(false);
     };
 
     const handleVisibilityChange = (key: keyof typeof visibility, checked: boolean) => {
