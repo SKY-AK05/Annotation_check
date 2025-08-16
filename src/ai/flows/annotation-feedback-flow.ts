@@ -65,15 +65,16 @@ function checkAllEdges(gt: BboxAnnotation, student: BboxAnnotation): Omit<z.infe
     } else if (st_right < gt_right) {
         issues.push({ edge: "right", status: "gap" });
     }
-
-    // Add aligned status for edges with no issues
-    const issueEdges = new Set(issues.map(i => i.edge));
-    const allEdges: ('top' | 'bottom' | 'left' | 'right')[] = ['top', 'bottom', 'left', 'right'];
-    allEdges.forEach(edge => {
-        if (!issueEdges.has(edge)) {
+    
+    // Add aligned status for edges with no issues if no other issues were found at all.
+    // This simplifies the AI prompt by not cluttering it with "aligned" messages.
+    if (issues.length === 0) {
+        const allEdges: ('top' | 'bottom' | 'left' | 'right')[] = ['top', 'bottom', 'left', 'right'];
+        allEdges.forEach(edge => {
             issues.push({ edge, status: 'aligned' });
-        }
-    });
+        });
+    }
+
 
     return issues;
 }
@@ -99,11 +100,11 @@ const getAnnotationFeedbackFlow = ai.defineFlow(
     const prompt = `
       You are an expert annotation reviewer. Your task is to provide human-readable feedback based on a rule-based analysis.
       
-      I have analyzed a student's bounding box against the ground truth and found these specific issues:
+      I have analyzed a student's bounding box against the ground truth. Here are the issues my rules detected:
       ${significantIssues.length > 0 ? JSON.stringify(significantIssues) : "No geometric issues were detected by the rules."}
 
       Please perform two tasks:
-      1.  **Visually verify these findings** against the provided image ({{media url=imageBase64}}). Sometimes the rules are too strict. For example, a tiny 1-pixel 'gap' might be irrelevant.
+      1.  **Visually verify these findings** against the provided image ({{media url=imageBase64}}). Sometimes the rules are too strict. For example, a tiny 1-pixel 'gap' might be irrelevant. If no rule-based issues were found, perform your own visual check to see if the rules missed anything obvious (like a small part of the object being cut off).
       2.  For each *confirmed* issue, generate a concise, helpful, human-readable message. 
           - If the status is 'gap', the message should indicate that the box needs to be extended.
           - If the status is 'cut_off', the message should indicate the box is too large and needs to be shrunk.
@@ -145,7 +146,7 @@ const getAnnotationFeedbackFlow = ai.defineFlow(
         { media: { url: input.imageBase64, contentType: 'image/jpeg' } },
       ],
       config: {
-          response_format: 'json',
+          responseMimeType: 'application/json',
       },
       output: { schema: FeedbackResponseSchema },
     });
