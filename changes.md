@@ -1,220 +1,164 @@
-# Annotator AI: Algorithm Evolution & Workflow Documentation
 
-**Version:** 1.0
+# Annotator AI: A Deep Dive into the Feedback and Evaluation System
+
+**Version:** 2.0
 **Status:** Current
 
 ---
 
 ## 1. Overview
 
-This document provides a comprehensive technical overview of the Annotator AI evaluation tool. It is intended for developers, system administrators, and technical stakeholders who need to understand the application's workflow, data processing pipeline, and the evolution of its core evaluation algorithms.
+This document provides a comprehensive technical guide to the Annotator AI evaluation system. It is designed for users, developers, and project managers who wish to understand the end-to-end feedback process, from data input to the final, actionable insights.
 
-We will cover two primary areas:
-1.  **The End-to-End Workflow:** A detailed description of the user journey, from file upload to results visualization, detailing the data flow and key processing steps.
-2.  **Algorithmic Evolution:** An in-depth analysis of the core annotation matching algorithm, explaining the transition from a **Greedy Best-Match** approach to a more robust **Optimal Bipartite Matching** strategy using the Hungarian algorithm. This section provides a comparative analysis, rationale, and implementation details.
+Our philosophy is that effective feedback must be **accurate, consistent, contextual, and educational**. To achieve this, Annotator AI employs a sophisticated, multi-stage process that combines deterministic, rule-based calculations with cutting-edge AI for nuanced, human-like analysis.
+
+This guide will cover:
+1.  **The Complete Feedback Workflow:** A step-by-step breakdown of how data flows through the system.
+2.  **The Core Evaluation Formula:** A detailed explanation of the metrics used to calculate the final score, including IoU, F-Beta Score, and Levenshtein distance.
+3.  **The Standardized Feedback Structure:** How feedback is organized for clarity and impact.
+4.  **Strategies for High-Quality, Accelerated Feedback:** Best practices for using the tool effectively.
+5.  **Real-World Scenarios:** Examples illustrating how feedback is applied in practice.
 
 ---
 
-## 2. Complete System Workflow
+## 2. The Complete Feedback Workflow & Stages
 
-Annotator AI is designed to provide a seamless and private evaluation experience, running primarily within the user's browser. The workflow is divided into two main phases: **Configuration** and **Evaluation**.
+The feedback process is divided into two primary phases: **Automated Evaluation** and **On-Demand AI-Powered Feedback**. This hybrid approach ensures that users receive instant, objective scores while also having access to deeper, contextual insights when needed.
 
-### 2.1. Phase 1: Configuration & Rule Generation
+### Phase 1: Automated Evaluation
 
-This phase is initiated when a user uploads a Ground Truth (GT) file. Its purpose is to dynamically configure the evaluation parameters based on the expert-annotated data.
+This phase occurs immediately after the user uploads the necessary files and clicks "Run Evaluation." All calculations are performed deterministically based on the configured rules.
 
 **Workflow Diagram:**
 ```
-+--------------------------+      +--------------------------------+      +---------------------------+
-| 1. User Uploads GT File  |----->| 2. Client-Side File Processor  |----->| 3. AI Schema Generation   |
-| (JSON, XML, or ZIP)      |      |   (JSZip for archives)         |      | (Server-Side Genkit Flow) |
-+--------------------------+      +--------------------------------+      +---------------------------+
-                                                                                       |
-                                                                                       v
-+--------------------------+      +--------------------------------+      +---------------------------+
-| 6. User Customizes Rules |<-----| 5. UI Renders Editable Rules   |<-----| 4. EvalSchema is Returned |
-| (Optional, via text)     |      |   (RuleConfiguration component)|      |   and Stored in State     |
-+--------------------------+      +--------------------------------+      +---------------------------+
++--------------------------+      +---------------------------+      +--------------------------+
+| 1. User Uploads Files    |----->| 2. Data Parsing &         |----->| 3. Core Evaluation       |
+| (GT, Student, Images)    |      |    Normalization          |      |    (evaluateAnnotations) |
++--------------------------+      +---------------------------+      +--------------------------+
+                                                                                 |
+                                                                                 v
++--------------------------+      +---------------------------+      +--------------------------+
+| 6. User Reviews Dashboard| <----| 5. Final Score & Feedback | <----| 4. Metric Aggregation    |
+| (Scores, Tables, Visuals)|      |    Generation             |      | (IoU, Accuracy, etc.)    |
++--------------------------+      +---------------------------+      +--------------------------+
 ```
 
 **Step-by-Step Breakdown:**
 
-1.  **Input - Ground Truth File:** The user uploads a single GT file via the `EvaluationForm`. Supported formats include:
-    *   **COCO JSON**: For bounding box, polygon, or skeleton annotations.
-    *   **CVAT XML 1.1**: For bounding box or polygon annotations.
-    *   **.ZIP Archive**: A compressed file containing one annotation file (`.json` or `.xml`) and all associated image files (`.jpg`, `.png`, etc.).
+1.  **File Upload:** The user provides a Ground Truth (GT) file, one or more Student files, and any associated images.
+2.  **Parsing and Normalization:** The system parses all annotation files (e.g., COCO JSON, CVAT XML) into a single, standardized internal format. This makes the evaluation engine format-agnostic.
+3.  **Core Evaluation (`evaluateAnnotations`):** The system iterates through each student file and compares it against the GT data on a per-image basis. For each matched annotation pair, it calculates a series of metrics (detailed in Section 3).
+4.  **Metric Aggregation:** The scores from all matched pairs are aggregated to compute averages for IoU, label accuracy, and attribute accuracy. The system also compiles lists of matched, missed, and extra annotations.
+5.  **Score & Feedback Generation:** The aggregated metrics are fed into a weighted formula to produce a final score out of 100. A set of human-readable feedback messages is generated based on performance.
+6.  **Results Dashboard:** The final score, feedback, and detailed breakdown tables are displayed to the user in the `ResultsDashboard`.
 
-2.  **Client-Side Processing:** The `handleGtFileChange` function in `src/app/page.tsx` is triggered.
-    *   If a ZIP file is detected, the `JSZip` library is used *in the browser* to read its contents. It identifies the annotation file and extracts all image files.
-    *   Image files are converted into local `Blob` URLs using `URL.createObjectURL()`. **Critically, image data is never sent to the server.**
-    *   The content of the annotation file is read into a plain text string.
+### Phase 2: On-Demand AI-Powered Feedback
 
-3.  **AI Schema Generation (`extractEvalSchema`):**
-    *   The text content of the annotation file is sent as input to a server-side Genkit flow defined in `src/ai/flows/extract-eval-schema.ts`.
-    *   This flow uses the Gemini 1.5 Flash model to analyze the structure of the annotation data.
-    *   **Output:** The AI returns a structured JSON object called `EvalSchema`, which contains:
-        *   `labels`: A list of all unique object categories and their attributes.
-        *   `matchKey`: (Optional) The name of an attribute that can serve as a unique identifier for annotations (e.g., `"Annotation No"` or `"track_id"`).
-        *   `pseudoCode`: A human-readable summary of the derived evaluation logic.
-        *   `biDirectionalMatching`: A boolean flag indicating if the more advanced matching algorithm is recommended for this dataset.
+This phase is triggered when a user wants deeper insight into a specific error.
 
-4.  **UI Update and Customization:**
-    *   The `EvalSchema` object is stored in the component state of `src/app/page.tsx`.
-    *   The `RuleConfiguration` component re-renders, displaying the labels, match key, and the editable pseudocode to the user.
-    *   The user has the option to modify the evaluation logic by either editing the pseudocode directly or providing plain-text instructions, which triggers the `extractEvalSchema` flow again with the new context.
-
-### 2.2. Phase 2: Evaluation Execution
-
-This phase begins when the user uploads student files and clicks "Run Evaluation." All processing occurs entirely within the user's browser.
-
-**Step-by-Step Breakdown:**
-
-1.  **Input - Student & Image Files:** The user uploads one or more student annotation files (JSON, XML, or a ZIP archive containing multiple submissions). If images were not in the GT ZIP, they can be uploaded here.
-
-2.  **File Parsing and Normalization:**
-    *   The `handleEvaluate` function in `src/app/page.tsx` orchestrates this process.
-    *   It uses `JSZip` to handle student ZIP archives, including nested ZIPs from CVAT batch exports.
-    *   All annotation files are parsed into a standardized internal format (`CocoJson`). This is a critical step that makes the evaluation engine format-agnostic.
-        *   `JSON.parse()` is used for `.json` files.
-        *   Custom parsers (`parseCvatXml`, `parseCvatXmlForPolygons`) are used for `.xml` files.
-
-3.  **Core Evaluation (`evaluateAnnotations`):**
-    *   For each student file, the `evaluateAnnotations` function from `src/lib/evaluator.ts` is called.
-    *   **Inputs:** The parsed GT data, the parsed student data, and the current `EvalSchema` from the application's state.
-    *   The function executes the multi-pass matching algorithm (detailed in the next section).
-    *   **Output:** It returns a comprehensive `EvaluationResult` object containing the final score, detailed metrics (IoU, accuracy), feedback messages, and categorized lists of matched, missed, and extra annotations.
-
-4.  **Results Display:**
-    *   The array of `EvaluationResult` objects (one for each student file) is stored in the application state.
-    *   The `ResultsDashboard` component re-renders to display the results, including:
-        *   A batch summary table with top-level scores for each student.
-        *   A collapsible accordion for detailed, per-student reports.
-        *   Visualizations of the annotations on the images via the `AnnotationViewer` component.
-
-5.  **Data Export:** The user can download the results as a detailed, per-student CSV file or a summary CSV for the entire batch. This process is handled client-side by formatting the `EvaluationResult` object into a CSV string.
+1.  **User Interaction:** The user clicks on a specific matched annotation in the results table.
+2.  **Data Preparation:** The system gathers the GT bounding box, the student's bounding box, and a Base64-encoded version of the image.
+3.  **Rule-Based Pre-Check (`checkAllEdges`):** Before calling the AI, a fast, local function calculates the geometric status of each edge (top, bottom, left, right) as a "gap," "cut_off," or "aligned." This provides a provisional analysis.
+4.  **AI Verification Flow:** The image data and the provisional analysis are sent to a Genkit flow powered by the Gemini API. The prompt asks the AI to act as an expert reviewer: visually verify the rule-based findings and generate a concise, helpful message. This two-stage process prevents the AI from hallucinating issues that aren't there and validates the geometric check against the actual image content.
+5.  **Feedback Display:** The AI-generated feedback is displayed to the user, often with visual aids like highlighted overlays on the image viewer.
 
 ---
 
-## 3. Algorithmic Evolution: From Greedy Match to Optimal Bipartite Matching
+## 3. Core Evaluation Formulas and Metrics
 
-The credibility of the tool rests on the fairness and accuracy of its matching algorithm. The initial implementation used a simple greedy approach, which was fast but had significant flaws. It has been upgraded to a globally optimal bipartite matching algorithm.
-
-### 3.1. The Original Algorithm: Greedy Best-Match (Legacy)
-
-The original fallback mechanism (used when no unique `matchKey` was available) operated on a simple, greedy principle.
-
-*   **How it Worked:**
-    1.  The algorithm would iterate through each Ground Truth (GT) annotation one by one.
-    2.  For each GT annotation, it would scan *all* unmatched student annotations.
-    3.  It would permanently pair the GT annotation with the student annotation that had the highest Intersection over Union (IoU), as long as that IoU was above a fixed threshold (e.g., 0.5).
-    4.  This process would repeat for the next GT annotation, but the "claimed" student annotation was no longer available for matching.
-
-*   **Analysis & Weaknesses:**
-    *   **Accuracy:** **Low to Medium**. In crowded scenes with overlapping objects, this method was prone to making suboptimal pairings. A GT box could be matched with a mediocre partner, preventing a much better potential partner from being assigned to another GT box, leading to a cascade of incorrect "missed" or "extra" classifications.
-    *   **Performance:** **Fast**. The complexity was roughly `O(G * S)` per image, where `G` is the number of GT annotations and `S` is the number of student annotations. This was acceptable for sparse scenes but did not scale well.
-    *   **Fairness:** **Low**. The matching outcome was highly dependent on the iteration order, which could feel arbitrary and unfairly penalize users.
-
-### 3.2. The Current Algorithm: Optimal Bipartite Matching
-
-To address the flaws of the greedy approach, the core logic was replaced with the **Hungarian algorithm**, a classic combinatorial optimization algorithm that guarantees the most optimal assignment between two sets.
-
-*   **How it Works:**
-    1.  **Problem Framing:** For a given image, the problem is no longer treated as a sequential search but as a single, global "assignment problem." We want to find the set of pairs (one GT, one student) that results in the best possible total score for the entire image.
-    2.  **Cost Matrix Construction:** A cost matrix is built where rows represent the remaining GT annotations and columns represent the remaining student annotations. The value in each cell `(i, j)` represents the "cost" of matching GT annotation `i` with student annotation `j`.
-        *   `Cost(i, j) = 1 - IoU(i, j)`
-        *   The cost is inversely proportional to the IoU; a perfect overlap (IoU = 1.0) has a cost of 0.
-        *   If the IoU is below the required threshold, the cost is set to a very large number (effectively `Infinity`) to make that pairing impossible.
-    3.  **Hungarian Algorithm Execution:** The `munkres-js` library is used to run the Hungarian algorithm on this cost matrix. The algorithm efficiently finds the set of pairings that **minimizes the total cost** across the entire matrix.
-    4.  **Result:** The output is a single, globally optimal set of one-to-one matches. There is no ambiguity and the iteration order does not matter.
-
-*   **Code Implementation (`src/lib/evaluator.ts`):**
-
-    ```typescript
-    import munkres from 'munkres-js';
-
-    function findOptimalMatches(
-        gtAnns: BboxAnnotation[],
-        studentAnns: BboxAnnotation[],
-        iouThreshold: number
-    ): { gtIndex: number; studentIndex: number; iou: number }[] {
-        if (!gtAnns.length || !studentAnns.length) {
-            return [];
-        }
-
-        // 1. Construct the cost matrix where cost = 1 - IoU
-        const costMatrix = gtAnns.map(gt =>
-            studentAnns.map(student => {
-                const iou = calculateIoU(gt.bbox, student.bbox);
-                // Assign a very high cost to pairs below the threshold to disallow them
-                return iou >= iouThreshold ? 1 - iou : 1_000_000;
-            })
-        );
-
-        // 2. Run the Hungarian algorithm to find the assignment with the minimum cost
-        const assignments = munkres(costMatrix) as [number, number][];
-
-        // 3. Process the results, filtering out invalid (high-cost) matches
-        const matches: { gtIndex: number; studentIndex: number; iou: number }[] = [];
-        for (const [gtIndex, studentIndex] of assignments) {
-            const cost = costMatrix[gtIndex][studentIndex];
-            if (cost < 1_000_000) { // Ensure the match is valid
-                matches.push({
-                    gtIndex,
-                    studentIndex,
-                    iou: 1 - cost, // Convert cost back to IoU
-                });
-            }
-        }
-        return matches;
-    }
-    ```
-
-*   **Analysis & Improvements:**
-    *   **Accuracy:** **High**. This method guarantees the most mathematically optimal set of matches based on IoU, eliminating the ambiguity and cascading errors of the greedy approach. This significantly improves the reliability and fairness of the evaluation, especially in dense or complex scenes.
-    *   **Performance:** **Medium**. The Hungarian algorithm has a time complexity of `O(n³)`, where `n` is the larger of the number of GT or student annotations. For typical images with dozens of annotations, this is nearly instantaneous. For extreme cases with hundreds of annotations, it may be noticeably slower than the greedy method, but this is a necessary trade-off for the vast improvement in accuracy.
-    *   **Fairness:** **High**. The result is deterministic and globally optimal, removing any element of randomness or order-dependency from the matching process.
-
-### 3.3. Configurability and Control
-
-The new algorithm is integrated as the default fallback mechanism. The `EvalSchema` can be extended with a `biDirectionalMatching: boolean` flag in the future to allow toggling this feature, but for now, it stands as the superior replacement for the previous greedy logic, ensuring all users benefit from the improved accuracy.
-
----
-
-## 4. Evaluation Formula & Scoring Logic
-
-The final score is a weighted average of four distinct metrics, each representing a different aspect of annotation quality. The score is scaled from 0 to 100.
+The final score is a weighted average of four distinct metrics, providing a holistic view of annotation quality.
 
 **Final Score = (Detection Score * 0.4) + (Localization Score * 0.3) + (Label Score * 0.2) + (Attribute Score * 0.1)**
 
-### 4.1. Detection Score (40% Weight)
+### 3.1. Detection Score (40% Weight)
 
 *   **Purpose:** Measures how well the student identified the correct number of objects. It penalizes both missed objects (false negatives) and extra, incorrect objects (false positives).
-*   **Algorithm:** **F-beta Score**, with `beta = 0.5`.
-    *   **Precision** = `Matched / Total Student Annotations`
-    *   **Recall** = `Matched / Total GT Annotations`
-    *   **F-beta Formula**: `(1 + beta²) * (precision * recall) / ((beta² * precision) + recall)`
-*   **Rationale:** The beta value is set to `0.5`, which weighs **precision more heavily than recall**. This means that adding extra, incorrect annotations is penalized more than missing an existing one. This choice encourages students to be more careful and avoid speculative annotations.
+*   **Metric:** **F-Beta Score (with β = 0.5)**.
+*   **Formula:**
+    *   **Precision** = `True Positives / (True Positives + False Positives)` = `Matched / Total Student Annotations`
+    *   **Recall** = `True Positives / (True Positives + False Negatives)` = `Matched / Total GT Annotations`
+    *   **F-Beta Formula**: `(1 + β²) * (Precision * Recall) / ((β² * Precision) + Recall)`
+*   **Rationale:** We use a beta value of `0.5`, which weighs **precision more heavily than recall**. This choice intentionally penalizes the creation of "extra" (false positive) annotations more than "missing" (false negative) ones. It encourages annotators to be confident in their submissions and avoid speculative guessing.
 
-### 4.2. Localization Score (30% Weight)
+### 3.2. Localization Score (30% Weight)
 
-*   **Purpose:** Measures the accuracy of bounding box placement.
-*   **Algorithm:** **Average Intersection over Union (IoU)**.
-    *   **IoU** is calculated for every matched pair of annotations.
-    *   The **Localization Score** is the average of all these IoU values, scaled to 100.
-*   **Rationale:** IoU is the industry standard for measuring how well two bounding boxes overlap. A score of 1.0 represents a perfect overlap.
+*   **Purpose:** Measures the pixel-perfect accuracy of bounding box placement for correctly identified objects.
+*   **Metric:** **Average Intersection over Union (IoU)**.
+*   **Formula:** IoU is calculated for every matched pair of annotations. The Localization Score is the simple average of all these IoU values, scaled to 100.
+    *   `IoU = Area of Overlap / Area of Union`
+*   **Example:** An IoU of `1.0` means the boxes overlap perfectly. An IoU of `0.5` means half of the total area covered by the two boxes is shared. The industry standard for a "good" match is typically an IoU >= `0.5`.
 
-### 4.3. Label Score (20% Weight)
+### 3.3. Label Score (20% Weight)
 
-*   **Purpose:** Measures whether the student correctly classified the objects.
-*   **Algorithm:** **Label Accuracy**.
-    *   **Formula**: `(Correctly Labeled Matches / Total Matched Annotations) * 100`
-*   **Rationale:** This is a straightforward measure of classification correctness. It only considers annotations that were successfully matched, isolating the classification task from the detection task.
+*   **Purpose:** Measures whether the student correctly classified the objects they identified.
+*   **Metric:** **Simple Accuracy**.
+*   **Formula:** `(Number of Correctly Labeled Matches / Total Number of Matched Annotations) * 100`
+*   **Rationale:** This is a straightforward measure of classification correctness. It only considers annotations that were successfully matched, isolating the classification task from the detection and localization tasks.
 
-### 4.4. Attribute Score (10% Weight)
+### 3.4. Attribute Score (10% Weight)
 
-*   **Purpose:** Measures the accuracy of textual or categorical attributes associated with an annotation (e.g., license plate number, color).
-*   **Algorithm:** **Average String Similarity (Levenshtein Distance)**.
-    *   For each attribute specified in the `EvalSchema`, the system calculates the similarity between the GT and student text.
-    *   The similarity is calculated using the Levenshtein distance, which measures the number of edits (insertions, deletions, substitutions) needed to change one string into the other. This score is normalized to a 0-1 range (where 1 is a perfect match).
-    *   The **Attribute Score** is the average similarity across all compared attributes, scaled to 100.
-*   **Rationale:** Using Levenshtein distance provides a nuanced text comparison that is robust to minor typos. For example, "licence" and "license" will have a high similarity score, whereas a simple equality check would fail. This provides a fairer assessment of attribute accuracy.
+*   **Purpose:** Measures the accuracy of supplemental textual or categorical data (e.g., "color: red", "license_plate: 'ABC-123'").
+*   **Metric:** **Average String Similarity (Normalized Levenshtein Distance)**.
+*   **Formula:** For each attribute defined in the evaluation schema, the system calculates the similarity between the GT and student text.
+    *   **Levenshtein Distance:** Measures the number of single-character edits (insertions, deletions, or substitutions) required to change one string into the other.
+    *   **Similarity Score:** `1 - (Levenshtein Distance / Length of the Longer String)`
+*   **Rationale:** Using Levenshtein distance provides a nuanced and fair text comparison that is robust to minor typos. For example, "licence" and "license" will have a high similarity score, whereas a simple equality check would fail completely. This provides a more realistic assessment of attribute accuracy.
+
+---
+
+## 4. Standardized Feedback Structure
+
+Effective feedback is structured for clarity and actionability. Our system provides feedback at two levels: **Batch Summary** and **Detailed Annotation View**.
+
+### 4.1. Batch Summary Structure
+
+*   **Overall Score:** The final, single-number score (0-100).
+*   **Key Metric Scores:** A breakdown of the four component scores (Detection, Localization, Label, Attribute).
+*   **High-Level Feedback:** A list of 2-3 human-readable sentences summarizing the most important takeaways (e.g., "Excellent detection rate, but be mindful of bounding box tightness.").
+*   **Critical Issues:** A separate, highlighted list of severe, systemic problems (e.g., "High number of missed annotations," "Low label accuracy for 'car' class.").
+
+### 4.2. On-Demand AI Feedback Structure
+
+When a user requests feedback on a specific annotation, the response follows a strict template:
+
+*   **Annotation ID:** A unique identifier for the feedback request.
+*   **List of Issues:** An array of identified problems. Each issue contains:
+    *   `edge`: The side of the box with an error (`top`, `bottom`, `left`, `right`).
+    *   `status`: The type of error (`gap`, `cut_off`).
+    *   `message`: A concise, AI-generated, human-readable explanation (e.g., "There's a small gap at the top; the box should be moved up to include the rest of the car's roof.").
+
+This structured format allows the UI to consistently render feedback with appropriate visual aids (like colored overlays).
+
+---
+
+## 5. Strategies for Quality and Acceleration
+
+Improving feedback is a balance between speed and depth. Here are strategies employed by the system and recommended for users:
+
+### 5.1. System Strategies
+
+*   **Two-Stage Verification:** The system's use of a fast, rule-based check followed by a targeted AI call is a deliberate strategy. It provides the speed of deterministic rules for 90% of the analysis and reserves the more expensive (but smarter) AI for verification and nuanced language generation, accelerating the overall process.
+*   **Optimal Matching (Hungarian Algorithm):** By using a globally optimal matching algorithm instead of a simple greedy search, the system avoids cascading matching errors in dense scenes, which dramatically improves the quality and fairness of the core metrics.
+
+### 5.2. User Strategies
+
+*   **Use the `matchKey`:** If your dataset has a unique identifier for each object (e.g., a tracking ID), ensure it's configured in the `EvalSchema`. This is the fastest and most accurate way to match annotations, bypassing the need for computationally intensive IoU calculations.
+*   **Review Batch Summaries First:** Before diving into individual errors, look at the aggregate scores and critical issues. If there's a systemic problem (like consistently mislabeling 'trucks' as 'cars'), addressing that high-level misunderstanding is more efficient than fixing one box at a time.
+*   **Focus on High-Impact Errors:** Use the visual feedback to focus on annotations with significant `cut_off` or `gap` errors, as these have the largest impact on the Localization Score.
+
+---
+
+## 6. Real-World Scenario: Correcting a Bounding Box
+
+**Scenario:** A student is annotating cars in a street scene. They draw a bounding box around a car but accidentally leave a small space between the top of the box and the car's roof.
+
+1.  **Initial Evaluation:** The student runs the evaluation. The system reports a high Label Score (they correctly identified it as a "car") but a slightly lower Localization Score.
+2.  **User Action:** The student clicks on the relevant row in the "Matched" table to investigate.
+3.  **System Process (Internal):**
+    *   The frontend prepares the GT box, student box, and image data.
+    *   The `checkAllEdges` function runs locally, finding no issues on the left, right, or bottom, but identifies: `{ edge: "top", status: "gap" }`.
+    *   This provisional finding is sent to the Gemini API with the image.
+4.  **AI Verification:** The AI analyzes the image and the rule. It sees the car's roof is indeed not included in the student's box. It confirms the "gap" and generates a message.
+5.  **Final Feedback:** The user sees the car on the screen. The area between the student's box and the car's roof is highlighted with a semi-transparent blue overlay. A message appears: *"There is a small gap at the top. The bounding box should be extended to include the car's roof."*
+
+This process gives the user precise, visual, and actionable feedback, enabling them to quickly understand and fix their mistake.
