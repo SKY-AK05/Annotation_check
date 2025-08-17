@@ -330,7 +330,7 @@ export default function Home() {
                 });
             }
         
-            const initialResult = evaluateAnnotations(gtJson, evalSchema, studentAnnotations);
+            const initialResult = evaluateAnnotations(gtAnnotations, evalSchema, studentAnnotations);
             const finalResult = recalculateOverallScore({
                  ...initialResult,
                 studentFilename: studentFile.name,
