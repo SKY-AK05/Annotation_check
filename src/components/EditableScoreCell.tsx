@@ -16,12 +16,14 @@ interface EditableScoreCellProps {
 
 export function EditableScoreCell({ originalScore, overrideScore, onSave }: EditableScoreCellProps) {
     const [isEditing, setIsEditing] = useState(false);
+    // Initialize with the final score shown to the user
     const [currentValue, setCurrentValue] = useState(String(Math.round(overrideScore ?? originalScore)));
     const inputRef = useRef<HTMLInputElement>(null);
 
     const isOverridden = overrideScore !== null && overrideScore !== undefined;
 
     useEffect(() => {
+        // Always reflect the most current score when not editing
         setCurrentValue(String(Math.round(overrideScore ?? originalScore)));
     }, [originalScore, overrideScore]);
     
@@ -33,14 +35,14 @@ export function EditableScoreCell({ originalScore, overrideScore, onSave }: Edit
     }, [isEditing]);
 
     const handleSave = () => {
-        const newScore = parseInt(currentValue, 10);
-        if (!isNaN(newScore) && newScore >= 0 && newScore <= 100) {
-            // If new score is same as original, treat it as removing the override by passing null
-            if (newScore === Math.round(originalScore)) {
-                onSave(null);
-            } else {
-                onSave(newScore);
-            }
+        const newScoreNum = parseInt(currentValue, 10);
+        
+        if (!isNaN(newScoreNum) && newScoreNum >= 0 && newScoreNum <= 100) {
+            // The parent component will decide if this is an override or a reset
+            onSave(newScoreNum);
+        } else {
+            // If input is invalid, just cancel
+            handleCancel();
         }
         setIsEditing(false);
     };
@@ -57,10 +59,19 @@ export function EditableScoreCell({ originalScore, overrideScore, onSave }: Edit
             handleCancel();
         }
     }
-
+    
     const handleSaveMouseDown = (e: React.MouseEvent<HTMLButtonElement>) => {
-        e.preventDefault(); // Prevents the input from losing focus and triggering onBlur
+        e.preventDefault(); // Prevents input from losing focus and blurring before save
         handleSave();
+    };
+    
+    const handleInputBlur = () => {
+        // We use a small timeout to allow the save button's mousedown event to fire first
+        setTimeout(() => {
+            if (isEditing) {
+                handleCancel();
+            }
+        }, 150);
     };
 
     if (isEditing) {
@@ -75,7 +86,7 @@ export function EditableScoreCell({ originalScore, overrideScore, onSave }: Edit
                         value={currentValue}
                         onChange={(e) => setCurrentValue(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        onBlur={handleCancel}
+                        onBlur={handleInputBlur}
                         className="h-8 w-20 text-right"
                     />
                     <Button size="icon" variant="ghost" className="h-8 w-8" onMouseDown={handleSaveMouseDown}><Check className="h-4 w-4 text-green-500"/></Button>

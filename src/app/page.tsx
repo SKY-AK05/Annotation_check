@@ -48,43 +48,61 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if(results && Object.keys(scoreOverrides).length > 0) {
-      handleScoreOverride(null, null, null, null); // Trigger a recalculation
+    if (results) {
+      handleRecalculate();
     }
   }, [scoreOverrides]);
 
-  const handleScoreOverride = (studentFilename: string | null, imageId: number | null, annotationId: number | null, newScore: number | null) => {
-    let updatedOverrides = { ...scoreOverrides };
+  const handleRecalculate = () => {
+    if (!results) return;
+    const newResults = results.map(res => recalculateOverallScore(res, scoreOverrides));
+    setResults(newResults);
+  };
+  
+  const handleScoreOverride = (studentFilename: string, imageId: number, annotationId: number, newScore: number | null) => {
+    if (!results) return;
 
-    if (studentFilename && imageId && annotationId) {
-        if (!updatedOverrides[studentFilename]) {
-            updatedOverrides[studentFilename] = {};
+    // Find the original score to compare against
+    const result = results.find(r => r.studentFilename === studentFilename);
+    const imageResult = result?.image_results.find(ir => ir.imageId === imageId);
+    const match = imageResult?.matched.find(m => m.gt.id === annotationId);
+
+    if (!match) return;
+
+    const updatedOverrides = JSON.parse(JSON.stringify(scoreOverrides)) as ScoreOverrides;
+    
+    // Ensure nested objects exist
+    if (!updatedOverrides[studentFilename]) {
+        updatedOverrides[studentFilename] = {};
+    }
+    if (!updatedOverrides[studentFilename][imageId]) {
+        updatedOverrides[studentFilename][imageId] = {};
+    }
+
+    // If new score is null or same as original, remove the override
+    if (newScore === null || newScore === Math.round(match.originalScore)) {
+        if (updatedOverrides[studentFilename]?.[imageId]?.[annotationId]) {
+             delete updatedOverrides[studentFilename][imageId][annotationId];
         }
-        if (!updatedOverrides[studentFilename][imageId]) {
-            updatedOverrides[studentFilename][imageId] = {};
-        }
-        if (newScore === null) {
-            delete updatedOverrides[studentFilename][imageId][annotationId];
-        } else {
-            updatedOverrides[studentFilename][imageId][annotationId] = newScore;
-        }
+    } else {
+        // Otherwise, set the new override score
+        updatedOverrides[studentFilename][imageId][annotationId] = newScore;
+    }
+
+    // Clean up empty objects
+    if (Object.keys(updatedOverrides[studentFilename][imageId]).length === 0) {
+        delete updatedOverrides[studentFilename][imageId];
+    }
+    if (Object.keys(updatedOverrides[studentFilename]).length === 0) {
+        delete updatedOverrides[studentFilename];
     }
     
     setScoreOverrides(updatedOverrides);
+    
     try {
         localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedOverrides));
     } catch (error) {
         console.error("Could not save score overrides to localStorage", error);
-    }
-
-    if (results) {
-        const newResults = results.map(res => {
-            if (studentFilename === null || res.studentFilename === studentFilename) {
-                 return recalculateOverallScore(res, updatedOverrides);
-            }
-            return res;
-        });
-        setResults(newResults);
     }
   };
 
