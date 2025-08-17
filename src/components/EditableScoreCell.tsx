@@ -58,6 +58,11 @@ export function EditableScoreCell({ originalScore, overrideScore, onSave }: Edit
         }
     }
 
+    const handleSaveMouseDown = (e: React.MouseEvent<HTMLButtonElement>) => {
+        e.preventDefault(); // Prevents the input from losing focus and triggering onBlur
+        handleSave();
+    };
+
     if (isEditing) {
         return (
             <TableCell className="text-right">
@@ -73,7 +78,7 @@ export function EditableScoreCell({ originalScore, overrideScore, onSave }: Edit
                         onBlur={handleCancel}
                         className="h-8 w-20 text-right"
                     />
-                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={handleSave}><Check className="h-4 w-4 text-green-500"/></Button>
+                    <Button size="icon" variant="ghost" className="h-8 w-8" onMouseDown={handleSaveMouseDown}><Check className="h-4 w-4 text-green-500"/></Button>
                     <Button size="icon" variant="ghost" className="h-8 w-8" onClick={handleCancel}><X className="h-4 w-4 text-red-500"/></Button>
                 </div>
             </TableCell>
