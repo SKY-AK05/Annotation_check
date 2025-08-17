@@ -1,17 +1,17 @@
 
 # Annotator AI: Strategic Improvement & Feature Roadmap
 
-**Document Version:** 1.0  
-**Date:** August 17, 2024  
+**Document Version:** 1.1
+**Date:** August 17, 2024
 **Authors:** Principal Product Strategist, Lead Software Architect
 
 ## 1. Executive Summary
 
-Annotator AI has successfully established a strong foundation as an in-browser tool for annotation evaluation. Its primary value propositions—zero-cost hosting, data privacy, and ease of use for core formats like COCO and CVAT—have been well-realized. However, its browser-only architecture, while advantageous for initial adoption, presents significant limitations in performance, scalability, and user experience when handling real-world datasets.
+Annotator AI has successfully established a strong foundation as an in-browser tool for annotation evaluation. Its primary value propositions—zero-cost hosting, data privacy, and ease of use for core formats—have been well-realized. The recent implementation of a **Web Worker** architecture and **Editable Scores** has significantly fortified the platform, addressing critical performance and usability issues.
 
-This document outlines a comprehensive, multi-phased strategic plan to evolve Annotator AI from a promising utility into a robust, scalable, and professional-grade platform. The roadmap is divided into two primary phases:
+This document outlines a comprehensive, multi-phased strategic plan to evolve Annotator AI from a powerful utility into a robust, scalable, and professional-grade platform. The roadmap is divided into two primary phases:
 
-*   **Phase 1: Fortification & Enhancement (0-6 Months):** Focuses on addressing immediate performance bottlenecks, improving user experience, and enhancing developer experience. The key objective is to stabilize the current platform and make it significantly more reliable and pleasant to use for the existing feature set. This phase primarily involves client-side optimizations and foundational architectural improvements.
+*   **Phase 1: Fortification & Enhancement (0-6 Months):** Focuses on addressing the remaining architectural weaknesses identified in our code review, such as monolithic state management and the lack of data persistence. The key objective is to stabilize the current platform, improve the developer experience, and add high-value features that build on the current architecture.
 
 *   **Phase 2: Scalability & Expansion (6-24 Months):** Focuses on transitioning the core processing logic to a dedicated backend server, unlocking massive performance gains, enabling new classes of features (e.g., project management, collaboration), and establishing a robust CI/CD and testing pipeline. This phase will transform the tool into a true platform capable of handling enterprise-level workloads.
 
@@ -21,114 +21,64 @@ By executing this plan, we will not only rectify current weaknesses but also str
 
 ## 2. Core Improvements
 
-This section details critical enhancements to existing features to address immediate bottlenecks related to performance, reliability, and usability. These are primarily **Phase 1** initiatives.
+This section details critical enhancements to the existing application to address immediate bottlenecks related to performance, reliability, and usability. These are primarily **Phase 1** initiatives.
 
-### 2.1. Address UI Freezing During Heavy Computation
+### 2.1. Centralize and Modularize State Logic
 
-*   **Problem:** All file parsing, unzipping, and evaluation logic currently runs on the main browser thread. This causes the UI to become completely unresponsive (freeze) when processing large files or a high number of student submissions. This is the single most critical performance issue.
+*   **Problem:** The `page.tsx` component is monolithic, managing all state, file handling, Web Worker communication, and UI logic. This makes it difficult to maintain, debug, and test.
 *   **Severity:** **High**
-*   **Solution Strategy:** Offload all synchronous, blocking tasks to a Web Worker. This will move the heavy computation to a background thread, allowing the main UI thread to remain responsive for rendering, animations, and user input.
-
-#### **Step-by-Step Implementation Plan:**
-
-1.  **Create a Web Worker File:**
-    *   Create `src/workers/evaluation.worker.ts`. This file will house the logic for parsing and evaluation.
-
-2.  **Define Worker Communication Protocol:**
-    *   Establish a clear message-passing interface between the main thread (`page.tsx`) and the worker.
-
-    ```typescript
-    // src/workers/evaluation.worker.ts - Message types
-    interface WorkerInput {
-      type: 'EVALUATE';
-      payload: {
-        gtFileContent: string;
-        studentFiles: { name: string; content: string }[];
-        evalSchema: EvalSchema;
-        imageNames: string[];
-      };
-    }
-
-    interface WorkerOutput {
-      type: 'RESULT' | 'PROGRESS' | 'ERROR';
-      payload: any;
-    }
-    ```
-
-3.  **Relocate Logic to the Worker:**
-    *   Move the functions `evaluateAnnotations`, `parseCvatXml`, `parseCocoJson`, and the JSZip parsing logic into the worker file. The worker will listen for `EVALUATE` messages.
-
-4.  **Implement Progress Reporting:**
-    *   The worker must post `PROGRESS` messages back to the main thread after processing each student file. This is crucial for improving user experience during batch evaluations.
-
-    ```typescript
-    // src/workers/evaluation.worker.ts - Inside the worker's onmessage handler
-    // ... inside a loop over student files
-    const result = evaluateAnnotations(gt, evalSchema, student);
-    postMessage({
-      type: 'PROGRESS',
-      payload: {
-        completed: index + 1,
-        total: studentFiles.length,
-        currentFile: studentFile.name,
-      },
-    });
-    // ...
-    ```
-
-5.  **Refactor `page.tsx` to Use the Worker:**
-    *   The `handleEvaluate` function will no longer perform the evaluation directly. Instead, it will instantiate the worker, post the data to it, and listen for `RESULT`, `PROGRESS`, and `ERROR` messages to update the UI state.
-
-    ```typescript
-    // src/app/page.tsx - Conceptual refactoring
-    const handleEvaluate = async (data: FormValues) => {
-      setIsLoading(true);
-      const worker = new Worker(new URL('../workers/evaluation.worker.ts', import.meta.url));
-
-      worker.onmessage = (event: MessageEvent<WorkerOutput>) => {
-        if (event.data.type === 'RESULT') {
-          setResults(event.data.payload);
-          setIsLoading(false);
-          worker.terminate();
-        } else if (event.data.type === 'PROGRESS') {
-          // Update a progress bar state variable
-          setProgress(event.data.payload);
-        } else if (event.data.type === 'ERROR') {
-          // Display toast with error
-          toast({ title: 'Worker Error', description: event.data.payload });
-          setIsLoading(false);
-          worker.terminate();
-        }
-      };
-
-      // ... prepare file contents ...
-      worker.postMessage({ type: 'EVALUATE', payload: { ... } });
-    };
-    ```
-
-*   **Success Metric:** The UI (e.g., loading spinner) must remain 100% smooth and responsive during an evaluation of a ZIP file containing 50+ student annotation files.
-
-### 2.2. Centralize and Modularize State Logic
-
-*   **Problem:** The `page.tsx` component is monolithic, managing all state, file handling, API calls, and UI logic. This makes it difficult to maintain, debug, and test.
-*   **Severity:** **Medium**
-*   **Solution Strategy:** Refactor the component by extracting self-contained logic into custom React hooks. This follows the principle of Separation of Concerns.
+*   **Solution Strategy:** Refactor the component by extracting self-contained logic into custom React hooks. This follows the principle of Separation of Concerns and is the next logical step after offloading computation to a worker.
 
 #### **Proposed Hooks:**
 
 1.  **`useFileHandler.ts`:**
-    *   **Responsibility:** Manages all logic related to reading, parsing, and validating user-uploaded files (GT, student, images, ZIPs).
+    *   **Responsibility:** Manages all logic related to reading user-uploaded files (GT, student, images, ZIPs) and preparing them for the worker.
     *   **Exports:** `gtFileContent`, `studentFiles`, `imageUrls`, `handleGtFileChange`, `handleStudentFilesChange`, etc.
 
 2.  **`useEvaluationManager.ts`:**
-    *   **Responsibility:** Manages the entire evaluation lifecycle. It will interact with the Web Worker.
-    *   **Exports:** `results`, `isLoading`, `progress`, `runEvaluation`, `evalSchema`, `isGeneratingRules`, `handleRuleChange`.
+    *   **Responsibility:** Manages the entire evaluation lifecycle. It will instantiate and communicate with the `evaluation.worker.ts`.
+    *   **Exports:** `results`, `isLoading`, `progress`, `runEvaluation`, `error`.
 
-3.  **`useFeedbackManager.ts`:**
-    *   **Responsibility:** Manages fetching, caching, and displaying annotation-specific feedback.
-    *   **Exports:** `feedback`, `selectedAnnotation`, `handleAnnotationSelect`, `feedbackCache`.
+3.  **`useRuleManager.ts`:**
+    *   **Responsibility:** Manages the state for the `evalSchema`, including fetching it from the Genkit flow and handling user modifications.
+    *   **Exports:** `evalSchema`, `isGeneratingRules`, `handleRuleChange`.
+
+4.  **`useScoreOverrides.ts`:**
+    *   **Responsibility:** Encapsulates all logic for `localStorage` interaction, including saving and loading score overrides.
+    *   **Exports:** `scoreOverrides`, `handleScoreOverride`, `recalculateResultsWithOverrides`.
 
 *   **Success Metric:** Reduce the line count of `src/app/page.tsx` by at least 50%. Improve developer onboarding time for understanding a specific piece of logic (e.g., file handling) by 75%.
+
+### 2.2. Implement Visual Progress Indicator
+*   **Problem**: The Web Worker now sends `PROGRESS` messages, but the UI doesn't display this information visually. The user sees a generic "Evaluating..." state.
+*   **Severity**: **Medium**
+*   **Solution Strategy**: Create a `ProgressBar` component that visually represents the progress of the batch evaluation.
+
+#### **Implementation Plan**:
+1.  **Create a `Progress` state variable** in `page.tsx` (or the `useEvaluationManager` hook):
+    ```typescript
+    const [progress, setProgress] = useState<{ completed: number; total: number; currentFile: string; } | null>(null);
+    ```
+2.  **Update the worker message handler** to set this state when a `PROGRESS` message is received.
+3.  **Create a `BatchProgress` component**:
+    ```tsx
+    // components/BatchProgress.tsx
+    import { Progress } from "@/components/ui/progress";
+    
+    export function BatchProgress({ completed, total, currentFile }) {
+      const percentage = total > 0 ? (completed / total) * 100 : 0;
+      return (
+        <div>
+          <Progress value={percentage} className="w-full" />
+          <p className="text-sm text-muted-foreground mt-2">
+            Processing file {completed} of {total}: {currentFile}
+          </p>
+        </div>
+      );
+    }
+    ```
+4.  **Conditionally render** this component in `ResultsDashboard.tsx` when `isLoading` is true.
+*   **Success Metric:** User satisfaction increases, and perceived wait time during batch evaluations decreases, as measured by user feedback.
 
 ---
 
@@ -152,9 +102,9 @@ This section outlines new features to expand the tool's capabilities, categorize
 
 #### **NF-01: Project Persistence & History (High Priority)**
 
-*   **Description:** Users frequently need to close their browser and return to an evaluation later. This feature will automatically save the current session (uploaded GT file, images, generated rules, and results) to the browser's local storage. On revisiting the app, it will offer to restore the previous session.
+*   **Description:** Users frequently need to close their browser and return to an evaluation later. This feature will automatically save the current session (uploaded GT file, images, generated rules, and results) to the browser's storage. On revisiting the app, it will offer to restore the previous session.
 *   **Rationale:** Drastically improves usability and prevents data loss from accidental page reloads or crashes. This is a standard feature for any serious productivity tool.
-*   **Technical Feasibility:** High. `localStorage` is ideal for storing smaller data like the `evalSchema`. `IndexedDB` is a robust client-side database perfect for storing larger blobs like file contents and full evaluation results.
+*   **Technical Feasibility:** High. `localStorage` is ideal for storing smaller data like the `evalSchema` and file handles (if using the File System Access API). `IndexedDB` is a robust client-side database perfect for storing larger blobs like the full `EvaluationResult[]` object.
 *   **Implementation Sketch (using `IndexedDB`):**
     ```javascript
     // lib/storage.ts
@@ -168,6 +118,7 @@ This section outlines new features to expand the tool's capabilities, categorize
 
     export async function saveSession(sessionData) {
       const db = await dbPromise;
+      // Saves the entire state object under a single key.
       await db.put('sessions', sessionData, 'lastSession');
     }
 
@@ -260,7 +211,7 @@ Improving the development environment is key to attracting contributors and incr
     1.  **Unit Tests:** For all pure logic in `src/lib/` and `src/workers/`. These are fast and easy to write.
         *   **Example (`evaluator.spec.ts`):**
           ```typescript
-          import { calculateIoU } from './evaluator';
+          import { calculateIoU, recalculateOverallScore } from './evaluator';
           import { describe, it, expect } from 'vitest';
 
           describe('calculateIoU', () => {
@@ -273,11 +224,14 @@ Improving the development environment is key to attracting contributors and incr
               const boxB = [20, 20, 10, 10];
               expect(calculateIoU(boxA, boxB)).toBe(0);
             });
-            // ... more cases
+          });
+
+          describe('recalculateOverallScore', () => {
+              // ... test cases for score overrides ...
           });
           ```
-    2.  **Component Tests:** For key UI components like `RuleConfiguration` and `ResultsDashboard` to ensure they render correctly given different props.
-    3.  **Integration Tests:** Test the interaction between components and hooks (e.g., does clicking "Run Evaluation" correctly call the `useEvaluationManager` hook?).
+    2.  **Component Tests:** For key UI components like `RuleConfiguration` and `EditableScoreCell` to ensure they render correctly and handle user input.
+    3.  **Integration Tests:** Test the interaction between components and hooks (e.g., does clicking "Run Evaluation" correctly call the `useEvaluationManager` hook and post a message to the worker?).
 
 *   **Success Metric:** Achieve >80% test coverage for all utility and logic files. Achieve >70% coverage for critical UI components.
 
@@ -342,7 +296,7 @@ The improvements in Phase 1 will significantly enhance the current application. 
 
 ### 6.1. Transition to a Backend-for-Frontend (BFF) Architecture
 
-*   **Problem:** The browser-only architecture has fundamental limits on dataset size and processing power.
+*   **Problem:** The browser-only architecture has fundamental limits on dataset size and processing power, even with a Web Worker.
 *   **Solution:** Introduce a dedicated Node.js (Express or Fastify) backend server to handle all heavy lifting. This is the **most important long-term upgrade** for the project.
 
 #### **Architecture Diagram: Target State**
@@ -447,9 +401,9 @@ Defining and tracking KPIs is essential to measure the impact of these improveme
 
 | Area                    | KPI                                       | Current Baseline (Estimate) | Target (12 Months) | Measurement Tool        |
 | :---------------------- | :---------------------------------------- | :-------------------------- | :----------------- | :---------------------- |
-| **Performance**         | UI Freeze Time (50-file batch)            | 5-15 seconds                | < 100ms            | Browser Performance API |
+| **Performance**         | UI Freeze Time (50-file batch)            | < 100ms                     | < 100ms            | Browser Performance API |
 | **Performance**         | P95 Evaluation Latency (Server)           | N/A                         | < 5 seconds        | Backend APM (Sentry)    |
-| **Reliability**         | Weekly Production Bug Reports             | 2-3                         | < 0.5              | GitHub Issues           |
+| **Reliability**         | Weekly Production Bug Reports             | 1-2                         | < 0.5              | GitHub Issues           |
 | **Developer Velocity**  | Average PR Merge Time                     | 3 days                      | < 1 day            | GitHub Metrics          |
 | **Developer Quality**   | Test Coverage                             | 0%                          | 80%                | Vitest Coverage Report  |
 | **User Adoption**       | Weekly Active Users                       | TBD                         | +200%              | Web Analytics (Vercel)  |

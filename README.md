@@ -7,6 +7,8 @@ A powerful, in-browser tool for evaluating image annotations with detailed, AI-d
 
 Annotator AI provides a robust suite of features designed to make the evaluation of image annotation quality fast, accurate, and insightful.
 
+*   **⚡ High-Performance Processing**: Utilizes **Web Workers** to run all heavy-duty file parsing and evaluation in the background. This ensures the user interface remains 100% responsive, even when evaluating hundreds of files in a single batch.
+*   **✍️ Editable Scores**: Trainers can override the automated score for any matched annotation. The overall evaluation results and feedback update instantly. Overrides are persisted in the browser's local storage and included in detailed CSV reports.
 *   **📊 Batch Evaluation**: Seamlessly upload and evaluate multiple student annotation files at once against a single ground truth file. The tool is optimized for workflows common in academic settings and data labeling quality assurance.
 *   **🧩 Multiple Annotation Formats**: Native support for various annotation types to cover diverse use cases:
     *   **Bounding Boxes**: For object detection tasks.
@@ -40,7 +42,9 @@ Annotator AI provides a robust suite of features designed to make the evaluation
 
 ## 🏛️ Architecture Overview
 
-Annotator AI is currently architected as a **standalone in-browser application**. This serverless design was chosen to maximize user privacy (no data ever leaves your machine) and eliminate hosting costs. All processing happens directly on the client-side. While this approach is ideal for smaller datasets and getting started quickly, please see our architectural roadmap for plans to support larger-scale evaluations via a backend server.
+Annotator AI is currently architected as a **standalone in-browser application**. This serverless design was chosen to maximize user privacy (no data ever leaves your machine) and eliminate hosting costs. 
+
+To handle intensive computations without freezing the user interface, the application leverages a **Web Worker**. All heavy tasks—such as unzipping files, parsing large annotation data, and running the evaluation algorithms—are offloaded to this background thread. The main UI thread is responsible only for rendering the interface and managing user interactions, ensuring a smooth and responsive experience even with large datasets. While this approach is ideal for smaller datasets and getting started quickly, please see our architectural roadmap for plans to support larger-scale evaluations via a backend server.
 
 The application leverages **Genkit** and Google's **Gemini** models for its AI-powered features, specifically for schema extraction and logic generation. The UI is built with **ShadCN** components for a polished and accessible user experience.
 
@@ -49,19 +53,26 @@ The application leverages **Genkit** and Google's **Gemini** models for its AI-p
 1.  **File Upload & Parsing**: The user begins by uploading a ground truth (GT) annotation file. This can be a COCO JSON, a CVAT XML, or a ZIP archive containing annotations and images. The application uses client-side JavaScript libraries (`JSZip`, `DOMParser`) to read and parse these files directly in the browser. All image data is converted to local blob URLs for rendering.
 2.  **AI Schema Extraction**: The text content of the GT file is passed to a `Genkit` flow. This flow communicates with the Gemini API, which analyzes the structure and content of the annotations. The model's task is to identify all unique object labels, their associated attributes (e.g., "color," "occlusion"), and a potential unique identifier (`matchKey`) that can be used to pair annotations. It returns this information as a structured JSON object called `EvalSchema`.
 3.  **Rule Configuration**: The `EvalSchema` is stored in the React component's state. The UI then displays the extracted labels, attributes, and a human-readable pseudocode representation of the evaluation logic. The user can review this logic and choose to modify it by either providing new plain-text instructions or by editing the pseudocode directly. Submitting these changes triggers the Genkit flow again to regenerate the `EvalSchema`.
-4.  **Student Evaluation**: The user uploads one or more student annotation files. The application's core evaluation engine (`evaluator.ts`) then runs. It takes the parsed GT data, the parsed student data, and the configured `EvalSchema` as input. It performs a multi-stage matching process:
-    *   First, it attempts to match GT and student annotations using the `matchKey` if provided.
-    *   For any remaining unmatched annotations, it falls back to a bipartite matching algorithm based on IoU (Intersection over Union) to find the most optimal pairs.
-5.  **Scoring and Results Generation**: For each matched pair, the engine calculates IoU, label accuracy, and attribute similarity. It also identifies all missed (unmatched GT) and extra (unmatched student) annotations. These metrics are aggregated to compute a final score for each student file. The entire result is compiled into an `EvaluationResult` object.
-6.  **Results Display & Feedback**: The `EvaluationResult` objects are passed to the `ResultsDashboard` component. This component displays a summary table and a detailed, expandable breakdown for each student. When an annotation is selected for inspection, the rule-based feedback engine (`annotation-feedback-flow.ts`) instantly calculates geometric discrepancies (`gaps`/`cut-offs`) and provides immediate visual and textual feedback.
+4.  **Student Evaluation in Web Worker**: When the user clicks "Run Evaluation", the main UI thread sends all the necessary data (GT file content, student file contents, and the `EvalSchema`) to a Web Worker.
+5.  **Background Processing**: The Web Worker performs all heavy lifting:
+    *   It parses each student's annotation files.
+    *   It runs the core evaluation engine (`evaluator.ts`), which performs a multi-stage matching process:
+        *   First, it attempts to match GT and student annotations using the `matchKey` if provided.
+        *   For any remaining unmatched annotations, it falls back to a bipartite matching algorithm based on IoU (Intersection over Union) to find the most optimal pairs.
+    *   For each student file processed, it sends a `progress` message back to the main thread.
+6.  **Scoring and Results Generation**: For each matched pair, the engine calculates IoU, label accuracy, and attribute similarity. It also identifies all missed (unmatched GT) and extra (unmatched student) annotations. These metrics are aggregated to compute a final score for each student file. The entire result is compiled into an `EvaluationResult` object.
+7.  **Display Results & Handle Overrides**: Once the worker finishes, it sends the final `EvaluationResult[]` back to the main thread.
+    *   The `ResultsDashboard` component displays a summary table and a detailed breakdown.
+    *   If a trainer edits a score, the change is saved to `localStorage`, and the student's overall score is instantly recalculated.
+8.  **Detailed Feedback**: When an annotation is selected for inspection, the rule-based feedback engine (`annotation-feedback-flow.ts`) instantly calculates geometric discrepancies (`gaps`/`cut-offs`) and provides immediate visual and textual feedback.
 
 ## 📊 Data Flow Diagram
 
-This diagram illustrates the complete data flow within the browser.
+This diagram illustrates the complete data flow within the browser, including the Web Worker.
 
 ```mermaid
 graph TD
-    subgraph "1. Setup & Configuration"
+    subgraph "Main UI Thread"
         A[User uploads Ground Truth file] --> B{Parse File & Extract Content};
         B --> C[Genkit Flow: extractEvalSchema];
         C -- GT Content --> D[Gemini API];
@@ -69,23 +80,26 @@ graph TD
         E --> F[Display Rules & Pseudocode in UI];
         G[User edits rules via UI] --> H{Update EvalSchema State};
         H --> E;
-    end
-
-    subgraph "2. Evaluation"
-        I[User uploads Student files & Images] --> J{Parse Student Files};
-        E --> K[Run Evaluation Engine];
-        J --> K;
-        K -- GT & Student Data + Schema --> L[Calculate Scores, IoU, Matches, etc.];
-        L --> M[Store EvaluationResult in State];
-    end
-
-    subgraph "3. Results & Feedback"
+        I[User uploads Student files & Images] --> J[Prepare Data for Worker];
+        J -- 'EVALUATE' message --> K((Web Worker));
+        K -- 'PROGRESS' message --> L[Update Progress Bar];
+        K -- 'RESULT' message --> M[Store EvaluationResult in State];
         M --> N[Display Results Dashboard];
         O[User selects an annotation] --> P{Get Annotation Data};
         P --> Q[Rule-Based Feedback Engine];
         Q -- Instant Feedback --> R[Display Feedback & Visual Overlay];
+        S[User edits a score] --> T{Save to localStorage & Recalculate};
+        T --> M;
     end
 
+    subgraph "Background Thread"
+        K --> W1[Unzip & Parse Student Files];
+        W1 --> W2[Run Core Evaluation Engine];
+        W2 --> W3[Calculate Scores, IoU, Matches];
+        W3 --> K;
+    end
+
+    style K fill:#FFB347,stroke:#333
     style D fill:#4285F4,stroke:#fff,color:#fff
     style C fill:#fbbc05,stroke:#fff,color:#333
 ```
@@ -136,11 +150,54 @@ To run this project locally, you will need Node.js and npm installed.
     *   Directly edit the Python-like pseudocode for fine-grained control and click "Apply Pseudocode Changes".
 5.  **Upload Student Files**: In the "Student Annotations" section, upload one or more student submission files. You can multi-select files or provide a single ZIP archive containing multiple student files.
 6.  **Upload Images (if needed)**: If your images were not included in the Ground Truth ZIP, upload them in the "Original Images" section.
-7.  **Run Evaluation**: Click the "Run Evaluation" button to start the process.
+7.  **Run Evaluation**: Click the "Run Evaluation" button to start the process. A progress bar will show the status of the batch evaluation.
 8.  **Review Results**: The dashboard will populate with a batch summary table and detailed, expandable accordions for each student file.
     *   Click on any student's accordion to see their overall score, feedback, and a per-image breakdown.
     *   Within an image breakdown, click on any row in the "Matched", "Missed," or "Extra" tables to highlight that specific annotation in the interactive viewer.
     *   The viewer provides instant rule-based feedback (gaps/cut-offs) and visual overlays.
+    *   **To edit a score**, simply click on the score value in the "Matched" table. An input box will appear. Enter a new score between 0 and 100 and click the checkmark to save. The student's overall score will update automatically.
+
+## 💯 Score Calculation Explained
+
+The final score is a comprehensive metric designed to provide a holistic view of the student's annotation quality. It is not based on a single value but is a weighted blend of different aspects of the annotation task.
+
+The scoring algorithm can be broken down into two main parts:
+
+1.  **Individual Match Score**: The quality of each correctly matched annotation pair (one from the ground truth, one from the student).
+2.  **Overall Submission Score**: The final grade for the entire student submission, which considers the quality of matches and penalizes for any missed or extra annotations.
+
+### 1. The Individual Match Score
+
+For every GT annotation that is successfully matched to a student annotation, a score from 0 to 100 is calculated. This score has three components:
+
+*   **Localization Accuracy (50% weight)**: How well did the student's bounding box overlap with the ground truth box? This is measured using **Intersection over Union (IoU)**. An IoU of 1.0 (a perfect overlap) contributes 50 points to the match score. An IoU of 0.0 contributes 0 points.
+*   **Label Accuracy (30% weight)**: Did the student assign the correct class label (e.g., 'car' vs. 'truck')? If the label is correct, they get 30 points. If it's incorrect, they get 0 points for this component.
+*   **Attribute Accuracy (20% weight)**: How well did the student's attributes (e.g., color='blue', occluded='true') match the ground truth? For each text-based attribute, a similarity score is calculated. The average of these similarities is then weighted to contribute up to 20 points.
+
+#### Example Match Score Calculation:
+
+*   A student annotates a 'car'.
+*   The IoU with the GT is **0.80**.
+*   The label is **'car'**, which is correct.
+*   The GT has an attribute `color='red'`, but the student wrote `color='maroon'`. The similarity is calculated as 86% (0.86).
+
+The score for this single match would be:
+`Score = (0.80 * 50) + (1 * 30) + (0.86 * 20) = 40 + 30 + 17.2 = **87.2**`
+
+This is the **Original Score**. If a trainer manually overrides this, the new value becomes the **Final Score** for that specific match.
+
+### 2. The Overall Submission Score
+
+The final score you see on the dashboard is calculated using two main inputs:
+
+*   **Average Match Quality (50% weight)**: This is the average of all the final scores (including any trainer overrides) for every matched annotation. It represents the quality of the work the student actually did.
+*   **Completeness (50% weight)**: This metric evaluates how well the student covered all required annotations without adding unnecessary ones. It is calculated using an **F-beta score**, which is a standard industry metric that balances:
+    *   **Precision**: Of all the annotations the student made, how many were correct? (Penalizes for extra annotations).
+    *   **Recall**: Of all the annotations that *should* have been made, how many did the student find? (Penalizes for missed annotations).
+
+The F-beta score is configured to weigh precision slightly higher than recall, discouraging students from making many low-quality guesses.
+
+This two-part final score ensures that a student who perfectly annotates only half the objects doesn't get the same grade as a student who finds all the objects but does a mediocre job on each. It balances quality and completeness.
 
 ## 🔧 Configuration
 
@@ -188,3 +245,4 @@ This project is licensed under the **Apache-2.0 License**. See the `LICENSE` fil
 
 *   **Issues**: If you encounter a bug or have a feature request, please [open an issue](https://github.com/your-username/your-repo/issues) on GitHub.
 *   **Questions**: For general questions or discussions, please use the [GitHub Discussions](https://github.com/your-username/your-repo/discussions) tab.
+
