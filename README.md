@@ -40,7 +40,7 @@ Annotator AI provides a robust suite of features designed to make the evaluation
 
 ## 🏛️ Architecture Overview
 
-Annotator AI is architected as a **standalone in-browser application**, built with a modern web stack: Next.js, React, and Tailwind CSS. A key design principle is that **there is no backend server**. All data processing, file parsing, and evaluation happens securely on the client-side in the user's browser. This serverless design ensures absolute user data privacy and eliminates the need for server maintenance and costs.
+Annotator AI is currently architected as a **standalone in-browser application**. This serverless design was chosen to maximize user privacy (no data ever leaves your machine) and eliminate hosting costs. All processing happens directly on the client-side. While this approach is ideal for smaller datasets and getting started quickly, please see our architectural roadmap for plans to support larger-scale evaluations via a backend server.
 
 The application leverages **Genkit** and Google's **Gemini** models for its AI-powered features, specifically for schema extraction and logic generation. The UI is built with **ShadCN** components for a polished and accessible user experience.
 
@@ -139,7 +139,7 @@ To run this project locally, you will need Node.js and npm installed.
 7.  **Run Evaluation**: Click the "Run Evaluation" button to start the process.
 8.  **Review Results**: The dashboard will populate with a batch summary table and detailed, expandable accordions for each student file.
     *   Click on any student's accordion to see their overall score, feedback, and a per-image breakdown.
-    *   Within an image breakdown, click on any row in the "Matched", "Missed", or "Extra" tables to highlight that specific annotation in the interactive viewer.
+    *   Within an image breakdown, click on any row in the "Matched", "Missed," or "Extra" tables to highlight that specific annotation in the interactive viewer.
     *   The viewer provides instant rule-based feedback (gaps/cut-offs) and visual overlays.
 
 ## 🔧 Configuration
@@ -160,6 +160,8 @@ We have an exciting roadmap of features planned to make Annotator AI even more p
 *   [ ] **Enhanced Visualization**: Implement more detailed feedback visualization options, such as heatmaps for polygon deviation or vector fields for keypoint drift.
 *   [ ] **CI/CD**: Add GitHub Actions for automated testing (unit and integration tests) and linting to ensure code quality and stability.
 *   [ ] **Web Worker Integration**: Move heavy-duty file parsing and evaluation logic into a Web Worker to ensure the UI remains 100% responsive even with very large datasets.
+
+For a detailed breakdown of our strategic improvement plan, including technical feasibility and long-term vision, please see our complete [Feature Roadmap document](./features.md).
 
 ## 🤝 Contributing
 

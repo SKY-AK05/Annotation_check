@@ -53,6 +53,7 @@ This report identifies key issues across ten domains and provides actionable rec
 #### Issue 2.1: UI Freezing During Heavy Computation
 *   **Severity:** High
 *   **Problem:** All file parsing (including unzipping archives) and the entire evaluation loop (`evaluateAnnotations`) run on the main browser thread. For large datasets or many student files, this will block the UI, making the application unresponsive and appear frozen.
+*   **User Impact:** When a user uploads a large file, the application will completely freeze. The user will be unable to click buttons or even see a loading animation, leading them to believe the application has crashed. This creates a frustrating and untrustworthy experience.
 *   **Solution:** Offload all heavy processing to a **Web Worker**. The UI thread should only be responsible for sending data to the worker and receiving the final results.
     1.  Create a new file `src/lib/worker.ts`.
     2.  Move file parsing, unzipping (`JSZip`), and the `evaluateAnnotations` function calls into this worker.
@@ -90,6 +91,7 @@ This report identifies key issues across ten domains and provides actionable rec
 #### Issue 3.1: Browser Memory Limits
 *   **Severity:** High
 *   **Problem:** The application's ability to handle large datasets is fundamentally limited by the RAM available to the browser tab. Storing multiple large annotation files, image blob URLs, and full result objects in memory can easily lead to browser crashes for datasets exceeding a few hundred megabytes.
+*   **User Impact:** A user attempting to evaluate a large, real-world dataset may find that their browser tab becomes slow, unresponsive, or crashes entirely, resulting in a complete loss of their work and a perception that the tool is unreliable.
 *   **Solution:** While a full backend is the ultimate solution, an in-browser mitigation is to process files sequentially and discard intermediate data. When processing a ZIP of student files, read and evaluate one file at a time, store only the summary result, and then release the file content from memory before processing the next.
 *   **Improvement Metric:** Increase the maximum processable dataset size by 2x-3x before browser instability occurs.
 
@@ -100,6 +102,7 @@ This report identifies key issues across ten domains and provides actionable rec
 #### Issue 4.1: Direct Client-Side API Key Exposure Risk
 *   **Severity:** High
 *   **Problem:** The `GEMINI_API_KEY` is intended to be used on the client-side in this architecture. While Google AI Studio keys are often restricted, this is a poor security practice. If the key restrictions are misconfigured or loosened, it could be abused by malicious users, leading to unexpected costs.
+*   **User Impact:** A malicious actor could steal the API key from the browser's network traffic and use it for their own purposes, potentially leading to significant and unexpected financial costs for the project owner.
 *   **Solution:** The robust solution is to proxy API calls through a backend server that holds the key. However, for a browser-only app, the next best thing is to implement stringent API key restrictions in the Google Cloud console. The `README.md` must be updated with a **critical security warning** and a clear guide on how to restrict the key to the specific HTTP referrer (the app's domain).
 *   **Improvement Metric:** Reduce the risk of API key abuse to near-zero.
 
@@ -110,9 +113,11 @@ This report identifies key issues across ten domains and provides actionable rec
 #### Issue 5.1: Single Point of Failure (Browser as Server)
 *   **Severity:** High
 *   **Problem:** The entire application's state and processing logic reside within a single browser tab. If the user accidentally closes the tab, a browser crash occurs, or the page is refreshed, all ongoing work and results are lost instantly. There is no persistence.
+*   **User Impact:** Users can lose significant amounts of work due to common browser events. For example, a 20-minute evaluation session could be wiped out by an accidental page refresh, severely damaging user trust and willingness to use the tool for serious tasks.
 *   **Solution:** Implement session persistence using browser storage.
     *   **`localStorage`:** For important but non-sensitive data like the `evalSchema`. This would allow the user to refresh the page and not have to re-upload the GT file to generate rules.
     *   **`IndexedDB`:** For large data like evaluation results. After an evaluation completes, the results object could be saved to `IndexedDB`. The app could then be designed to load results from this database on startup, allowing a user to come back to a previous session.
+    * **Further Reading:** For a detailed implementation sketch using `IndexedDB`, see **Feature NF-01: Project Persistence & History** in the [strategic improvement plan](./features.md).
 *   **Improvement Metric:** Achieve 100% session recovery after a page refresh.
 
 ---
@@ -128,6 +133,7 @@ This report identifies key issues across ten domains and provides actionable rec
 #### Issue 6.2: Hidden State Reset on Tab Change
 *   **Severity:** High
 *   **Problem:** The evaluation mode is managed by a top-level radio group. Switching modes (e.g., from "Bounding Box" to "Polygon") completely unmounts the previous component, losing all state, including uploaded files and generated rules. This is confusing and frustrating.
+*   **User Impact:** A user might spend time uploading a GT file and configuring evaluation rules, only to lose all that work by accidentally clicking on a different evaluation mode. This is unexpected and discouraging behavior.
 *   **Solution:** Lift the core state (like `gtFileContent`, `evalSchema`, and `results`) higher up in the component tree so it is not destroyed when switching tabs. Alternatively, use CSS to show/hide the different page components instead of conditionally rendering them, which would preserve their state.
 *   **Improvement Metric:** Ensure zero state loss when switching between evaluation modes.
 
@@ -158,6 +164,7 @@ This report identifies key issues across ten domains and provides actionable rec
 #### Issue 9.1: Zero Automated Test Coverage
 *   **Severity:** High
 *   **Problem:** There are no unit, integration, or end-to-end tests. This makes it impossible to refactor code or add new features with confidence, as any change could break existing functionality. The current manual testing process is not scalable or reliable.
+*   **User Impact:** Without automated tests, new features or bug fixes can easily introduce regressions (re-breaking things that used to work). This leads to an unstable and unreliable tool for the end-user.
 *   **Solution:**
     *   **Unit Tests (Jest/Vitest):** Start by writing unit tests for the pure logic functions like `calculateIoU`, `parseCvatXml`, and the `evaluator` module. These are the easiest to test and form the core of the application.
     *   **Component Tests (React Testing Library):** Add tests for key components like `RuleConfiguration` to ensure they render correctly based on props.

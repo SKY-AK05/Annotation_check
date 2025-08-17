@@ -138,15 +138,15 @@ This section outlines new features to expand the tool's capabilities, categorize
 
 ### 3.1. New Features Summary Table
 
-| Feature ID | Feature Name                        | Description                                                               | Priority | Feasibility | Estimated Effort |
-| :--------- | :---------------------------------- | :------------------------------------------------------------------------ | :------- | :---------- | :--------------- |
-| **NF-01**  | Project Persistence & History       | Save and load evaluation sessions using browser's `localStorage`/`IndexedDB`. | **High** | High        | Medium (Phase 1) |
-| **NF-02**  | Advanced Skeleton Evaluation        | Support for custom keypoint connection templates and sigmas.              | **High** | Medium      | Medium (Phase 1) |
-| **NF-03**  | Rule Schema Export/Import           | Allow users to save and load their `EvalSchema` as a JSON file.         | **Medium** | High        | Low (Phase 1)    |
-| **NF-04**  | AI-Assisted Scoring Fallback        | Use Genkit to score annotations if the rule-based engine fails.          | **Medium** | Medium      | Medium (Phase 1) |
-| **NF-05**  | Team-Based Projects & RBAC          | Full backend feature for collaborative projects with role-based access.     | **High** | High        | Large (Phase 2)  |
-| **NF-06**  | Annotation Editor                   | Allow users to correct student annotations directly in the viewer.        | **Medium** | Medium      | Large (Phase 2)  |
-| **NF-07**  | Webhook & API Access                | Provide APIs for programmatic evaluation and webhooks for notifications. | **Low**    | High        | Large (Phase 2)  |
+| Feature ID | Feature Name                        | Description                                                               | Priority | Feasibility | Estimated Effort | Dependencies / Risks                                               |
+| :--------- | :---------------------------------- | :------------------------------------------------------------------------ | :------- | :---------- | :--------------- | :----------------------------------------------------------------- |
+| **NF-01**  | Project Persistence & History       | Save and load evaluation sessions using browser's `localStorage`/`IndexedDB`. | **High** | High        | Medium (Phase 1) | Requires careful state management to avoid data corruption.        |
+| **NF-02**  | Advanced Skeleton Evaluation        | Support for custom keypoint connection templates and sigmas.              | **High** | Medium      | Medium (Phase 1) | UI for custom skeleton editor can be complex.                      |
+| **NF-03**  | Rule Schema Export/Import           | Allow users to save and load their `EvalSchema` as a JSON file.         | **Medium** | High        | Low (Phase 1)    | Minimal risk.                                                      |
+| **NF-04**  | AI-Assisted Scoring Fallback        | Use Genkit to score annotations if the rule-based engine fails.          | **Medium** | Medium      | Medium (Phase 1) | Dependent on third-party API costs and rate limits.                |
+| **NF-05**  | Team-Based Projects & RBAC          | Full backend feature for collaborative projects with role-based access.     | **High** | High        | Large (Phase 2)  | **Hard Dependency**: Requires Phase 2 backend & NF-07 (Auth).      |
+| **NF-06**  | Annotation Editor                   | Allow users to correct student annotations directly in the viewer.        | **Medium** | Medium      | Large (Phase 2)  | **Hard Dependency**: Requires Phase 2 backend for saving changes.  |
+| **NF-07**  | Webhook & API Access                | Provide APIs for programmatic evaluation and webhooks for notifications. | **Low**    | High        | Large (Phase 2)  | **Hard Dependency**: Requires Phase 2 backend.                     |
 
 ### 3.2. Detailed Feature Descriptions
 
@@ -336,7 +336,9 @@ jobs:
 
 ## 6. Scalability & Performance Upgrades (Phase 2)
 
-This section focuses on the long-term vision of moving to a backend-centric architecture.
+### The In-Browser Performance Ceiling
+
+The improvements in Phase 1 will significantly enhance the current application. However, as identified in our architectural review, a browser-only model has fundamental limits on dataset size and processing power. To evolve Annotator AI from a utility into a truly professional-grade platform capable of handling enterprise workloads, a transition to a backend-for-frontend (BFF) architecture is essential. This phase represents the most important long-term investment in the project's future.
 
 ### 6.1. Transition to a Backend-for-Frontend (BFF) Architecture
 
