@@ -35,8 +35,8 @@ export function EditableScoreCell({ originalScore, overrideScore, onSave }: Edit
     const handleSave = () => {
         const newScore = parseInt(currentValue, 10);
         if (!isNaN(newScore) && newScore >= 0 && newScore <= 100) {
+            // If new score is same as original, treat it as removing the override by passing null
             if (newScore === Math.round(originalScore)) {
-                // If new score is same as original, treat it as removing the override
                 onSave(null);
             } else {
                 onSave(newScore);
