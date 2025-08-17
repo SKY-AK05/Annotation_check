@@ -46,8 +46,6 @@ Annotator AI is currently architected as a **standalone in-browser application**
 
 To handle intensive computations without freezing the user interface, the application leverages a **Web Worker**. All heavy tasks—such as unzipping files, parsing large annotation data, and running the evaluation algorithms—are offloaded to this background thread. The main UI thread is responsible only for rendering the interface and managing user interactions, ensuring a smooth and responsive experience even with large datasets. While this approach is ideal for smaller datasets and getting started quickly, please see our architectural roadmap for plans to support larger-scale evaluations via a backend server.
 
-The application leverages **Genkit** and Google's **Gemini** models for its AI-powered features, specifically for schema extraction and logic generation. The UI is built with **ShadCN** components for a polished and accessible user experience.
-
 ### Core Workflow:
 
 1.  **File Upload & Parsing**: The user begins by uploading a ground truth (GT) annotation file. This can be a COCO JSON, a CVAT XML, or a ZIP archive containing annotations and images. The application uses client-side JavaScript libraries (`JSZip`, `DOMParser`) to read and parse these files directly in the browser. All image data is converted to local blob URLs for rendering.
@@ -245,4 +243,3 @@ This project is licensed under the **Apache-2.0 License**. See the `LICENSE` fil
 
 *   **Issues**: If you encounter a bug or have a feature request, please [open an issue](https://github.com/your-username/your-repo/issues) on GitHub.
 *   **Questions**: For general questions or discussions, please use the [GitHub Discussions](https://github.com/your-username/your-repo/discussions) tab.
-
