@@ -1,14 +1,15 @@
 
+
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import JSZip from 'jszip';
 import { useToast } from "@/hooks/use-toast";
 import { ResultsDashboard } from '@/components/ResultsDashboard';
 import { AnnotatorAiLogo } from '@/components/AnnotatorAiLogo';
-import type { EvaluationResult, FormValues, CocoJson, SelectedAnnotation, Feedback } from '@/lib/types';
-import { evaluateAnnotations } from '@/lib/evaluator';
-import { parseCvatXml, parseCvatXmlForPolygons } from '@/lib/cvat-xml-parser';
+import type { EvaluationResult, FormValues, CocoJson, SelectedAnnotation, Feedback, ScoreOverrides } from '@/lib/types';
+import { evaluateAnnotations, recalculateOverallScore } from '@/lib/evaluator';
+import { parseCvatXml } from '@/lib/cvat-xml-parser';
 import { extractEvalSchema } from '@/ai/flows/extract-eval-schema';
 import type { EvalSchema, EvalSchemaInput } from '@/lib/types';
 import SkeletonAnnotationPage from '@/components/SkeletonAnnotationPage';
@@ -18,6 +19,8 @@ import { BoxSelect, Bone, Spline } from 'lucide-react';
 import PolygonAnnotationPage from '@/components/PolygonAnnotationPage';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { getAnnotationFeedback } from '@/ai/flows/annotation-feedback-flow';
+
+const LOCAL_STORAGE_KEY = 'annotator-ai-score-overrides';
 
 export default function Home() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -30,7 +33,61 @@ export default function Home() {
   const [selectedAnnotation, setSelectedAnnotation] = useState<SelectedAnnotation | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [feedbackCache, setFeedbackCache] = useState<Map<string, Feedback>>(new Map());
+  const [scoreOverrides, setScoreOverrides] = useState<ScoreOverrides>({});
   const { toast } = useToast();
+
+  useEffect(() => {
+    try {
+        const savedOverrides = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (savedOverrides) {
+            setScoreOverrides(JSON.parse(savedOverrides));
+        }
+    } catch (error) {
+        console.error("Could not load score overrides from localStorage", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    if(results && Object.keys(scoreOverrides).length > 0) {
+      handleScoreOverride(null, null, null, null); // Trigger a recalculation
+    }
+  }, [scoreOverrides]);
+
+  const handleScoreOverride = (studentFilename: string | null, imageId: number | null, annotationId: number | null, newScore: number | null) => {
+    let updatedOverrides = { ...scoreOverrides };
+
+    if (studentFilename && imageId && annotationId) {
+        if (!updatedOverrides[studentFilename]) {
+            updatedOverrides[studentFilename] = {};
+        }
+        if (!updatedOverrides[studentFilename][imageId]) {
+            updatedOverrides[studentFilename][imageId] = {};
+        }
+        if (newScore === null) {
+            delete updatedOverrides[studentFilename][imageId][annotationId];
+        } else {
+            updatedOverrides[studentFilename][imageId][annotationId] = newScore;
+        }
+    }
+    
+    setScoreOverrides(updatedOverrides);
+    try {
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedOverrides));
+    } catch (error) {
+        console.error("Could not save score overrides to localStorage", error);
+    }
+
+    if (results) {
+        const newResults = results.map(res => {
+            if (studentFilename === null || res.studentFilename === studentFilename) {
+                 return recalculateOverallScore(res, updatedOverrides);
+            }
+            return res;
+        });
+        setResults(newResults);
+    }
+  };
+
 
   const handleGtFileChange = async (file: File | undefined) => {
     if (!file) {
@@ -273,11 +330,13 @@ export default function Home() {
                 });
             }
         
-            const manualResult = evaluateAnnotations(gtAnnotations, evalSchema, studentAnnotations);
-            batchResults.push({
-                ...manualResult,
+            const initialResult = evaluateAnnotations(gtJson, evalSchema, studentAnnotations);
+            const finalResult = recalculateOverallScore({
+                 ...initialResult,
                 studentFilename: studentFile.name,
-            });
+            }, scoreOverrides);
+
+            batchResults.push(finalResult);
         }
         
         setResults(batchResults);
@@ -440,6 +499,7 @@ export default function Home() {
                   selectedAnnotation={selectedAnnotation}
                   onAnnotationSelect={handleAnnotationSelect}
                   feedback={feedback}
+                  onScoreOverride={handleScoreOverride}
               />
           ) : evaluationMode === 'skeleton' ? (
               <SkeletonAnnotationPage />

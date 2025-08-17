@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from 'react';
@@ -11,11 +12,12 @@ import type { BboxAnnotation, EvaluationResult, ImageEvaluationResult, SelectedA
 import type { FormValues } from '@/lib/types';
 import type { EvalSchema } from "@/ai/flows/extract-eval-schema";
 import { AnnotationViewer } from "@/components/AnnotationViewer";
-import { AlertCircle, CheckCircle, Download, FileQuestion, FileText, ImageIcon, MessageSquare, ShieldAlert, User, FileCog, Code2, XCircle, Lightbulb } from "lucide-react";
+import { AlertCircle, CheckCircle, Download, FileQuestion, FileText, ImageIcon, MessageSquare, ShieldAlert, User, FileCog, Code2, XCircle, Lightbulb, Pencil } from "lucide-react";
 import { Badge } from "./ui/badge";
 import { EvaluationForm } from "./EvaluationForm";
 import { RuleConfiguration } from "./RuleConfiguration";
 import { cn } from '@/lib/utils';
+import { EditableScoreCell } from './EditableScoreCell';
 
 interface ResultsDashboardProps {
   results: EvaluationResult[] | null;
@@ -28,6 +30,7 @@ interface ResultsDashboardProps {
   selectedAnnotation: SelectedAnnotation | null;
   onAnnotationSelect: (annotation: SelectedAnnotation | null) => void;
   feedback: Feedback | null;
+  onScoreOverride: (studentFilename: string, imageId: number, annotationId: number, newScore: number | null) => void;
 }
 
 const FeedbackPanel = ({ feedback }: { feedback: Feedback | null }) => {
@@ -46,12 +49,12 @@ const FeedbackPanel = ({ feedback }: { feedback: Feedback | null }) => {
             <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
                     <Lightbulb className="h-5 w-5" />
-                    AI Feedback
+                    Rule-Based Feedback
                 </CardTitle>
             </CardHeader>
             <CardContent>
-                {feedback.issues.length === 0 ? (
-                    <p className="text-sm text-green-600 flex items-center gap-2"><CheckCircle className="h-4 w-4" />Annotation is well aligned.</p>
+                {feedback.issues.length === 0 || feedback.issues[0].status === 'aligned' ? (
+                    <p className="text-sm text-green-600 flex items-center gap-2"><CheckCircle className="h-4 w-4" />Annotation is well-aligned.</p>
                 ) : (
                     <ul className="space-y-2 text-sm">
                         {feedback.issues.map((issue, index) => (
@@ -71,7 +74,7 @@ const FeedbackPanel = ({ feedback }: { feedback: Feedback | null }) => {
 };
 
 
-const ResultsDisplay = ({ results, imageUrls, selectedAnnotation, onAnnotationSelect, feedback }: { results: EvaluationResult[], imageUrls: Map<string, string>, selectedAnnotation: SelectedAnnotation | null, onAnnotationSelect: (annotation: SelectedAnnotation | null) => void, feedback: Feedback | null }) => {
+const ResultsDisplay = ({ results, imageUrls, selectedAnnotation, onAnnotationSelect, feedback, onScoreOverride }: { results: EvaluationResult[], imageUrls: Map<string, string>, selectedAnnotation: SelectedAnnotation | null, onAnnotationSelect: (annotation: SelectedAnnotation | null) => void, feedback: Feedback | null, onScoreOverride: (studentFilename: string, imageId: number, annotationId: number, newScore: number | null) => void }) => {
 
   const handleDownloadSummaryCsv = () => {
     let csvContent = "data:text/csv;charset=utf-8,";
@@ -108,7 +111,7 @@ const ResultsDisplay = ({ results, imageUrls, selectedAnnotation, onAnnotationSe
   }
 
   const handleDownloadDetailedCsv = (result: EvaluationResult) => {
-    const escapeCsv = (str: string | number | undefined) => {
+    const escapeCsv = (str: string | number | undefined | null) => {
         if (str === undefined || str === null) return '""';
         const s = String(str);
         if (s.includes('"') || s.includes(',')) {
@@ -122,7 +125,7 @@ const ResultsDisplay = ({ results, imageUrls, selectedAnnotation, onAnnotationSe
     // Summary
     csv.push(`"Summary for ${result.studentFilename}"`);
     csv.push(`"Metric","Value"`);
-    csv.push(`"Score",${result.score}`);
+    csv.push(`"Final Score",${result.score}`);
     csv.push(`"Average IoU",${result.average_iou.toFixed(4)}`);
     csv.push(`"Label Accuracy","${result.label_accuracy.accuracy.toFixed(2)}%"`);
     csv.push(`"Attribute Accuracy","${result.attribute_accuracy.average_similarity.toFixed(2)}%"`);
@@ -148,18 +151,17 @@ const ResultsDisplay = ({ results, imageUrls, selectedAnnotation, onAnnotationSe
 
         // Matched
         csv.push('"Matched Annotations"');
-        csv.push(`"GT ID","GT Label","GT Bbox","Student ID","Student Label","Student Bbox","IoU","Label Match","Attribute Similarity"`);
+        csv.push(`"GT ID","GT Label","Student ID","Student Label","IoU","Attribute Similarity","Original Score","Final Score (Overridden)"`);
         imgResult.matched.forEach(m => {
             const row = [
                 m.gt.id,
                 m.gt.attributes?.label,
-                m.gt.bbox.join(';'),
                 m.student.id,
                 m.student.attributes?.label,
-                m.student.bbox.join(';'),
                 m.iou.toFixed(4),
-                m.isLabelMatch,
                 m.attributeSimilarity.toFixed(4),
+                m.originalScore.toFixed(2),
+                m.overrideScore !== null && m.overrideScore !== undefined ? m.overrideScore.toFixed(2) : m.originalScore.toFixed(2)
             ].map(escapeCsv).join(',');
             csv.push(row);
         });
@@ -270,7 +272,7 @@ const ResultsDisplay = ({ results, imageUrls, selectedAnnotation, onAnnotationSe
                        </div>
                     </AccordionTrigger>
                     <AccordionContent className="p-4 bg-muted">
-                        <SingleResultDisplay result={result} imageUrls={imageUrls} selectedAnnotation={selectedAnnotation} onAnnotationSelect={onAnnotationSelect} feedback={feedback}/>
+                        <SingleResultDisplay result={result} imageUrls={imageUrls} selectedAnnotation={selectedAnnotation} onAnnotationSelect={onAnnotationSelect} feedback={feedback} onScoreOverride={onScoreOverride}/>
                     </AccordionContent>
                 </AccordionItem>
             ))}
@@ -280,7 +282,7 @@ const ResultsDisplay = ({ results, imageUrls, selectedAnnotation, onAnnotationSe
 
 }
 
-const ImageResultDisplay = ({ imageResult, imageUrl, selectedAnnotation, onAnnotationSelect, feedback }: { imageResult: ImageEvaluationResult, imageUrl: string | undefined, selectedAnnotation: SelectedAnnotation | null, onAnnotationSelect: (annotation: SelectedAnnotation | null) => void, feedback: Feedback | null }) => {
+const ImageResultDisplay = ({ studentFilename, imageResult, imageUrl, selectedAnnotation, onAnnotationSelect, feedback, onScoreOverride }: { studentFilename: string, imageResult: ImageEvaluationResult, imageUrl: string | undefined, selectedAnnotation: SelectedAnnotation | null, onAnnotationSelect: (annotation: SelectedAnnotation | null) => void, feedback: Feedback | null, onScoreOverride: (studentFilename: string, imageId: number, annotationId: number, newScore: number | null) => void }) => {
     const getAnnotationLabel = (ann: BboxAnnotation) => {
       const categoryName = ann.attributes?.['label']
       const annotationId = `ID ${ann.id}`
@@ -337,7 +339,14 @@ const ImageResultDisplay = ({ imageResult, imageUrl, selectedAnnotation, onAnnot
                         <CardHeader className="pb-2"><CardTitle className="text-lg">{imageResult.matched.length} Matched</CardTitle></CardHeader>
                         <CardContent>
                             <Table>
-                                <TableHeader><TableRow><TableHead>GT</TableHead><TableHead>Student</TableHead><TableHead>IoU</TableHead></TableRow></TableHeader>
+                                <TableHeader>
+                                  <TableRow>
+                                    <TableHead>GT</TableHead>
+                                    <TableHead>Student</TableHead>
+                                    <TableHead className="text-right">IoU</TableHead>
+                                    <TableHead className="text-right">Score</TableHead>
+                                  </TableRow>
+                                </TableHeader>
                                 <TableBody>{imageResult.matched.map((m, i) => 
                                     <TableRow 
                                         key={i} 
@@ -347,7 +356,12 @@ const ImageResultDisplay = ({ imageResult, imageUrl, selectedAnnotation, onAnnot
                                     >
                                         <TableCell>{getAnnotationLabel(m.gt)}</TableCell>
                                         <TableCell>{getAnnotationLabel(m.student)}</TableCell>
-                                        <TableCell>{m.iou.toFixed(2)}</TableCell>
+                                        <TableCell className="text-right">{m.iou.toFixed(2)}</TableCell>
+                                        <EditableScoreCell
+                                          originalScore={m.originalScore}
+                                          overrideScore={m.overrideScore}
+                                          onSave={(newScore) => onScoreOverride(studentFilename, imageResult.imageId, m.gt.id, newScore)}
+                                        />
                                     </TableRow>
                                 )}</TableBody>
                             </Table>
@@ -395,7 +409,7 @@ const ImageResultDisplay = ({ imageResult, imageUrl, selectedAnnotation, onAnnot
     )
 }
 
-const SingleResultDisplay = ({ result, imageUrls, selectedAnnotation, onAnnotationSelect, feedback }: { result: EvaluationResult; imageUrls: Map<string, string>; selectedAnnotation: SelectedAnnotation | null; onAnnotationSelect: (annotation: SelectedAnnotation | null) => void; feedback: Feedback | null; }) => {
+const SingleResultDisplay = ({ result, imageUrls, selectedAnnotation, onAnnotationSelect, feedback, onScoreOverride }: { result: EvaluationResult; imageUrls: Map<string, string>; selectedAnnotation: SelectedAnnotation | null; onAnnotationSelect: (annotation: SelectedAnnotation | null) => void; feedback: Feedback | null; onScoreOverride: (studentFilename: string, imageId: number, annotationId: number, newScore: number | null) => void; }) => {
     
     return (
         <div className="space-y-6">
@@ -453,7 +467,7 @@ const SingleResultDisplay = ({ result, imageUrls, selectedAnnotation, onAnnotati
                             {imageResult.imageName}
                         </AccordionTrigger>
                         <AccordionContent className="p-2">
-                           <ImageResultDisplay imageResult={imageResult} imageUrl={imageUrls.get(imageResult.imageName)} selectedAnnotation={selectedAnnotation} onAnnotationSelect={onAnnotationSelect} feedback={feedback}/>
+                           <ImageResultDisplay studentFilename={result.studentFilename} imageResult={imageResult} imageUrl={imageUrls.get(imageResult.imageName)} selectedAnnotation={selectedAnnotation} onAnnotationSelect={onAnnotationSelect} feedback={feedback} onScoreOverride={onScoreOverride} />
                         </AccordionContent>
                     </AccordionItem>
                 ))}
@@ -462,7 +476,7 @@ const SingleResultDisplay = ({ result, imageUrls, selectedAnnotation, onAnnotati
     );
 };
 
-export function ResultsDashboard({ results, loading, imageUrls, onEvaluate, onGtFileChange, evalSchema, onRuleChange, selectedAnnotation, onAnnotationSelect, feedback }: ResultsDashboardProps) {
+export function ResultsDashboard({ results, loading, imageUrls, onEvaluate, onGtFileChange, evalSchema, onRuleChange, selectedAnnotation, onAnnotationSelect, feedback, onScoreOverride }: ResultsDashboardProps) {
   const [openAccordion, setOpenAccordion] = React.useState<string[]>([]);
 
   React.useEffect(() => {
@@ -527,7 +541,7 @@ export function ResultsDashboard({ results, loading, imageUrls, onEvaluate, onGt
                     <p className="text-muted-foreground mt-2">The results will appear here once the evaluation is complete.</p>
                 </div>
             ) : results ? (
-                <ResultsDisplay results={results} imageUrls={imageUrls} selectedAnnotation={selectedAnnotation} onAnnotationSelect={onAnnotationSelect} feedback={feedback} />
+                <ResultsDisplay results={results} imageUrls={imageUrls} selectedAnnotation={selectedAnnotation} onAnnotationSelect={onAnnotationSelect} feedback={feedback} onScoreOverride={onScoreOverride}/>
             ) : (
                 <div className="flex flex-col items-center justify-center text-center p-8 h-full min-h-[300px] border-dashed border-2 rounded-md bg-card">
                     <FileQuestion className="h-16 w-16 text-muted-foreground mb-4" />

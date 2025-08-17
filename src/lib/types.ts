@@ -74,7 +74,7 @@ export interface BboxAnnotation {
     category_id: number;
     bbox: [number, number, number, number]; // [x,y,width,height]
     attributes?: {
-        [key: string]: string | undefined;
+        [key:string]: string | undefined;
     };
     keypoints?: number[];
     num_keypoints?: number;
@@ -104,6 +104,8 @@ export interface Match {
     iou: number;
     isLabelMatch: boolean;
     attributeSimilarity: number;
+    originalScore: number;
+    overrideScore?: number | null;
 }
 
 export interface SelectedAnnotation {
@@ -187,3 +189,5 @@ export interface Feedback {
     feedbackId: string;
     issues: FeedbackIssue[];
 }
+
+export type ScoreOverrides = Record<string, Record<string, Record<string, number>>>;

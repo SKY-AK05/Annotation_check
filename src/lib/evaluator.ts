@@ -1,5 +1,5 @@
 
-import type { EvaluationResult, CocoJson, BboxAnnotation, LabelAccuracy, AttributeAccuracy, Match, ImageEvaluationResult, SkeletonEvaluationResult, SkeletonMatch, PolygonAnnotation } from './types';
+import type { EvaluationResult, CocoJson, BboxAnnotation, LabelAccuracy, AttributeAccuracy, Match, ImageEvaluationResult, SkeletonEvaluationResult, SkeletonMatch, PolygonAnnotation, ScoreOverrides } from './types';
 import type { EvalSchema } from './types';
 import munkres from 'munkres-js';
 
@@ -107,6 +107,58 @@ function findOptimalMatches(
 }
 
 
+function calculateMatchScore(iou: number, isLabelMatch: boolean, attributeSimilarity: number): number {
+    const iouWeight = 0.5;
+    const labelWeight = 0.3;
+    const attrWeight = 0.2;
+
+    const iouScore = iou * 100;
+    const labelScore = isLabelMatch ? 100 : 0;
+    const attrScore = attributeSimilarity * 100;
+
+    return (iouScore * iouWeight) + (labelScore * labelWeight) + (attrScore * attrWeight);
+}
+
+
+export function recalculateOverallScore(results: EvaluationResult, overrides: ScoreOverrides): EvaluationResult {
+    const studentOverrides = overrides[results.studentFilename] || {};
+    let totalScoreFromMatches = 0;
+    let matchedCount = 0;
+    
+    // Deep clone to avoid direct state mutation
+    const newResults = JSON.parse(JSON.stringify(results)) as EvaluationResult;
+
+    newResults.image_results.forEach(ir => {
+        ir.matched.forEach(match => {
+            const override = studentOverrides[ir.imageId]?.[match.gt.id];
+            if (override !== undefined && override !== null) {
+                match.overrideScore = override;
+            } else {
+                match.overrideScore = null; // Ensure it's reset if override is removed
+            }
+            totalScoreFromMatches += match.overrideScore ?? match.originalScore;
+            matchedCount++;
+        });
+    });
+
+    const averageMatchScore = matchedCount > 0 ? totalScoreFromMatches / matchedCount : 0;
+
+    // Apply penalties for missed/extra annotations
+    const totalGt = newResults.matched.length + newResults.missed.length;
+    const totalStudent = newResults.matched.length + newResults.extra.length;
+    const precision = totalStudent > 0 ? matchedCount / totalStudent : 0;
+    const recall = totalGt > 0 ? matchedCount / totalGt : 0;
+
+    // F-beta score with beta=0.5 to weigh precision more than recall
+    const fbetaScore = (precision > 0 || recall > 0) ? (1.25 * precision * recall) / (0.25 * precision + recall) * 100 : 0;
+
+    // Recalculate final score with the new average match score
+    newResults.score = Math.round((fbetaScore * 0.5) + (averageMatchScore * 0.5));
+    
+    return newResults;
+}
+
+
 export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studentJson: CocoJson): Omit<EvaluationResult, 'studentFilename'> {
     const IOU_THRESHOLD = 0.5;
     const matchKey = schema.matchKey;
@@ -196,7 +248,8 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
                         }
                     }
 
-                    const matchResult = { gt, student, iou, isLabelMatch, attributeSimilarity: pairAttributeSimilarity };
+                    const originalScore = calculateMatchScore(iou, isLabelMatch, pairAttributeSimilarity);
+                    const matchResult = { gt, student, iou, isLabelMatch, attributeSimilarity: pairAttributeSimilarity, originalScore };
                     matched.push(matchResult);
                     imageMatched.push(matchResult);
                     studentMap.delete(key);
@@ -244,7 +297,8 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
                     attributeComparisonsCount += currentPairAttributeCount;
                 }
             }
-            const matchResult = { gt, student, iou, isLabelMatch, attributeSimilarity: pairAttributeSimilarity };
+            const originalScore = calculateMatchScore(iou, isLabelMatch, pairAttributeSimilarity);
+            const matchResult = { gt, student, iou, isLabelMatch, attributeSimilarity: pairAttributeSimilarity, originalScore };
             matched.push(matchResult);
             imageMatched.push(matchResult);
         }
@@ -293,15 +347,16 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
         average_similarity: attributeComparisonsCount > 0 ? (totalAttributeSimilaritySum / attributeComparisonsCount) * 100 : 100,
         total: attributeComparisonsCount,
     };
-
-    const iouScore = matched.length > 0 ? (totalIou / matched.length) * 100 : 0;
+    
+    const averageMatchScore = matched.length > 0 ? matched.reduce((acc, m) => acc + m.originalScore, 0) / matched.length : 0;
+    
     const precision = totalStudent > 0 ? matched.length / totalStudent : 0;
     const recall = totalGt > 0 ? matched.length / totalGt : 0;
     
     // Using F-beta score with beta=0.5 to weigh precision more than recall
     const fbetaScore = (precision > 0 || recall > 0) ? (1.25 * precision * recall) / (0.25 * precision + recall) * 100 : 0;
 
-    const finalScore = (fbetaScore * 0.4) + (iouScore * 0.3) + (label_accuracy.accuracy * 0.2) + (attribute_accuracy.average_similarity * 0.1);
+    const finalScore = (fbetaScore * 0.5) + (averageMatchScore * 0.5);
     
     const feedback: string[] = [];
     feedback.push(`Detected ${matched.length} out of ${totalGt} ground truth annotations.`);
@@ -404,6 +459,7 @@ export function evaluateSkeletons(gtJson: CocoJson, studentJson: CocoJson): Omit
             const oks = calculateOKS(gt, bestMatch.student, sigmas);
             totalOks += oks;
             
+            const originalScore = calculateMatchScore(bestMatch.iou, true, 1);
             matched.push({
                 gt,
                 student: bestMatch.student,
@@ -411,6 +467,7 @@ export function evaluateSkeletons(gtJson: CocoJson, studentJson: CocoJson): Omit
                 oks,
                 isLabelMatch: true, // Simplified for this version
                 attributeSimilarity: 1, // Simplified for this version
+                originalScore
             });
         }
     }
