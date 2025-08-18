@@ -466,7 +466,7 @@ export default function Home() {
         </div>
         <ThemeToggle />
       </header>
-      <main className="w-full max-w-7xl">
+      <main className="w-full max-w-7xl flex-grow">
         <RadioGroup
               defaultValue="bounding-box"
               className="grid grid-cols-3 gap-4 mb-6 max-w-lg mx-auto"
@@ -525,6 +525,9 @@ export default function Home() {
               <PolygonAnnotationPage />
           )}
       </main>
+      <footer className="w-full max-w-7xl mt-12 pt-6 border-t text-center text-sm text-muted-foreground">
+        © {new Date().getFullYear()} Annotator AI. All Rights Reserved.
+      </footer>
     </div>
   );
 }
