@@ -42,33 +42,33 @@
   }
   
   .dark {
-    --background: 270 3% 22%; /* #38363b */
-    --foreground: 270 10% 95%;
+    --background: 0 8% 16%; /* #2c2626 */
+    --foreground: 0 10% 95%;
     
-    --card: 270 3% 25%;
-    --card-foreground: 270 10% 95%;
+    --card: 0 8% 19%;
+    --card-foreground: 0 10% 95%;
     
-    --popover: 270 3% 25%;
-    --popover-foreground: 270 10% 95%;
+    --popover: 0 8% 19%;
+    --popover-foreground: 0 10% 95%;
     
-    --primary: 270 70% 65%; /* Vibrant violet for primary actions */
-    --primary-foreground: 270 10% 15%;
+    --primary: 15 82% 85%; /* Peach for primary actions */
+    --primary-foreground: 0 10% 15%;
     
-    --secondary: 270 3% 18%;
-    --secondary-foreground: 270 10% 95%;
+    --secondary: 0 8% 12%;
+    --secondary-foreground: 0 10% 95%;
     
-    --muted: 270 3% 18%;
-    --muted-foreground: 270 10% 65%;
+    --muted: 0 8% 12%;
+    --muted-foreground: 0 10% 65%;
     
-    --accent: 270 3% 28%;
-    --accent-foreground: 270 10% 95%;
+    --accent: 0 8% 22%;
+    --accent-foreground: 0 10% 95%;
     
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 98%;
     
-    --border: 270 3% 30%;
-    --input: 270 3% 30%;
-    --ring: 270 70% 75%;
+    --border: 0 8% 24%;
+    --input: 0 8% 24%;
+    --ring: 15 82% 90%;
   }
 }
 
