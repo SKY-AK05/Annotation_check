@@ -18,6 +18,38 @@ interface PolygonResultsDashboardProps {
   imageUrls: Map<string, string>;
 }
 
+const BatchSummary = ({ results }: { results: PolygonEvaluationResult[] }) => (
+    <Card className="mb-6">
+        <CardHeader>
+            <CardTitle>Batch Summary</CardTitle>
+        </CardHeader>
+        <CardContent>
+            <Table>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead>Student File</TableHead>
+                        <TableHead className="text-right">Score</TableHead>
+                        <TableHead className="text-right">Avg. IoU</TableHead>
+                        <TableHead className="text-right">Polygon Score</TableHead>
+                        <TableHead className="text-right">Attribute Score</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {results.map((result) => (
+                        <TableRow key={result.studentFilename}>
+                            <TableCell className="font-medium">{result.studentFilename}</TableCell>
+                            <TableCell className="text-right font-bold">{result.score}</TableCell>
+                            <TableCell className="text-right">{(result.averageIoU * 100).toFixed(1)}%</TableCell>
+                            <TableCell className="text-right">{result.averagePolygonScore.toFixed(1)}%</TableCell>
+                            <TableCell className="text-right">{result.averageAttributeScore.toFixed(1)}%</TableCell>
+                        </TableRow>
+                    ))}
+                </TableBody>
+            </Table>
+        </CardContent>
+    </Card>
+);
+
 const ResultsDisplay = ({ results, imageUrls }: { results: PolygonEvaluationResult[], imageUrls: Map<string, string> }) => {
 
   const handleDownloadDetailedCsv = (result: PolygonEvaluationResult) => {
@@ -91,16 +123,18 @@ const ResultsDisplay = ({ results, imageUrls }: { results: PolygonEvaluationResu
     document.body.removeChild(link);
   };
 
-  const getImageNameById = (imageId: number, annotations: PolygonAnnotation[]): string => {
-    const annotation = annotations.find(ann => ann.image_id === imageId);
-    // In CVAT exports, the image ID from the annotation might just be the filename.
-    // So we look up the full filename from the imageUrls map.
-    for (const [name, url] of imageUrls.entries()) {
-        if (name.includes(`_${imageId}.`)) {
-            return name;
+  const getImageNameById = (imageId: number, gtAnns: PolygonAnnotation[]): string => {
+    // In CVAT, the image name is on the annotation itself, but not always in COCO.
+    // The safest bet is to look up the image filename from the imageUrls map by its ID
+    for(const [path, url] of imageUrls.entries()) {
+        const baseName = path.split('/').pop()!;
+        // CVAT exports sometimes name images like `image_train_5927.png`, where 5927 is NOT the image ID.
+        // The most reliable thing is to match on the full path if available.
+        if (path.includes(`_${imageId}.`) || baseName.startsWith(`${imageId}_`)) {
+            return baseName;
         }
     }
-    // Fallback if the pattern doesn't match
+    // Fallback if no direct match, which can happen with COCO style
     return `Image ID: ${imageId}`;
   };
 
@@ -124,6 +158,8 @@ const ResultsDisplay = ({ results, imageUrls }: { results: PolygonEvaluationResu
         </div>
       </div>
         
+        {results.length > 1 && <BatchSummary results={results} />}
+
         <Accordion type="single" collapsible className="w-full" defaultValue={results.length > 0 ? results[0].studentFilename : undefined}>
             <h3 className="text-2xl mb-2">Detailed Student Results</h3>
             {results.map((result) => (
@@ -222,15 +258,10 @@ const SingleResultDisplay = ({ result, imageUrls, getImageNameById }: { result: 
                 <h3 className="text-lg font-semibold mb-2">Visual Comparison</h3>
                  <Accordion type="single" collapsible className="w-full" defaultValue={annotationsByImageId.keys().next().value?.toString()}>
                      {[...annotationsByImageId.entries()].map(([imageId, annotations]) => {
-                        const allAnnsForImage = [
-                            ...annotations.matched.map(m => m.gt),
-                            ...annotations.missed.map(m => m.gt),
-                            ...annotations.extra.map(e => e.student)
-                        ];
-
-                        const imageName = getImageNameById(imageId, allAnnotations);
-                        const imageUrl = imageUrls.get(imageName);
+                        const imageName = result.imageNameMap.get(imageId);
                         
+                        const imageUrl = imageUrls.get(imageName || '') || [...imageUrls.values()][0];
+
                         return (
                              <AccordionItem value={imageId.toString()} key={imageId} className="card-style mb-2 overflow-hidden">
                                 <AccordionTrigger className="p-2 hover:no-underline">
@@ -269,7 +300,7 @@ export function PolygonResultsDashboard({ results, loading, imageUrls }: Polygon
                 <h3 className="text-xl font-semibold text-foreground">Evaluating...</h3>
                 <p className="text-muted-foreground mt-2">The results will appear here once the evaluation is complete.</p>
             </div>
-        ) : results ? (
+        ) : results && results.length > 0 ? (
             <ResultsDisplay results={results} imageUrls={imageUrls} />
         ) : (
             <div className="flex flex-col items-center justify-center text-center p-8 h-full min-h-[300px] border-dashed border-2 rounded-md bg-card">

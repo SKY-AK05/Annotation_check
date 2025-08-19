@@ -1,5 +1,6 @@
 
 
+
 import type { PolygonAnnotation, PolygonEvaluationResult, PolygonMatch, Point, Polygon as PolygonType } from './types';
 import type { EvalSchema } from '@/ai/flows/extract-eval-schema';
 import KDBush from 'kdbush';
@@ -40,6 +41,7 @@ function calculatePolygonIoU(poly1: PolygonType, poly2: PolygonType): number {
 
 function computeDeviations(gt_polygon: PolygonType, annot_polygon: PolygonType): number[] {
     if (!gt_polygon || gt_polygon.length === 0 || !annot_polygon || annot_polygon.length === 0) {
+        console.warn("Cannot compute deviations for empty polygon.");
         return [];
     }
 
@@ -51,13 +53,14 @@ function computeDeviations(gt_polygon: PolygonType, annot_polygon: PolygonType):
 
     return annot_polygon.map(point => {
         const nearestIndices = tree.within(point[0], point[1], 1); 
-        if (nearestIndices.length > 0) {
+        if (nearestIndices.length > 0 && nearestIndices[0] !== undefined) {
              const nearestPoint = gt_polygon[nearestIndices[0]];
              const dx = point[0] - nearestPoint[0];
              const dy = point[1] - nearestPoint[1];
              return Math.sqrt(dx * dx + dy * dy);
         }
 
+        console.warn("Could not find nearest point for deviation calculation, falling back to brute force.");
         let min_dist_sq = Infinity;
         for (const gt_point of gt_polygon) {
             const dist_sq = (point[0] - gt_point[0]) ** 2 + (point[1] - gt_point[1]) ** 2;
@@ -88,8 +91,10 @@ function calculateDeviationScore(gt_polygon: PolygonType, annot_polygon: Polygon
 }
 
 function calculateAttributeScore(gt_attrs: { [key: string]: string | undefined }, annot_attrs: { [key: string]: string | undefined }, schema: EvalSchema, label: string): number {
-    const labelSchema = schema.labels.find(l => l.name === label);
-    const attributesToCompare = labelSchema ? labelSchema.attributes.filter(a => a !== schema.matchKey && a !== 'label') : [];
+    const labelSchema = schema.labels.find(l => l.name.toLowerCase() === label.toLowerCase());
+    if (!labelSchema) return 100; // No attributes to compare
+
+    const attributesToCompare = labelSchema.attributes.filter(a => a !== schema.matchKey && a !== 'label');
     
     if (attributesToCompare.length === 0) return 100;
 
@@ -111,6 +116,7 @@ function findOptimalPolygonMatches(
     if (!gtPolys.length || !studentPolys.length) {
         return [];
     }
+    console.log(`Finding optimal matches between ${gtPolys.length} GT and ${studentPolys.length} student polys.`);
 
     const costMatrix = gtPolys.map(gt =>
         studentPolys.map(student => {
@@ -126,6 +132,7 @@ function findOptimalPolygonMatches(
 
     const matches: { gtIndex: number; studentIndex: number; iou: number }[] = [];
     for (const [gtIndex, studentIndex] of assignments) {
+        if (costMatrix[gtIndex]?.[studentIndex] === undefined) continue;
         const cost = costMatrix[gtIndex][studentIndex];
         if (cost < 1_000_000) {
             matches.push({
@@ -135,6 +142,7 @@ function findOptimalPolygonMatches(
             });
         }
     }
+    console.log(`Found ${matches.length} optimal matches.`);
     return matches;
 }
 
@@ -145,6 +153,18 @@ export function evaluatePolygons(gtJson: any, studentJson: any, schema: EvalSche
     const allStudentAnnotations: PolygonAnnotation[] = studentJson.annotations || [];
 
     const gtCategories = new Map((gtJson.categories || []).map(c => [c.id, c.name]));
+    const studentCategories = new Map((studentJson.categories || []).map(c => [c.id, c.name]));
+
+    const imageNameToId = new Map<string, number>();
+    gtJson.images.forEach((img: any) => imageNameToId.set(img.file_name, img.id));
+    studentJson.images.forEach((img: any) => {
+        if (!imageNameToId.has(img.file_name)) {
+            imageNameToId.set(img.file_name, img.id);
+        }
+    });
+
+    const imageNameMap = new Map<number, string>();
+    gtJson.images.forEach((img: any) => imageNameMap.set(img.id, img.file_name));
 
     const matched: PolygonMatch[] = [];
     const gtMatchedIds = new Set<number>();
@@ -188,7 +208,8 @@ export function evaluatePolygons(gtJson: any, studentJson: any, schema: EvalSche
                     const iou = calculatePolygonIoU(gtPoly.segmentation[0], studentPoly.segmentation[0]);
                     const deviationScore = calculateDeviationScore(gtPoly.segmentation[0], studentPoly.segmentation[0]);
                     const polygonScore = (iou * 100 * 0.5) + (deviationScore * 0.5);
-                    const attributeScore = calculateAttributeScore(gtPoly.attributes || {}, studentPoly.attributes || {}, schema, gtCategories.get(gtPoly.category_id) || '');
+                    const studentLabel = studentCategories.get(studentPoly.category_id) || '';
+                    const attributeScore = calculateAttributeScore(gtPoly.attributes || {}, studentPoly.attributes || {}, schema, studentLabel);
                     const finalScore = (polygonScore + attributeScore) / 2;
 
                     matched.push({
@@ -220,7 +241,8 @@ export function evaluatePolygons(gtJson: any, studentJson: any, schema: EvalSche
 
             const deviationScore = calculateDeviationScore(gtPoly.segmentation[0], studentPoly.segmentation[0]);
             const polygonScore = (iou * 100 * 0.5) + (deviationScore * 0.5);
-            const attributeScore = calculateAttributeScore(gtPoly.attributes || {}, studentPoly.attributes || {}, schema, gtCategories.get(gtPoly.category_id) || '');
+            const studentLabel = studentCategories.get(studentPoly.category_id) || '';
+            const attributeScore = calculateAttributeScore(gtPoly.attributes || {}, studentPoly.attributes || {}, schema, studentLabel);
             const finalScore = (polygonScore + attributeScore) / 2;
             
             matched.push({
@@ -272,6 +294,7 @@ export function evaluatePolygons(gtJson: any, studentJson: any, schema: EvalSche
         averageAttributeScore,
         matched,
         missed,
-        extra
+        extra,
+        imageNameMap
     };
 }

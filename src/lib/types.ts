@@ -1,5 +1,6 @@
 
 
+
 import type { z } from "zod";
 
 const EvalLabelSchema = z.object({
@@ -175,6 +176,7 @@ export interface PolygonEvaluationResult {
     matched: PolygonMatch[];
     missed: { gt: PolygonAnnotation }[];
     extra: { student: PolygonAnnotation }[];
+    imageNameMap: Map<number, string>;
 }
 
 

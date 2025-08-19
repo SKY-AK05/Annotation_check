@@ -56,7 +56,8 @@ export default function PolygonAnnotationPage() {
                     } else if (fileInZip.name.match(/\.(jpe?g|png|gif|webp)$/i)) {
                         const blob = await fileInZip.async('blob');
                         const url = URL.createObjectURL(blob);
-                        const filename = fileInZip.name.split('/').pop()!;
+                        // Use the full path within the zip as the key initially
+                        const filename = fileInZip.name;
                         newImageUrls.set(filename, url);
                     }
                 });
