@@ -158,7 +158,7 @@ const ResultsDisplay = ({ results, imageUrls }: { results: PolygonEvaluationResu
         </div>
       </div>
         
-        {results.length > 1 && <BatchSummary results={results} />}
+        {results.length > 0 && <BatchSummary results={results} />}
 
         <Accordion type="single" collapsible className="w-full" defaultValue={results.length > 0 ? results[0].studentFilename : undefined}>
             <h3 className="text-2xl mb-2">Detailed Student Results</h3>
@@ -187,10 +187,10 @@ const ResultsDisplay = ({ results, imageUrls }: { results: PolygonEvaluationResu
 
 const Legend = () => (
     <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-muted-foreground mt-2 border-t pt-2">
-        <div className="flex items-center gap-2"><div className="w-4 h-1 rounded-full" style={{ border: '2px solid rgba(0, 215, 255, 1)' }}></div><span>GT Polygon</span></div>
-        <div className="flex items-center gap-2"><div className="w-4 h-1 rounded-full" style={{ border: '2px solid rgba(255, 0, 0, 1)' }}></div><span>Student Polygon</span></div>
-        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'rgba(0, 215, 255, 0.5)' }}></div><span>Missed</span></div>
-        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'rgba(255, 0, 0, 0.5)' }}></div><span>Extra</span></div>
+        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'rgba(0, 215, 255, 0.5)' }}></div><span>GT Polygon (Matched)</span></div>
+        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'rgba(255, 0, 0, 0.5)' }}></div><span>Student Polygon (Matched)</span></div>
+        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'rgba(0, 215, 255, 0.7)' }}></div><span>Missed</span></div>
+        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'rgba(255, 0, 0, 0.7)' }}></div><span>Extra</span></div>
     </div>
 );
 

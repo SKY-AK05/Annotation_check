@@ -13,10 +13,10 @@ interface PolygonViewerProps {
   };
 }
 
-const GT_COLOR = 'rgba(0, 215, 255, 1)'; // Cyan for GT Outline
-const STUDENT_COLOR = 'rgba(255, 0, 0, 1)'; // Red for Student Outline
-const MISSED_FILL = 'rgba(0, 215, 255, 0.5)'; // Semi-transparent Cyan for missed
-const EXTRA_FILL = 'rgba(255, 0, 0, 0.5)'; // Semi-transparent Red for extra
+const GT_FILL_MATCH = 'rgba(0, 215, 255, 0.5)'; // Semi-transparent Cyan for matched GT
+const STUDENT_FILL_MATCH = 'rgba(255, 0, 0, 0.5)'; // Semi-transparent Red for matched Student
+const MISSED_FILL = 'rgba(0, 215, 255, 0.7)'; // Opaque Cyan for missed
+const EXTRA_FILL = 'rgba(255, 0, 0, 0.7)'; // Opaque Red for extra
 
 
 export function PolygonViewer({ imageUrl, annotations }: PolygonViewerProps) {
@@ -73,10 +73,10 @@ export function PolygonViewer({ imageUrl, annotations }: PolygonViewerProps) {
         drawPolygon(extra.student.segmentation, EXTRA_FILL, true);
       });
 
-      // Draw matched polygons (outlines)
+      // Draw matched polygons (now as semi-transparent fills)
       annotations.matched.forEach(match => {
-        drawPolygon(match.gt.segmentation, GT_COLOR);
-        drawPolygon(match.student.segmentation, STUDENT_COLOR);
+        drawPolygon(match.gt.segmentation, GT_FILL_MATCH, true);
+        drawPolygon(match.student.segmentation, STUDENT_FILL_MATCH, true);
       });
 
     };
