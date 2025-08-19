@@ -22,6 +22,7 @@ function calculatePolygonArea(polygon: PolygonType): number {
 }
 
 function calculatePolygonIoU(poly1: PolygonType, poly2: PolygonType): number {
+    if (!poly1 || poly1.length === 0 || !poly2 || poly2.length === 0) return 0;
     try {
         const intersection = pc.intersection([poly1], [poly2]);
         if (intersection.length === 0) return 0;
@@ -41,20 +42,28 @@ function computeDeviations(gt_polygon: PolygonType, annot_polygon: PolygonType):
     if (!gt_polygon || gt_polygon.length === 0 || !annot_polygon || annot_polygon.length === 0) {
         return [];
     }
+
+    // A KDBush tree on the ground truth polygon for fast nearest-neighbor lookup.
     const tree = new KDBush(gt_polygon.length);
     for (const point of gt_polygon) {
         tree.add(point[0], point[1]);
     }
     tree.finish();
 
+    // For each point in the student's annotation, find the distance to the nearest point in the GT polygon.
     return annot_polygon.map(point => {
-        const nearest = tree.within(point[0], point[1], 1)[0]; 
-        if (nearest !== undefined) {
-             const nearestPoint = gt_polygon[nearest];
+        // Find the single closest point within a small radius first for performance.
+        const nearestIndex = tree.within(point[0], point[1], 1)[0]; 
+        
+        if (nearestIndex !== undefined) {
+             const nearestPoint = gt_polygon[nearestIndex];
              const dx = point[0] - nearestPoint[0];
              const dy = point[1] - nearestPoint[1];
              return Math.sqrt(dx * dx + dy * dy);
         }
+
+        // If no point is found within the small radius, do a full search to find the true minimum distance.
+        // This is a fallback to ensure correctness for points far from any GT vertex.
         let min_dist_sq = Infinity;
         for (const gt_point of gt_polygon) {
             const dist_sq = (point[0] - gt_point[0]) ** 2 + (point[1] - gt_point[1]) ** 2;
@@ -70,16 +79,21 @@ function calculateDeviationScore(gt_polygon: PolygonType, annot_polygon: Polygon
     const deviations = computeDeviations(gt_polygon, annot_polygon);
     if (deviations.length === 0) return 100; // If no points to compare, consider it a perfect score
 
+    // Define pixel distance thresholds for scoring.
     const perfect = 2, minor = 5, moderate = 10;
+    
+    // Calculate the percentage of points that fall into each deviation category.
     const p_perfect = deviations.filter(d => d <= perfect).length / deviations.length * 100;
     const p_minor = deviations.filter(d => d > perfect && d <= minor).length / deviations.length * 100;
     const p_moderate = deviations.filter(d => d > minor && d <= moderate).length / deviations.length * 100;
     const p_major = deviations.filter(d => d > moderate).length / deviations.length * 100;
 
+    // Fast-path for high-quality annotations.
     if (p_perfect >= 98) return 100;
     if (p_perfect >= 95) return 98;
     if (p_perfect >= 90) return 95;
 
+    // Apply penalties based on the severity of the deviations.
     return Math.max(0, 100 - (0.1 * p_minor + 0.3 * p_moderate + 0.5 * p_major));
 }
 
@@ -266,6 +280,8 @@ export function evaluatePolygons(gtJson: any, studentJson: any, schema: EvalSche
     const completenessScore = (precision > 0 || recall > 0) ? (1.25 * precision * recall) / (0.25 * precision + recall) * 100 : 0;
     
     const finalScore = (qualityScore * 0.5) + (completenessScore * 0.5);
+    console.log(`Final Score Breakdown: Quality=${qualityScore.toFixed(2)}, Completeness=${completenessScore.toFixed(2)} -> Final=${finalScore.toFixed(2)}`);
+
 
     const feedback: string[] = [
         `Evaluation complete. Overall score reflects a blend of match quality, precision, and recall.`,
