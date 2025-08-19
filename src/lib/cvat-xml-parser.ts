@@ -1,5 +1,4 @@
 
-
 import type { CocoJson, BboxAnnotation, CocoCategory, CocoImage, PolygonAnnotation, Point } from './types';
 
 export function parseCvatXml(xmlString: string): CocoJson {
@@ -97,14 +96,22 @@ export function parseCvatXmlForPolygons(xmlString: string): CocoJson {
     let annotationIdCounter = 1;
     const categoryMap = new Map<string, number>();
     let categoryIdCounter = 1;
+    
+    // Standardize label names by making them lowercase and removing minor variations
+    const standardizeLabel = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, '');
 
+    // The first label encountered sets the standard for the category ID
     const getCategoryId = (name: string): number => {
-        if (!categoryMap.has(name)) {
-            const newId = categoryIdCounter++;
-            categoryMap.set(name, newId);
-            categories.push({ id: newId, name: name });
+        const standardName = standardizeLabel(name);
+        for (const [key, value] of categoryMap.entries()) {
+            if (standardizeLabel(key) === standardName) {
+                return value;
+            }
         }
-        return categoryMap.get(name)!;
+        const newId = categoryIdCounter++;
+        categoryMap.set(name, newId);
+        categories.push({ id: newId, name: name }); // Store the original name for display
+        return newId;
     };
     
     xmlDoc.querySelectorAll("image").forEach(imageNode => {

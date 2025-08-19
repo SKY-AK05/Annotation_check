@@ -43,27 +43,21 @@ function computeDeviations(gt_polygon: PolygonType, annot_polygon: PolygonType):
         return [];
     }
 
-    // A KDBush tree on the ground truth polygon for fast nearest-neighbor lookup.
     const tree = new KDBush(gt_polygon.length);
     for (const point of gt_polygon) {
         tree.add(point[0], point[1]);
     }
     tree.finish();
 
-    // For each point in the student's annotation, find the distance to the nearest point in the GT polygon.
     return annot_polygon.map(point => {
-        // Find the single closest point within a small radius first for performance.
-        const nearestIndex = tree.within(point[0], point[1], 1)[0]; 
-        
-        if (nearestIndex !== undefined) {
-             const nearestPoint = gt_polygon[nearestIndex];
+        const nearestIndices = tree.within(point[0], point[1], 1); 
+        if (nearestIndices.length > 0) {
+             const nearestPoint = gt_polygon[nearestIndices[0]];
              const dx = point[0] - nearestPoint[0];
              const dy = point[1] - nearestPoint[1];
              return Math.sqrt(dx * dx + dy * dy);
         }
 
-        // If no point is found within the small radius, do a full search to find the true minimum distance.
-        // This is a fallback to ensure correctness for points far from any GT vertex.
         let min_dist_sq = Infinity;
         for (const gt_point of gt_polygon) {
             const dist_sq = (point[0] - gt_point[0]) ** 2 + (point[1] - gt_point[1]) ** 2;
@@ -77,23 +71,19 @@ function computeDeviations(gt_polygon: PolygonType, annot_polygon: PolygonType):
 
 function calculateDeviationScore(gt_polygon: PolygonType, annot_polygon: PolygonType): number {
     const deviations = computeDeviations(gt_polygon, annot_polygon);
-    if (deviations.length === 0) return 100; // If no points to compare, consider it a perfect score
+    if (deviations.length === 0) return 100; 
 
-    // Define pixel distance thresholds for scoring.
     const perfect = 2, minor = 5, moderate = 10;
     
-    // Calculate the percentage of points that fall into each deviation category.
     const p_perfect = deviations.filter(d => d <= perfect).length / deviations.length * 100;
     const p_minor = deviations.filter(d => d > perfect && d <= minor).length / deviations.length * 100;
     const p_moderate = deviations.filter(d => d > minor && d <= moderate).length / deviations.length * 100;
     const p_major = deviations.filter(d => d > moderate).length / deviations.length * 100;
 
-    // Fast-path for high-quality annotations.
     if (p_perfect >= 98) return 100;
     if (p_perfect >= 95) return 98;
     if (p_perfect >= 90) return 95;
 
-    // Apply penalties based on the severity of the deviations.
     return Math.max(0, 100 - (0.1 * p_minor + 0.3 * p_moderate + 0.5 * p_major));
 }
 
@@ -112,13 +102,7 @@ function calculateAttributeScore(gt_attrs: { [key: string]: string | undefined }
     return (correct / attributesToCompare.length) * 100;
 }
 
-/**
- * Finds the optimal assignment between GT and student polygons using the Hungarian algorithm.
- * @param gtPolys - An array of ground truth polygon annotations.
- * @param studentPolys - An array of student polygon annotations.
- * @param iouThreshold - The minimum IoU to consider a potential match.
- * @returns An array of matched pairs with their IoU scores.
- */
+
 function findOptimalPolygonMatches(
     gtPolys: PolygonAnnotation[],
     studentPolys: PolygonAnnotation[],
@@ -128,26 +112,21 @@ function findOptimalPolygonMatches(
         return [];
     }
 
-    // Create a cost matrix where cost is 1 - IoU.
     const costMatrix = gtPolys.map(gt =>
         studentPolys.map(student => {
-            // Only calculate IoU if categories match.
             if (gt.category_id !== student.category_id) {
                 return 1_000_000;
             }
             const iou = calculatePolygonIoU(gt.segmentation[0], student.segmentation[0]);
-            // A higher IoU results in a lower cost.
             return iou >= iouThreshold ? 1 - iou : 1_000_000;
         })
     );
 
-    // Run the Hungarian algorithm to find the assignment with the minimum cost.
     const assignments = munkres(costMatrix) as [number, number][];
 
     const matches: { gtIndex: number; studentIndex: number; iou: number }[] = [];
     for (const [gtIndex, studentIndex] of assignments) {
         const cost = costMatrix[gtIndex][studentIndex];
-        // Only include matches that are valid (i.e., not the high-cost dummy value).
         if (cost < 1_000_000) {
             matches.push({
                 gtIndex,
@@ -161,7 +140,7 @@ function findOptimalPolygonMatches(
 
 
 export function evaluatePolygons(gtJson: any, studentJson: any, schema: EvalSchema): Omit<PolygonEvaluationResult, 'studentFilename'> {
-    const IOU_THRESHOLD = 0.1; // Threshold for considering a match in the optimal assignment.
+    const IOU_THRESHOLD = 0.1; 
     const allGtAnnotations: PolygonAnnotation[] = gtJson.annotations || [];
     const allStudentAnnotations: PolygonAnnotation[] = studentJson.annotations || [];
 
@@ -188,7 +167,6 @@ export function evaluatePolygons(gtJson: any, studentJson: any, schema: EvalSche
         const gtPolys = gtAnnsByImage[imageId] || [];
         const studentPolys = studentAnnsByImage[imageId] || [];
 
-        // Pass 1: Key-based matching for deterministic pairs.
         if (matchKey) {
             const studentMap = new Map<string, PolygonAnnotation>();
             studentPolys.forEach(ann => {
@@ -228,7 +206,6 @@ export function evaluatePolygons(gtJson: any, studentJson: any, schema: EvalSche
             }
         }
 
-        // Pass 2: Optimal matching for remaining polygons using the Hungarian algorithm.
         const remainingGt = gtPolys.filter(ann => !gtMatchedIds.has(ann.id));
         const remainingStudent = studentPolys.filter(ann => !studentMatchedIds.has(ann.id));
 
@@ -270,21 +247,18 @@ export function evaluatePolygons(gtJson: any, studentJson: any, schema: EvalSche
     const averageIoU = numMatched > 0 ? matched.reduce((sum, m) => sum + m.iou, 0) / numMatched : 0;
     const averageDeviation = numMatched > 0 ? matched.reduce((sum, m) => sum + m.deviation, 0) / numMatched : 0;
     const averagePolygonScore = numMatched > 0 ? matched.reduce((sum, m) => sum + m.polygonScore, 0) / numMatched : 0;
-    const averageAttributeScore = numMatched > 0 ? matched.reduce((sum, m) => sum + m.attributeScore, 0) / numMatched : 0;
+    const averageAttributeScore = numMatched > 0 ? matched.reduce((sum, m) => sum + m.attributeScore, 0) / numMatched : 100;
     
-    // Calculate final score based on matched quality and penalties for missed/extra.
     const qualityScore = numMatched > 0 ? matched.reduce((sum, m) => sum + m.finalScore, 0) / numMatched : 0;
     const precision = (numMatched + extra.length) > 0 ? numMatched / (numMatched + extra.length) : 0;
     const recall = (numMatched + missed.length) > 0 ? numMatched / (numMatched + missed.length) : 0;
-    // F-beta score with beta=0.5 to weigh precision more than recall
+
     const completenessScore = (precision > 0 || recall > 0) ? (1.25 * precision * recall) / (0.25 * precision + recall) * 100 : 0;
     
     const finalScore = (qualityScore * 0.5) + (completenessScore * 0.5);
-    console.log(`Final Score Breakdown: Quality=${qualityScore.toFixed(2)}, Completeness=${completenessScore.toFixed(2)} -> Final=${finalScore.toFixed(2)}`);
-
 
     const feedback: string[] = [
-        `Evaluation complete. Overall score reflects a blend of match quality, precision, and recall.`,
+        `Evaluation complete. Overall score reflects a blend of match quality and completeness.`,
         `Matched ${numMatched} polygons.`,
         `Found ${missed.length} missed and ${extra.length} extra polygons.`
     ];

@@ -91,16 +91,17 @@ const ResultsDisplay = ({ results, imageUrls }: { results: PolygonEvaluationResu
     document.body.removeChild(link);
   };
 
-  const getImageNameById = (id: number): string | undefined => {
+  const getImageNameById = (imageId: number, annotations: PolygonAnnotation[]): string => {
+    const annotation = annotations.find(ann => ann.image_id === imageId);
+    // In CVAT exports, the image ID from the annotation might just be the filename.
+    // So we look up the full filename from the imageUrls map.
     for (const [name, url] of imageUrls.entries()) {
-        const urlId = parseInt(url.split('-').pop() || 'NaN');
-        // This is a bit of a hack, assuming the image URLs are blob URLs with predictable names
-        // A better approach would be to have a direct map from image ID to name if possible from COCO JSON
-        if (name.includes(String(id))) return name;
+        if (name.includes(`_${imageId}.`)) {
+            return name;
+        }
     }
-
-    // Fallback for CVAT which might have numeric filenames
-    return imageUrls.get(String(id));
+    // Fallback if the pattern doesn't match
+    return `Image ID: ${imageId}`;
   };
 
 
@@ -158,10 +159,11 @@ const Legend = () => (
 );
 
 
-const SingleResultDisplay = ({ result, imageUrls, getImageNameById }: { result: PolygonEvaluationResult; imageUrls: Map<string, string>; getImageNameById: (id: number) => string | undefined; }) => {
+const SingleResultDisplay = ({ result, imageUrls, getImageNameById }: { result: PolygonEvaluationResult; imageUrls: Map<string, string>; getImageNameById: (id: number, annotations: PolygonAnnotation[]) => string; }) => {
     
     // Group all annotations by image ID for display
     const annotationsByImageId = new Map<number, { matched: PolygonMatch[], missed: { gt: PolygonAnnotation }[], extra: { student: PolygonAnnotation }[] }>();
+    const allAnnotations = [...result.matched.map(m=>m.gt), ...result.missed.map(m=>m.gt), ...result.extra.map(e=>e.student)];
 
     result.matched.forEach(m => {
         const entry = annotationsByImageId.get(m.gt.image_id) || { matched: [], missed: [], extra: [] };
@@ -220,8 +222,14 @@ const SingleResultDisplay = ({ result, imageUrls, getImageNameById }: { result: 
                 <h3 className="text-lg font-semibold mb-2">Visual Comparison</h3>
                  <Accordion type="single" collapsible className="w-full" defaultValue={annotationsByImageId.keys().next().value?.toString()}>
                      {[...annotationsByImageId.entries()].map(([imageId, annotations]) => {
-                        const imageName = getImageNameById(imageId);
-                        const imageUrl = imageName ? imageUrls.get(imageName) : undefined;
+                        const allAnnsForImage = [
+                            ...annotations.matched.map(m => m.gt),
+                            ...annotations.missed.map(m => m.gt),
+                            ...annotations.extra.map(e => e.student)
+                        ];
+
+                        const imageName = getImageNameById(imageId, allAnnotations);
+                        const imageUrl = imageUrls.get(imageName);
                         
                         return (
                              <AccordionItem value={imageId.toString()} key={imageId} className="card-style mb-2 overflow-hidden">
@@ -236,7 +244,7 @@ const SingleResultDisplay = ({ result, imageUrls, getImageNameById }: { result: 
                                         />
                                    ) : (
                                         <div className="w-full aspect-video bg-muted rounded-md flex items-center justify-center text-sm text-muted-foreground">
-                                            Image not provided
+                                            Image not provided for {imageName}
                                         </div>
                                    )}
                                 </AccordionContent>
