@@ -2,17 +2,24 @@
 'use client';
 
 import React, { useRef, useEffect } from 'react';
-import type { Polygon, PolygonEvaluationResult } from '@/lib/types';
+import type { Polygon, PolygonAnnotation, PolygonMatch } from '@/lib/types';
 
 interface PolygonViewerProps {
   imageUrl: string;
-  results: PolygonEvaluationResult;
+  annotations: {
+    matched: PolygonMatch[];
+    missed: { gt: PolygonAnnotation }[];
+    extra: { student: PolygonAnnotation }[];
+  };
 }
 
-const GT_COLOR = 'rgba(0, 215, 255, 1)'; // Gold
-const STUDENT_COLOR = 'rgba(255, 0, 0, 1)'; // Red
+const GT_COLOR = 'rgba(0, 215, 255, 1)'; // Cyan for GT Outline
+const STUDENT_COLOR = 'rgba(255, 0, 0, 1)'; // Red for Student Outline
+const MISSED_FILL = 'rgba(0, 215, 255, 0.5)'; // Semi-transparent Cyan for missed
+const EXTRA_FILL = 'rgba(255, 0, 0, 0.5)'; // Semi-transparent Red for extra
 
-export function PolygonViewer({ imageUrl, results }: PolygonViewerProps) {
+
+export function PolygonViewer({ imageUrl, annotations }: PolygonViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -33,7 +40,10 @@ export function PolygonViewer({ imageUrl, results }: PolygonViewerProps) {
       context.clearRect(0, 0, canvas.width, canvas.height);
       context.drawImage(image, 0, 0, canvas.width, canvas.height);
       
-      const drawPolygon = (polygon: Polygon, color: string, isFill: boolean = false) => {
+      const drawPolygon = (polygonPoints: Polygon[], color: string, isFill: boolean = false, lineWidth: number = 2) => {
+        if (!polygonPoints || polygonPoints.length === 0) return;
+        
+        const polygon = polygonPoints[0];
         if (polygon.length < 2) return;
         
         context.beginPath();
@@ -48,25 +58,25 @@ export function PolygonViewer({ imageUrl, results }: PolygonViewerProps) {
             context.fill();
         } else {
             context.strokeStyle = color;
-            context.lineWidth = 2;
+            context.lineWidth = lineWidth;
             context.stroke();
         }
       };
 
-      // Draw matched polygons
-      results.matched.forEach(match => {
-        drawPolygon(match.gt.segmentation[0], GT_COLOR);
-        drawPolygon(match.student.segmentation[0], STUDENT_COLOR);
-      });
-      
-      // Draw missed polygons
-      results.missed.forEach(miss => {
-         drawPolygon(miss.gt.segmentation[0], GT_COLOR, true);
+      // Draw missed polygons (filled GT)
+      annotations.missed.forEach(miss => {
+         drawPolygon(miss.gt.segmentation, MISSED_FILL, true);
       });
 
-      // Draw extra polygons
-      results.extra.forEach(extra => {
-        drawPolygon(extra.student.segmentation[0], STUDENT_COLOR, true);
+      // Draw extra polygons (filled student)
+      annotations.extra.forEach(extra => {
+        drawPolygon(extra.student.segmentation, EXTRA_FILL, true);
+      });
+
+      // Draw matched polygons (outlines)
+      annotations.matched.forEach(match => {
+        drawPolygon(match.gt.segmentation, GT_COLOR);
+        drawPolygon(match.student.segmentation, STUDENT_COLOR);
       });
 
     };
@@ -83,7 +93,7 @@ export function PolygonViewer({ imageUrl, results }: PolygonViewerProps) {
         }
     }
 
-  }, [imageUrl, results]);
+  }, [imageUrl, annotations]);
 
   return <canvas ref={canvasRef} className="w-full h-auto rounded-md border bg-muted" />;
 }

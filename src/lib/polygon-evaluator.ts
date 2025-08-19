@@ -1,4 +1,5 @@
 
+
 import type { PolygonAnnotation, PolygonEvaluationResult, PolygonMatch, Point, Polygon as PolygonType } from './types';
 import type { EvalSchema } from '@/ai/flows/extract-eval-schema';
 import KDBush from 'kdbush';
@@ -37,7 +38,7 @@ function calculatePolygonIoU(poly1: PolygonType, poly2: PolygonType): number {
 }
 
 function computeDeviations(gt_polygon: PolygonType, annot_polygon: PolygonType): number[] {
-    if (gt_polygon.length === 0 || annot_polygon.length === 0) {
+    if (!gt_polygon || gt_polygon.length === 0 || !annot_polygon || annot_polygon.length === 0) {
         return [];
     }
     const tree = new KDBush(gt_polygon.length);
@@ -67,7 +68,7 @@ function computeDeviations(gt_polygon: PolygonType, annot_polygon: PolygonType):
 
 function calculateDeviationScore(gt_polygon: PolygonType, annot_polygon: PolygonType): number {
     const deviations = computeDeviations(gt_polygon, annot_polygon);
-    if (deviations.length === 0) return 100;
+    if (deviations.length === 0) return 100; // If no points to compare, consider it a perfect score
 
     const perfect = 2, minor = 5, moderate = 10;
     const p_perfect = deviations.filter(d => d <= perfect).length / deviations.length * 100;
@@ -166,7 +167,7 @@ export function evaluatePolygons(gtJson: any, studentJson: any, schema: EvalSche
         return acc;
     }, {} as Record<number, PolygonAnnotation[]>);
 
-    const imageIds = Object.keys(gtAnnsByImage).map(Number);
+    const imageIds = new Set([...Object.keys(gtAnnsByImage).map(Number), ...Object.keys(studentAnnsByImage).map(Number)]);
     const matchKey = schema.matchKey;
 
     for (const imageId of imageIds) {

@@ -44,7 +44,7 @@ const ResultsDisplay = ({ results, imageUrls }: { results: PolygonEvaluationResu
     csv.push(`"Image ID","GT ID","Student ID","IoU","Polygon Score","Attribute Score","Final Score"`);
     result.matched.forEach(m => {
         const row = [
-            imageUrls.get(m.gt.image_id.toString()) || m.gt.image_id,
+            m.gt.image_id,
             m.gt.id,
             m.student.id,
             m.iou.toFixed(4),
@@ -61,7 +61,7 @@ const ResultsDisplay = ({ results, imageUrls }: { results: PolygonEvaluationResu
     csv.push(`"Image ID","GT ID","GT Label"`);
     result.missed.forEach(m => {
         const row = [
-            imageUrls.get(m.gt.image_id.toString()) || m.gt.image_id,
+            m.gt.image_id,
             m.gt.id,
             m.gt.attributes?.label,
         ].map(escapeCsv).join(',');
@@ -74,7 +74,7 @@ const ResultsDisplay = ({ results, imageUrls }: { results: PolygonEvaluationResu
     csv.push(`"Image ID","Student ID","Student Label"`);
     result.extra.forEach(e => {
         const row = [
-            imageUrls.get(e.student.image_id.toString()) || e.student.image_id,
+            e.student.image_id,
             e.student.id,
             e.student.attributes?.label,
         ].map(escapeCsv).join(',');
@@ -90,6 +90,19 @@ const ResultsDisplay = ({ results, imageUrls }: { results: PolygonEvaluationResu
     link.click();
     document.body.removeChild(link);
   };
+
+  const getImageNameById = (id: number): string | undefined => {
+    for (const [name, url] of imageUrls.entries()) {
+        const urlId = parseInt(url.split('-').pop() || 'NaN');
+        // This is a bit of a hack, assuming the image URLs are blob URLs with predictable names
+        // A better approach would be to have a direct map from image ID to name if possible from COCO JSON
+        if (name.includes(String(id))) return name;
+    }
+
+    // Fallback for CVAT which might have numeric filenames
+    return imageUrls.get(String(id));
+  };
+
 
   return (
     <>
@@ -110,7 +123,7 @@ const ResultsDisplay = ({ results, imageUrls }: { results: PolygonEvaluationResu
         </div>
       </div>
         
-        <Accordion type="single" collapsible className="w-full">
+        <Accordion type="single" collapsible className="w-full" defaultValue={results.length > 0 ? results[0].studentFilename : undefined}>
             <h3 className="text-2xl mb-2">Detailed Student Results</h3>
             {results.map((result) => (
                 <AccordionItem value={result.studentFilename} key={result.studentFilename} className="card-style mb-4 overflow-hidden">
@@ -124,7 +137,7 @@ const ResultsDisplay = ({ results, imageUrls }: { results: PolygonEvaluationResu
                        </div>
                     </AccordionTrigger>
                     <AccordionContent className="p-4 bg-muted">
-                        <SingleResultDisplay result={result} imageUrls={imageUrls}/>
+                        <SingleResultDisplay result={result} imageUrls={imageUrls} getImageNameById={getImageNameById}/>
                     </AccordionContent>
                 </AccordionItem>
             ))}
@@ -145,8 +158,28 @@ const Legend = () => (
 );
 
 
-const SingleResultDisplay = ({ result, imageUrls }: { result: PolygonEvaluationResult; imageUrls: Map<string, string>; }) => {
+const SingleResultDisplay = ({ result, imageUrls, getImageNameById }: { result: PolygonEvaluationResult; imageUrls: Map<string, string>; getImageNameById: (id: number) => string | undefined; }) => {
     
+    // Group all annotations by image ID for display
+    const annotationsByImageId = new Map<number, { matched: PolygonMatch[], missed: { gt: PolygonAnnotation }[], extra: { student: PolygonAnnotation }[] }>();
+
+    result.matched.forEach(m => {
+        const entry = annotationsByImageId.get(m.gt.image_id) || { matched: [], missed: [], extra: [] };
+        entry.matched.push(m);
+        annotationsByImageId.set(m.gt.image_id, entry);
+    });
+    result.missed.forEach(m => {
+        const entry = annotationsByImageId.get(m.gt.image_id) || { matched: [], missed: [], extra: [] };
+        entry.missed.push(m);
+        annotationsByImageId.set(m.gt.image_id, entry);
+    });
+    result.extra.forEach(e => {
+        const entry = annotationsByImageId.get(e.student.image_id) || { matched: [], missed: [], extra: [] };
+        entry.extra.push(e);
+        annotationsByImageId.set(e.student.image_id, entry);
+    });
+
+
     return (
         <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -185,10 +218,32 @@ const SingleResultDisplay = ({ result, imageUrls }: { result: PolygonEvaluationR
 
             <div>
                 <h3 className="text-lg font-semibold mb-2">Visual Comparison</h3>
-                 <PolygonViewer 
-                    imageUrl={imageUrls.values().next().value} // Simplified: uses the first image for all results in batch
-                    results={result}
-                />
+                 <Accordion type="single" collapsible className="w-full" defaultValue={annotationsByImageId.keys().next().value?.toString()}>
+                     {[...annotationsByImageId.entries()].map(([imageId, annotations]) => {
+                        const imageName = getImageNameById(imageId);
+                        const imageUrl = imageName ? imageUrls.get(imageName) : undefined;
+                        
+                        return (
+                             <AccordionItem value={imageId.toString()} key={imageId} className="card-style mb-2 overflow-hidden">
+                                <AccordionTrigger className="p-2 hover:no-underline">
+                                    <span className="font-bold text-sm">{imageName || `Image ID: ${imageId}`}</span>
+                                </AccordionTrigger>
+                                <AccordionContent className="p-2 bg-muted/50">
+                                   {imageUrl ? (
+                                        <PolygonViewer 
+                                            imageUrl={imageUrl} 
+                                            annotations={annotations}
+                                        />
+                                   ) : (
+                                        <div className="w-full aspect-video bg-muted rounded-md flex items-center justify-center text-sm text-muted-foreground">
+                                            Image not provided
+                                        </div>
+                                   )}
+                                </AccordionContent>
+                             </AccordionItem>
+                        )
+                     })}
+                 </Accordion>
                 <Legend />
             </div>
         </div>
@@ -218,4 +273,3 @@ export function PolygonResultsDashboard({ results, loading, imageUrls }: Polygon
     </div>
   );
 }
-
