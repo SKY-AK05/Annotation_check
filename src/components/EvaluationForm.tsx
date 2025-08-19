@@ -75,7 +75,7 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange, imageUrl
                       <FileCog className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                       <Input
                         type="file"
-                        className="pl-10"
+                        className="pl-10 w-full"
                         {...gtFileRef}
                         accept=".xml,.json,.zip"
                         onChange={(e) => {
@@ -99,7 +99,7 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange, imageUrl
                   <FormControl>
                     <div className="relative">
                       <UploadCloud className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                      <Input type="file" className="pl-10" {...studentFileRef} accept=".xml,.json,.zip" multiple />
+                      <Input type="file" className="pl-10 w-full" {...studentFileRef} accept=".xml,.json,.zip" multiple />
                     </div>
                   </FormControl>
                   <FormDescription>Upload one or more files, or a single ZIP archive.</FormDescription>
@@ -118,7 +118,7 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange, imageUrl
                       <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                       <Input 
                         type="file" 
-                        className="pl-10" 
+                        className="pl-10 w-full" 
                         {...imageFileRef} 
                         accept="image/*,.zip" 
                         multiple 
@@ -145,7 +145,7 @@ export function EvaluationForm({ onEvaluate, isLoading, onGtFileChange, imageUrl
                   <FormLabel className="font-bold">Annotation Format</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
-                      <SelectTrigger className='shadow-hard border-2 border-foreground'>
+                      <SelectTrigger className='shadow-hard border-2 border-foreground w-full'>
                           <SelectValue placeholder="Select a tool type" />
                       </SelectTrigger>
                       </FormControl>
