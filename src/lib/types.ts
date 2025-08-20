@@ -1,6 +1,5 @@
 
 
-
 import type { z } from "zod";
 
 const EvalLabelSchema = z.object({
@@ -103,7 +102,7 @@ export interface Match {
     gt: BboxAnnotation;
     student: BboxAnnotation;
     iou: number;
-    isLabelMatch: boolean;
+    labelSimilarity: number;
     attributeSimilarity: number;
     originalScore: number;
     overrideScore?: number | null;
@@ -124,7 +123,7 @@ export interface PolygonMatch {
     finalScore: number;
 }
 
-export interface SkeletonMatch extends Match {
+export interface SkeletonMatch extends Omit<Match, 'isLabelMatch'> {
     oks: number;
 }
 

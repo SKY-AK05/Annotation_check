@@ -1,4 +1,5 @@
 
+
 import type { EvaluationResult, CocoJson, BboxAnnotation, LabelAccuracy, AttributeAccuracy, Match, ImageEvaluationResult, SkeletonEvaluationResult, PolygonAnnotation, ScoreOverrides } from './types';
 import type { EvalSchema } from './types';
 import munkres from 'munkres-js';
@@ -107,13 +108,13 @@ function findOptimalMatches(
 }
 
 
-function calculateMatchScore(iou: number, isLabelMatch: boolean, attributeSimilarity: number): number {
+function calculateMatchScore(iou: number, labelSimilarity: number, attributeSimilarity: number): number {
     const iouWeight = 0.70;
     const labelWeight = 0.15;
     const attrWeight = 0.15;
 
     const iouScore = iou * 100;
-    const labelScore = isLabelMatch ? 100 : 0;
+    const labelScore = labelSimilarity * 100;
     const attrScore = attributeSimilarity * 100;
 
     return (iouScore * iouWeight) + (labelScore * labelWeight) + (attrScore * attrWeight);
@@ -179,7 +180,7 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
     const gtMatchedIds = new Set<number>();
     
     let totalIou = 0;
-    let correctLabelCount = 0;
+    let totalLabelSimilarity = 0;
     let totalAttributeSimilaritySum = 0;
     let attributeComparisonsCount = 0;
 
@@ -226,9 +227,9 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
 
                     const iou = calculateIoU(gt.bbox, student.bbox);
                     
-                    const gtLabel = gtCategories.get(gt.category_id);
-                    const studentLabel = studentCategories.get(student.category_id);
-                    const isLabelMatch = gtLabel === studentLabel;
+                    const gtLabel = gtCategories.get(gt.category_id) || '';
+                    const studentLabel = studentCategories.get(student.category_id) || '';
+                    const labelSimilarity = getStringSimilarity(gtLabel, studentLabel);
                     
                     let pairAttributeSimilarity = 1.0; // Default to 100%
                     const labelSchema = schema.labels.find(l => l.name === gtLabel);
@@ -248,8 +249,8 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
                         }
                     }
 
-                    const originalScore = calculateMatchScore(iou, isLabelMatch, pairAttributeSimilarity);
-                    const matchResult = { gt, student, iou, isLabelMatch, attributeSimilarity: pairAttributeSimilarity, originalScore, overrideScore: null };
+                    const originalScore = calculateMatchScore(iou, labelSimilarity, pairAttributeSimilarity);
+                    const matchResult = { gt, student, iou, labelSimilarity, attributeSimilarity: pairAttributeSimilarity, originalScore, overrideScore: null };
                     imageMatched.push(matchResult);
                     studentMap.delete(key);
                 }
@@ -270,9 +271,9 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
             studentMatchedIds.add(student.id);
             imageUsedStudentIds.add(student.id);
 
-            const gtLabel = gtCategories.get(gt.category_id);
-            const studentLabel = studentCategories.get(student.category_id);
-            const isLabelMatch = gtLabel === studentLabel;
+            const gtLabel = gtCategories.get(gt.category_id) || '';
+            const studentLabel = studentCategories.get(student.category_id) || '';
+            const labelSimilarity = getStringSimilarity(gtLabel, studentLabel);
             
             let pairAttributeSimilarity = 1.0;
             const labelSchema = schema.labels.find(l => l.name === gtLabel);
@@ -293,8 +294,8 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
                 }
             }
 
-            const originalScore = calculateMatchScore(iou, isLabelMatch, pairAttributeSimilarity);
-            const matchResult = { gt, student, iou, isLabelMatch, attributeSimilarity: pairAttributeSimilarity, originalScore, overrideScore: null };
+            const originalScore = calculateMatchScore(iou, labelSimilarity, pairAttributeSimilarity);
+            const matchResult = { gt, student, iou, labelSimilarity, attributeSimilarity: pairAttributeSimilarity, originalScore, overrideScore: null };
             imageMatched.push(matchResult);
         }
         
@@ -324,14 +325,14 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
 
     final_matched.forEach(m => {
         totalIou += m.iou;
-        if (m.isLabelMatch) correctLabelCount++;
+        totalLabelSimilarity += m.labelSimilarity;
         totalAttributeSimilaritySum += m.attributeSimilarity;
     });
     
     const label_accuracy: LabelAccuracy = {
-        correct: correctLabelCount,
+        correct: totalLabelSimilarity, // Can be fractional now
         total: final_matched.length,
-        accuracy: final_matched.length > 0 ? (correctLabelCount / final_matched.length) * 100 : 100,
+        accuracy: final_matched.length > 0 ? (totalLabelSimilarity / final_matched.length) * 100 : 100,
     };
 
     const attribute_accuracy: AttributeAccuracy = {
@@ -358,8 +359,10 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
     feedback.push(`Detected ${final_matched.length} out of ${totalGtAnnotations} ground truth annotations.`);
     if (final_missed.length > 0) feedback.push(`You missed ${final_missed.length} annotations.`);
     if (final_extra.length > 0) feedback.push(`You added ${final_extra.length} extra annotations.`);
-    const mislabeledCount = final_matched.length - correctLabelCount;
-    if (mislabeledCount > 0) feedback.push(`You mislabeled ${mislabeledCount} annotations.`);
+    
+    const mislabeledCount = final_matched.length - totalLabelSimilarity;
+    if (mislabeledCount > 0.5) feedback.push(`Found approximately ${Math.round(mislabeledCount)} mislabeled or poorly labeled annotations.`);
+    
     feedback.push(`Average IoU for matched items is ${((final_matched.length > 0 ? totalIou / final_matched.length : 0) * 100).toFixed(1)}%.`);
     if(final_matched.length > 0) feedback.push(`Attribute text accuracy for matched items is ${attribute_accuracy.average_similarity.toFixed(1)}%.`);
 
@@ -455,14 +458,14 @@ export function evaluateSkeletons(gtJson: CocoJson, studentJson: CocoJson): Omit
             const oks = calculateOKS(gt, bestMatch.student, sigmas);
             totalOks += oks;
             
-            const originalScore = calculateMatchScore(bestMatch.iou, true, 1);
+            const originalScore = calculateMatchScore(bestMatch.iou, 1, 1); // Simplified for skeletons
             matched.push({
                 gt,
                 student: bestMatch.student,
                 iou: bestMatch.iou,
                 oks,
-                isLabelMatch: true, // Simplified for this version
-                attributeSimilarity: 1, // Simplified for this version
+                labelSimilarity: 1,
+                attributeSimilarity: 1,
                 originalScore
             });
         }
@@ -494,5 +497,3 @@ export function evaluateSkeletons(gtJson: CocoJson, studentJson: CocoJson): Omit
         extra
     };
 }
-
-    
