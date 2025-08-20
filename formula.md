@@ -1,4 +1,3 @@
-
 # Annotator AI: The Evaluation & Scoring Engine
 
 This document provides a detailed technical explanation of the annotation matching and scoring algorithms used in Annotator AI. It covers the current two-pass system, the formulas used for scoring, and the rationale for replacing the previous "Greedy" algorithm.
@@ -37,11 +36,11 @@ The scoring system is designed to provide a holistic view of annotation quality,
 
 For each `Matched` pair, an **Original Score** (0-100) is calculated using a weighted formula:
 
-`Match Score = (IoU * 50) + (Label_Score * 30) + (Attribute_Score * 20)`
+`Match Score = (IoU * 70) + (Label_Score * 15) + (Attribute_Score * 15)`
 
--   **IoU (50% weight)**: The raw Intersection over Union value, scaled. A perfect overlap (IoU=1.0) contributes 50 points.
--   **Label Score (30% weight)**: A binary score. If the class labels match (e.g., 'car' == 'car'), this is 1, contributing 30 points. If they don't, it's 0.
--   **Attribute Score (20% weight)**: The average similarity of all defined attributes for that label (e.g., 'color', 'occluded'), calculated using Levenshtein distance for string comparison. An average similarity of 100% contributes 20 points.
+-   **IoU (70% weight)**: The raw Intersection over Union value, scaled. A perfect overlap (IoU=1.0) contributes 70 points.
+-   **Label Score (15% weight)**: A binary score. If the class labels match (e.g., 'car' == 'car'), this is 100, contributing 15 points. If they don't, it's 0.
+-   **Attribute Score (15% weight)**: The average similarity of all defined attributes for that label (e.g., 'color', 'occluded'), calculated using Levenshtein distance for string comparison. An average similarity of 100% contributes 15 points.
 
 ### Trainer Overrides
 
