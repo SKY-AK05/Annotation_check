@@ -123,10 +123,10 @@ function calculateMatchScore(iou: number, isLabelMatch: boolean, attributeSimila
 export function recalculateOverallScore(results: EvaluationResult, overrides: ScoreOverrides): EvaluationResult {
     const studentOverrides = overrides[results.studentFilename] || {};
     let totalScoreFromMatches = 0;
-    let matchedCount = 0;
     
     // Deep clone to avoid direct state mutation
     const newResults = JSON.parse(JSON.stringify(results)) as EvaluationResult;
+    let matchedCount = 0;
 
     newResults.image_results.forEach(ir => {
         ir.matched.forEach(match => {
@@ -143,17 +143,20 @@ export function recalculateOverallScore(results: EvaluationResult, overrides: Sc
 
     const averageMatchScore = matchedCount > 0 ? totalScoreFromMatches / matchedCount : 0;
 
-    // Apply penalties for missed/extra annotations
-    const totalGt = newResults.matched.length + newResults.missed.length;
-    const totalStudent = newResults.matched.length + newResults.extra.length;
-    const precision = totalStudent > 0 ? matchedCount / totalStudent : 0;
-    const recall = totalGt > 0 ? matchedCount / totalGt : 0;
+    const totalGtAnnotations = newResults.matched.length + newResults.missed.length;
+    const totalStudentAnnotations = newResults.matched.length + newResults.extra.length;
+    
+    const precision = totalStudentAnnotations > 0 ? newResults.matched.length / totalStudentAnnotations : 0;
+    const recall = totalGtAnnotations > 0 ? newResults.matched.length / totalGtAnnotations : 0;
+    
+    // F-beta score with beta=0.5 to weigh precision higher than recall
+    const beta = 0.5;
+    const fbetaScore = (precision > 0 || recall > 0)
+        ? (1 + beta**2) * (precision * recall) / ((beta**2 * precision) + recall) * 100
+        : 0;
 
-    // F-beta score with beta=0.5 to weigh precision more than recall
-    const fbetaScore = (precision > 0 || recall > 0) ? (1.25 * precision * recall) / (0.25 * precision + recall) * 100 : 0;
-
-    // Recalculate final score with the new average match score
-    newResults.score = Math.round((fbetaScore * 0.5) + (averageMatchScore * 0.5));
+    // The final score is a 50/50 blend of quality (average match score) and completeness (F-beta score).
+    newResults.score = Math.round((averageMatchScore * 0.5) + (fbetaScore * 0.5));
     
     return newResults;
 }
@@ -222,20 +225,19 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
                     imageUsedStudentIds.add(student.id);
 
                     const iou = calculateIoU(gt.bbox, student.bbox);
-                    totalIou += iou;
-
+                    
                     const gtLabel = gtCategories.get(gt.category_id);
                     const studentLabel = studentCategories.get(student.category_id);
                     const isLabelMatch = gtLabel === studentLabel;
-                    if(isLabelMatch) correctLabelCount++;
-
-                    let pairAttributeSimilarity = 0;
+                    
+                    let pairAttributeSimilarity = 1.0; // Default to 100%
                     const labelSchema = schema.labels.find(l => l.name === gtLabel);
                     if (labelSchema && labelSchema.attributes.length > 0) {
                         let currentPairSimilaritySum = 0;
                         let currentPairAttributeCount = 0;
-                        for (const attrName of labelSchema.attributes) {
-                             if (attrName === matchKey || attrName === 'label') continue;
+                        const attributesToCompare = labelSchema.attributes.filter(a => a.toLowerCase() !== matchKey.toLowerCase() && a.toLowerCase() !== 'label');
+
+                        for (const attrName of attributesToCompare) {
                             const gtAttr = getAnnotationAttribute(gt, attrName) || '';
                             const studentAttr = getAnnotationAttribute(student, attrName) || '';
                             currentPairSimilaritySum += getStringSimilarity(gtAttr, studentAttr);
@@ -243,18 +245,11 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
                         }
                         if (currentPairAttributeCount > 0) {
                             pairAttributeSimilarity = currentPairSimilaritySum / currentPairAttributeCount;
-                            totalAttributeSimilaritySum += currentPairSimilaritySum;
-                            attributeComparisonsCount += currentPairAttributeCount;
-                        } else {
-                            pairAttributeSimilarity = 1; // Default to 100% if no attributes to compare
                         }
-                    } else {
-                         pairAttributeSimilarity = 1; // Default to 100% if no attributes defined in schema
                     }
 
                     const originalScore = calculateMatchScore(iou, isLabelMatch, pairAttributeSimilarity);
-                    const matchResult = { gt, student, iou, isLabelMatch, attributeSimilarity: pairAttributeSimilarity, originalScore };
-                    matched.push(matchResult);
+                    const matchResult = { gt, student, iou, isLabelMatch, attributeSimilarity: pairAttributeSimilarity, originalScore, overrideScore: null };
                     imageMatched.push(matchResult);
                     studentMap.delete(key);
                 }
@@ -263,7 +258,7 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
         
         // Fallback pass: For annotations not matched by key
         const remainingGt = gtAnnotations.filter(ann => !gtMatchedIds.has(ann.id));
-        const remainingStudent = studentAnnotations.filter(ann => !studentMatchedIds.has(ann.id));
+        const remainingStudent = studentAnnotations.filter(ann => !imageUsedStudentIds.has(ann.id));
 
         const optimalMatches = findOptimalMatches(remainingGt, remainingStudent, IOU_THRESHOLD);
 
@@ -275,21 +270,19 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
             studentMatchedIds.add(student.id);
             imageUsedStudentIds.add(student.id);
 
-            totalIou += iou;
-
             const gtLabel = gtCategories.get(gt.category_id);
             const studentLabel = studentCategories.get(student.category_id);
             const isLabelMatch = gtLabel === studentLabel;
-            if (isLabelMatch) correctLabelCount++;
             
-            let pairAttributeSimilarity = 0;
+            let pairAttributeSimilarity = 1.0;
             const labelSchema = schema.labels.find(l => l.name === gtLabel);
 
             if (labelSchema && labelSchema.attributes.length > 0) {
                 let currentPairSimilaritySum = 0;
                 let currentPairAttributeCount = 0;
-                for (const attrName of labelSchema.attributes) {
-                    if (attrName === matchKey || attrName === 'label') continue;
+                const attributesToCompare = labelSchema.attributes.filter(a => matchKey ? a.toLowerCase() !== matchKey.toLowerCase() : true && a.toLowerCase() !== 'label');
+
+                for (const attrName of attributesToCompare) {
                     const gtAttr = getAnnotationAttribute(gt, attrName) || '';
                     const studentAttr = getAnnotationAttribute(student, attrName) || '';
                     currentPairSimilaritySum += getStringSimilarity(gtAttr, studentAttr);
@@ -297,17 +290,11 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
                 }
                 if (currentPairAttributeCount > 0) {
                     pairAttributeSimilarity = currentPairSimilaritySum / currentPairAttributeCount;
-                    totalAttributeSimilaritySum += currentPairSimilaritySum;
-                    attributeComparisonsCount += currentPairAttributeCount;
-                } else {
-                    pairAttributeSimilarity = 1;
                 }
-            } else {
-                pairAttributeSimilarity = 1;
             }
+
             const originalScore = calculateMatchScore(iou, isLabelMatch, pairAttributeSimilarity);
-            const matchResult = { gt, student, iou, isLabelMatch, attributeSimilarity: pairAttributeSimilarity, originalScore };
-            matched.push(matchResult);
+            const matchResult = { gt, student, iou, isLabelMatch, attributeSimilarity: pairAttributeSimilarity, originalScore, overrideScore: null };
             imageMatched.push(matchResult);
         }
         
@@ -330,62 +317,66 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
         }
     }
 
+    // Now, aggregate stats from all image_results
+    const final_matched = image_results.flatMap(ir => ir.matched);
+    const final_missed = image_results.flatMap(ir => ir.missed);
+    const final_extra = image_results.flatMap(ir => ir.extra);
 
-    const missed = allGtAnnotations
-        .filter(g => !gtMatchedIds.has(g.id))
-        .map(gt => ({ gt }));
-
-    const extra = allStudentAnnotations
-        .filter(s => !studentMatchedIds.has(s.id))
-        .map(student => ({ student }));
-
-    const totalGt = allGtAnnotations.length;
-    const totalStudent = allStudentAnnotations.length;
-
+    final_matched.forEach(m => {
+        totalIou += m.iou;
+        if (m.isLabelMatch) correctLabelCount++;
+        totalAttributeSimilaritySum += m.attributeSimilarity;
+    });
+    
     const label_accuracy: LabelAccuracy = {
         correct: correctLabelCount,
-        total: matched.length,
-        accuracy: matched.length > 0 ? (correctLabelCount / matched.length) * 100 : 100,
+        total: final_matched.length,
+        accuracy: final_matched.length > 0 ? (correctLabelCount / final_matched.length) * 100 : 100,
     };
 
     const attribute_accuracy: AttributeAccuracy = {
-        average_similarity: attributeComparisonsCount > 0 ? (totalAttributeSimilaritySum / attributeComparisonsCount) * 100 : 100,
-        total: attributeComparisonsCount,
+        average_similarity: final_matched.length > 0 ? (totalAttributeSimilaritySum / final_matched.length) * 100 : 100,
+        total: final_matched.length, // Each match is an attribute comparison opportunity
     };
     
-    const averageMatchScore = matched.length > 0 ? matched.reduce((acc, m) => acc + m.originalScore, 0) / matched.length : 0;
+    const averageMatchScore = final_matched.length > 0 ? final_matched.reduce((acc, m) => acc + m.originalScore, 0) / final_matched.length : 0;
     
-    const precision = totalStudent > 0 ? matched.length / totalStudent : 0;
-    const recall = totalGt > 0 ? matched.length / totalGt : 0;
+    const totalGtAnnotations = final_matched.length + final_missed.length;
+    const totalStudentAnnotations = final_matched.length + final_extra.length;
     
-    // Using F-beta score with beta=0.5 to weigh precision more than recall
-    const fbetaScore = (precision > 0 || recall > 0) ? (1.25 * precision * recall) / (0.25 * precision + recall) * 100 : 0;
+    const precision = totalStudentAnnotations > 0 ? final_matched.length / totalStudentAnnotations : 0;
+    const recall = totalGtAnnotations > 0 ? final_matched.length / totalGtAnnotations : 0;
+    
+    const beta = 0.5;
+    const fbetaScore = (precision > 0 || recall > 0)
+        ? (1 + beta**2) * (precision * recall) / ((beta**2 * precision) + recall) * 100
+        : 0;
 
-    const finalScore = (fbetaScore * 0.5) + (averageMatchScore * 0.5);
+    const finalScore = Math.round((averageMatchScore * 0.5) + (fbetaScore * 0.5));
     
     const feedback: string[] = [];
-    feedback.push(`Detected ${matched.length} out of ${totalGt} ground truth annotations.`);
-    if (missed.length > 0) feedback.push(`You missed ${missed.length} annotations.`);
-    if (extra.length > 0) feedback.push(`You added ${extra.length} extra annotations.`);
-    const mislabeledCount = matched.length - correctLabelCount;
+    feedback.push(`Detected ${final_matched.length} out of ${totalGtAnnotations} ground truth annotations.`);
+    if (final_missed.length > 0) feedback.push(`You missed ${final_missed.length} annotations.`);
+    if (final_extra.length > 0) feedback.push(`You added ${final_extra.length} extra annotations.`);
+    const mislabeledCount = final_matched.length - correctLabelCount;
     if (mislabeledCount > 0) feedback.push(`You mislabeled ${mislabeledCount} annotations.`);
-    feedback.push(`Average IoU for matched items is ${((matched.length > 0 ? totalIou / matched.length : 0) * 100).toFixed(1)}%.`);
-    if(attributeComparisonsCount > 0) feedback.push(`Attribute text accuracy for matched items is ${attribute_accuracy.average_similarity.toFixed(1)}%.`);
+    feedback.push(`Average IoU for matched items is ${((final_matched.length > 0 ? totalIou / final_matched.length : 0) * 100).toFixed(1)}%.`);
+    if(final_matched.length > 0) feedback.push(`Attribute text accuracy for matched items is ${attribute_accuracy.average_similarity.toFixed(1)}%.`);
 
     const critical_issues: string[] = [];
-    if (recall < 0.5 && totalGt > 5) critical_issues.push(`High number of missed annotations (${missed.length}). Review the GT carefully.`);
-    if (precision < 0.5 && totalStudent > 5) critical_issues.push(`High number of extra annotations (${extra.length}). Ensure you only annotate required objects.`);
+    if (recall < 0.5 && totalGtAnnotations > 5) critical_issues.push(`High number of missed annotations (${final_missed.length}). Review the GT carefully.`);
+    if (precision < 0.5 && totalStudentAnnotations > 5) critical_issues.push(`High number of extra annotations (${final_extra.length}). Ensure you only annotate required objects.`);
     if(label_accuracy.accuracy < 70 && label_accuracy.total > 5) critical_issues.push(`Low label accuracy: ${label_accuracy.accuracy.toFixed(1)}%. Double-check object classes.`);
     if(attribute_accuracy.average_similarity < 70 && attribute_accuracy.total > 0) critical_issues.push(`Low attribute accuracy: ${attribute_accuracy.average_similarity.toFixed(1)}%. Check for typos or incorrect text.`);
 
     return {
         source: 'rule-based',
-        score: Math.round(finalScore),
+        score: finalScore,
         feedback,
-        matched,
-        missed,
-        extra,
-        average_iou: matched.length > 0 ? totalIou / matched.length : 0,
+        matched: final_matched,
+        missed: final_missed,
+        extra: final_extra,
+        average_iou: final_matched.length > 0 ? totalIou / final_matched.length : 0,
         label_accuracy,
         attribute_accuracy,
         critical_issues,
@@ -503,3 +494,5 @@ export function evaluateSkeletons(gtJson: CocoJson, studentJson: CocoJson): Omit
         extra
     };
 }
+
+    
