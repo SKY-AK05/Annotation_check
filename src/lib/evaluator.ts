@@ -108,9 +108,9 @@ function findOptimalMatches(
 
 
 function calculateMatchScore(iou: number, isLabelMatch: boolean, attributeSimilarity: number): number {
-    const iouWeight = 0.5;
-    const labelWeight = 0.3;
-    const attrWeight = 0.2;
+    const iouWeight = 0.70;
+    const labelWeight = 0.15;
+    const attrWeight = 0.15;
 
     const iouScore = iou * 100;
     const labelScore = isLabelMatch ? 100 : 0;
