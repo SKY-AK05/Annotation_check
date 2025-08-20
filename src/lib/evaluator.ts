@@ -245,7 +245,11 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
                             pairAttributeSimilarity = currentPairSimilaritySum / currentPairAttributeCount;
                             totalAttributeSimilaritySum += currentPairSimilaritySum;
                             attributeComparisonsCount += currentPairAttributeCount;
+                        } else {
+                            pairAttributeSimilarity = 1; // Default to 100% if no attributes to compare
                         }
+                    } else {
+                         pairAttributeSimilarity = 1; // Default to 100% if no attributes defined in schema
                     }
 
                     const originalScore = calculateMatchScore(iou, isLabelMatch, pairAttributeSimilarity);
@@ -295,7 +299,11 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
                     pairAttributeSimilarity = currentPairSimilaritySum / currentPairAttributeCount;
                     totalAttributeSimilaritySum += currentPairSimilaritySum;
                     attributeComparisonsCount += currentPairAttributeCount;
+                } else {
+                    pairAttributeSimilarity = 1;
                 }
+            } else {
+                pairAttributeSimilarity = 1;
             }
             const originalScore = calculateMatchScore(iou, isLabelMatch, pairAttributeSimilarity);
             const matchResult = { gt, student, iou, isLabelMatch, attributeSimilarity: pairAttributeSimilarity, originalScore };
@@ -303,9 +311,6 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
             imageMatched.push(matchResult);
         }
         
-        const imageGtIds = new Set(gtAnnotations.map(a => a.id));
-        const imageStudentIds = new Set(studentAnnotations.map(a => a.id));
-
         const imageMissed = gtAnnotations
             .filter(g => !gtMatchedIds.has(g.id))
             .map(gt => ({ gt }));
@@ -340,7 +345,7 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
     const label_accuracy: LabelAccuracy = {
         correct: correctLabelCount,
         total: matched.length,
-        accuracy: matched.length > 0 ? (correctLabelCount / matched.length) * 100 : 0,
+        accuracy: matched.length > 0 ? (correctLabelCount / matched.length) * 100 : 100,
     };
 
     const attribute_accuracy: AttributeAccuracy = {

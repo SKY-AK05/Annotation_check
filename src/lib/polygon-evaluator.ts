@@ -1,7 +1,4 @@
 
-
-
-
 import type { PolygonAnnotation, PolygonEvaluationResult, PolygonMatch, Point, Polygon as PolygonType } from './types';
 import type { EvalSchema } from '@/ai/flows/extract-eval-schema';
 import KDBush from 'kdbush';
@@ -40,58 +37,6 @@ function calculatePolygonIoU(poly1: PolygonType, poly2: PolygonType): number {
     }
 }
 
-function computeDeviations(gt_polygon: PolygonType, annot_polygon: PolygonType): number[] {
-    if (!gt_polygon || gt_polygon.length === 0 || !annot_polygon || annot_polygon.length === 0) {
-        console.warn("Cannot compute deviations for empty polygon.");
-        return [];
-    }
-
-    const tree = new KDBush(gt_polygon.length);
-    for (const point of gt_polygon) {
-        tree.add(point[0], point[1]);
-    }
-    tree.finish();
-
-    return annot_polygon.map(point => {
-        const nearestIndices = tree.within(point[0], point[1], 1); 
-        if (nearestIndices.length > 0 && nearestIndices[0] !== undefined) {
-             const nearestPoint = gt_polygon[nearestIndices[0]];
-             if (nearestPoint) {
-                const dx = point[0] - nearestPoint[0];
-                const dy = point[1] - nearestPoint[1];
-                return Math.sqrt(dx * dx + dy * dy);
-             }
-        }
-
-        console.warn("Could not find nearest point for deviation calculation, falling back to brute force.");
-        let min_dist_sq = Infinity;
-        for (const gt_point of gt_polygon) {
-            const dist_sq = (point[0] - gt_point[0]) ** 2 + (point[1] - gt_point[1]) ** 2;
-            if (dist_sq < min_dist_sq) {
-                min_dist_sq = dist_sq;
-            }
-        }
-        return Math.sqrt(min_dist_sq);
-    });
-}
-
-function calculateDeviationScore(gt_polygon: PolygonType, annot_polygon: PolygonType): number {
-    const deviations = computeDeviations(gt_polygon, annot_polygon);
-    if (deviations.length === 0) return 100; 
-
-    const perfect = 2, minor = 5, moderate = 10;
-    
-    const p_perfect = deviations.filter(d => d <= perfect).length / deviations.length * 100;
-    const p_minor = deviations.filter(d => d > perfect && d <= minor).length / deviations.length * 100;
-    const p_moderate = deviations.filter(d => d > minor && d <= moderate).length / deviations.length * 100;
-    const p_major = deviations.filter(d => d > moderate).length / deviations.length * 100;
-
-    if (p_perfect >= 98) return 100;
-    if (p_perfect >= 95) return 98;
-    if (p_perfect >= 90) return 95;
-
-    return Math.max(0, 100 - (0.1 * p_minor + 0.3 * p_moderate + 0.5 * p_major));
-}
 
 function levenshteinDistance(a: string, b: string): number {
     if (a.length === 0) return b.length;
@@ -195,14 +140,6 @@ export function evaluatePolygons(gtJson: any, studentJson: any, schema: EvalSche
     const gtCategories = new Map((gtJson.categories || []).map(c => [c.id, c.name]));
     const studentCategories = new Map((studentJson.categories || []).map(c => [c.id, c.name]));
 
-    const imageNameToId = new Map<string, number>();
-    gtJson.images.forEach((img: any) => imageNameToId.set(img.file_name, img.id));
-    studentJson.images.forEach((img: any) => {
-        if (!imageNameToId.has(img.file_name)) {
-            imageNameToId.set(img.file_name, img.id);
-        }
-    });
-
     const imageNameMap = new Map<number, string>();
     gtJson.images.forEach((img: any) => imageNameMap.set(img.id, img.file_name));
     studentJson.images.forEach((img: any) => {
@@ -264,6 +201,7 @@ export function evaluatePolygons(gtJson: any, studentJson: any, schema: EvalSche
                         student: studentPoly,
                         iou,
                         attributeScore,
+                        polygonScore: iou * 100, // For consistency, though not used in final score
                         finalScore
                     });
 
@@ -296,6 +234,7 @@ export function evaluatePolygons(gtJson: any, studentJson: any, schema: EvalSche
                 student: studentPoly,
                 iou: iou,
                 attributeScore,
+                polygonScore: iou * 100,
                 finalScore
             });
         }
@@ -307,7 +246,7 @@ export function evaluatePolygons(gtJson: any, studentJson: any, schema: EvalSche
 
     const extra = allStudentAnnotations
         .filter(s => !studentMatchedIds.has(s.id))
-        .map(student => ({ student }));
+        .map(s => ({ student }));
 
     const numMatched = matched.length;
     const averageIoU = numMatched > 0 ? matched.reduce((sum, m) => sum + m.iou, 0) / numMatched : 0;
@@ -335,6 +274,7 @@ export function evaluatePolygons(gtJson: any, studentJson: any, schema: EvalSche
         matched,
         missed,
         extra,
-        imageNameMap
+        imageNameMap,
+        averagePolygonScore: averageIoU * 100 // Keep for display consistency
     };
 }

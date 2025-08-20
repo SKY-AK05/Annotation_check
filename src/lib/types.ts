@@ -119,7 +119,6 @@ export interface PolygonMatch {
     gt: PolygonAnnotation;
     student: PolygonAnnotation;
     iou: number;
-    deviation: number;
     polygonScore: number;
     attributeScore: number;
     finalScore: number;
@@ -170,7 +169,6 @@ export interface PolygonEvaluationResult {
     score: number;
     feedback: string[];
     averageIoU: number;
-    averageDeviation: number;
     averagePolygonScore: number;
     averageAttributeScore: number;
     matched: PolygonMatch[];
