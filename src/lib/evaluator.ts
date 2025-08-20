@@ -1,5 +1,5 @@
 
-import type { EvaluationResult, CocoJson, BboxAnnotation, LabelAccuracy, AttributeAccuracy, Match, ImageEvaluationResult, SkeletonEvaluationResult, SkeletonMatch, PolygonAnnotation, ScoreOverrides } from './types';
+import type { EvaluationResult, CocoJson, BboxAnnotation, LabelAccuracy, AttributeAccuracy, Match, ImageEvaluationResult, SkeletonEvaluationResult, PolygonAnnotation, ScoreOverrides } from './types';
 import type { EvalSchema } from './types';
 import munkres from 'munkres-js';
 

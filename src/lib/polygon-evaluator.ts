@@ -77,11 +77,11 @@ function getStringSimilarity(str1: string, str2: string): number {
 
 function calculateAttributeScore(gt_attrs: { [key: string]: string | undefined }, annot_attrs: { [key: string]: string | undefined }, schema: EvalSchema, label: string): number {
     const labelSchema = schema.labels.find(l => l.name.toLowerCase() === label.toLowerCase());
-    if (!labelSchema) return 100;
+    if (!labelSchema) return 1.0;
 
-    const attributesToCompare = labelSchema.attributes.filter(a => a !== schema.matchKey && a !== 'label');
+    const attributesToCompare = labelSchema.attributes.filter(a => a.toLowerCase() !== schema.matchKey?.toLowerCase() && a.toLowerCase() !== 'label');
     
-    if (attributesToCompare.length === 0) return 100;
+    if (attributesToCompare.length === 0) return 1.0;
 
     let similaritySum = 0;
     for (const key of attributesToCompare) {
@@ -89,7 +89,19 @@ function calculateAttributeScore(gt_attrs: { [key: string]: string | undefined }
         const studentAttr = annot_attrs[key] || '';
         similaritySum += getStringSimilarity(gtAttr, studentAttr);
     }
-    return (similaritySum / attributesToCompare.length) * 100;
+    return (similaritySum / attributesToCompare.length);
+}
+
+function calculateMatchScore(iou: number, isLabelMatch: boolean, attributeSimilarity: number): number {
+    const iouWeight = 0.70;
+    const labelWeight = 0.15;
+    const attrWeight = 0.15;
+
+    const iouScore = iou * 100;
+    const labelScore = isLabelMatch ? 100 : 0;
+    const attrScore = attributeSimilarity * 100;
+
+    return (iouScore * iouWeight) + (labelScore * labelWeight) + (attrScore * attrWeight);
 }
 
 
@@ -101,10 +113,10 @@ function findOptimalPolygonMatches(
     if (!gtPolys.length || !studentPolys.length) {
         return [];
     }
-    console.log(`Finding optimal matches between ${gtPolys.length} GT and ${studentPolys.length} student polys.`);
-
+    
     const costMatrix = gtPolys.map(gt =>
         studentPolys.map(student => {
+            // Only compare polys if they have the same category ID for a valid match
             if (gt.category_id !== student.category_id) {
                 return 1_000_000;
             }
@@ -127,7 +139,6 @@ function findOptimalPolygonMatches(
             });
         }
     }
-    console.log(`Found ${matches.length} optimal matches.`);
     return matches;
 }
 
@@ -192,16 +203,16 @@ export function evaluatePolygons(gtJson: any, studentJson: any, schema: EvalSche
                     const studentLabel = studentCategories.get(studentPoly.category_id) || '';
                     const isLabelMatch = gtLabel.toLowerCase() === studentLabel.toLowerCase();
 
-                    const attributeScore = calculateAttributeScore(gtPoly.attributes || {}, studentPoly.attributes || {}, schema, studentLabel);
+                    const attributeSimilarity = calculateAttributeScore(gtPoly.attributes || {}, studentPoly.attributes || {}, schema, gtLabel);
                     
-                    const finalScore = (iou * 100 * 0.70) + ((isLabelMatch ? 100 : 0) * 0.15) + (attributeScore * 0.15);
+                    const finalScore = calculateMatchScore(iou, isLabelMatch, attributeSimilarity);
 
                     matched.push({
                         gt: gtPoly,
                         student: studentPoly,
                         iou,
-                        attributeScore,
-                        polygonScore: iou * 100, // For consistency, though not used in final score
+                        attributeScore: attributeSimilarity * 100, // as percentage
+                        polygonScore: iou * 100, // as percentage
                         finalScore
                     });
 
@@ -226,15 +237,15 @@ export function evaluatePolygons(gtJson: any, studentJson: any, schema: EvalSche
             const studentLabel = studentCategories.get(studentPoly.category_id) || '';
             const isLabelMatch = gtLabel.toLowerCase() === studentLabel.toLowerCase();
 
-            const attributeScore = calculateAttributeScore(gtPoly.attributes || {}, studentPoly.attributes || {}, schema, studentLabel);
-            const finalScore = (iou * 100 * 0.70) + ((isLabelMatch ? 100 : 0) * 0.15) + (attributeScore * 0.15);
+            const attributeSimilarity = calculateAttributeScore(gtPoly.attributes || {}, studentPoly.attributes || {}, schema, gtLabel);
+            const finalScore = calculateMatchScore(iou, isLabelMatch, attributeSimilarity);
             
             matched.push({
                 gt: gtPoly,
                 student: studentPoly,
                 iou: iou,
-                attributeScore,
-                polygonScore: iou * 100,
+                attributeScore: attributeSimilarity * 100, // as percentage
+                polygonScore: iou * 100, // as percentage
                 finalScore
             });
         }
@@ -275,6 +286,6 @@ export function evaluatePolygons(gtJson: any, studentJson: any, schema: EvalSche
         missed,
         extra,
         imageNameMap,
-        averagePolygonScore: averageIoU * 100 // Keep for display consistency
+        averagePolygonScore: averageIoU * 100
     };
 }
