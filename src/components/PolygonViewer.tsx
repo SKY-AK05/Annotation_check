@@ -40,7 +40,7 @@ export function PolygonViewer({ imageUrl, annotations }: PolygonViewerProps) {
       context.clearRect(0, 0, canvas.width, canvas.height);
       context.drawImage(image, 0, 0, canvas.width, canvas.height);
       
-      const drawPolygon = (polygonPoints: Polygon[], color: string, isFill: boolean = false, lineWidth: number = 2) => {
+      const drawPolygon = (polygonPoints: Polygon[], color: string) => {
         if (!polygonPoints || polygonPoints.length === 0) return;
         
         const polygon = polygonPoints[0];
@@ -53,30 +53,24 @@ export function PolygonViewer({ imageUrl, annotations }: PolygonViewerProps) {
         }
         context.closePath();
         
-        if(isFill) {
-            context.fillStyle = color;
-            context.fill();
-        } else {
-            context.strokeStyle = color;
-            context.lineWidth = lineWidth;
-            context.stroke();
-        }
+        context.fillStyle = color;
+        context.fill();
       };
 
       // Draw missed polygons (filled GT)
       annotations.missed.forEach(miss => {
-         drawPolygon(miss.gt.segmentation, MISSED_FILL, true);
+         drawPolygon(miss.gt.segmentation, MISSED_FILL);
       });
 
       // Draw extra polygons (filled student)
       annotations.extra.forEach(extra => {
-        drawPolygon(extra.student.segmentation, EXTRA_FILL, true);
+        drawPolygon(extra.student.segmentation, EXTRA_FILL);
       });
 
       // Draw matched polygons (now as semi-transparent fills)
       annotations.matched.forEach(match => {
-        drawPolygon(match.gt.segmentation, GT_FILL_MATCH, true);
-        drawPolygon(match.student.segmentation, STUDENT_FILL_MATCH, true);
+        drawPolygon(match.gt.segmentation, GT_FILL_MATCH);
+        drawPolygon(match.student.segmentation, STUDENT_FILL_MATCH);
       });
 
     };
