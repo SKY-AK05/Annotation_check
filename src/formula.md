@@ -35,11 +35,11 @@ The scoring system is designed to provide a holistic view of annotation quality,
 
 For each `Matched` pair, an **Original Score** (0-100) is calculated using a weighted formula designed to provide a fair distribution of scores.
 
-`Match Score = (IoU * 70) + (Label_Similarity * 15) + (Attribute_Similarity * 15)`
+`Match Score = (IoU_Score * 50%) + (Label_Score * 25%) + (Attribute_Score * 25%)`
 
--   **IoU (70% weight)**: The raw Intersection over Union value, scaled. A perfect overlap (IoU=1.0) contributes 70 points. This is the primary measure of geometric accuracy.
--   **Label Similarity (15% weight)**: A similarity score (0 to 1) calculated using Levenshtein distance to check if the class labels match (e.g., 'car' vs 'Car'). A perfect match contributes 15 points.
--   **Attribute Similarity (15% weight)**: The average similarity of all defined attributes for that label (e.g., 'color', 'occluded'), calculated using Levenshtein distance for robust string comparison. An average similarity of 100% contributes 15 points.
+-   **IoU Score (50% weight)**: The raw Intersection over Union value, scaled to 100. A perfect overlap (IoU=1.0) contributes 50 points. This is the primary measure of geometric accuracy.
+-   **Label Score (25% weight)**: A similarity score (0 to 100) based on Levenshtein distance to check if the class labels match (e.g., 'car' vs 'Car'). A perfect match contributes 25 points.
+-   **Attribute Score (25% weight)**: The average similarity of all defined attributes for that label (e.g., 'color', 'occluded'), calculated using Levenshtein distance for robust string comparison. An average similarity of 100% contributes 25 points.
 
 ### Overall Submission Score
 
@@ -63,36 +63,36 @@ Let's assume a student submission has the following results:
 -   **Missed Annotations**: 1
 -   **Extra Annotations**: 1
 
-#### Step 1: Calculate Individual Match Scores
+#### Step 1: Calculate Individual Match Scores (with new 50/25/25 weights)
 
 -   **Match 1**:
-    -   IoU = 0.95
-    -   Label Similarity = 1.0 (Perfect match)
-    -   Attribute Similarity = 1.0 (Perfect match)
-    -   **Score 1** = `(0.95 * 70) + (1.0 * 15) + (1.0 * 15)` = `66.5 + 15 + 15` = **96.5**
+    -   IoU = 0.95 -> IoU_Score = 95
+    -   Label Similarity = 1.0 -> Label_Score = 100 (Perfect match)
+    -   Attribute Similarity = 1.0 -> Attribute_Score = 100 (Perfect match)
+    -   **Score 1** = `(95 * 0.5) + (100 * 0.25) + (100 * 0.25)` = `47.5 + 25 + 25` = **97.5**
 
 -   **Match 2**:
-    -   IoU = 0.90
-    -   Label Similarity = 1.0 (Perfect match)
-    -   Attribute Similarity = 0.80 (e.g., a typo in an attribute)
-    -   **Score 2** = `(0.90 * 70) + (1.0 * 15) + (0.80 * 15)` = `63 + 15 + 12` = **90.0**
+    -   IoU = 0.90 -> IoU_Score = 90
+    -   Label Similarity = 0.80 -> Label_Score = 80 (e.g., "Person" vs "Persn")
+    -   Attribute Similarity = 0.50 -> Attribute_Score = 50 (e.g., "red" vs "blue")
+    -   **Score 2** = `(90 * 0.5) + (80 * 0.25) + (50 * 0.25)` = `45 + 20 + 12.5` = **77.5**
 
 #### Step 2: Calculate Average Match Quality
 
--   `Avg_Match_Quality` = `(96.5 + 90.0) / 2` = **93.25**
+-   `Avg_Match_Quality` = `(97.5 + 77.5) / 2` = **87.5**
 
 #### Step 3: Calculate Completeness (F-beta Score)
 
 -   `Precision` = `2 / (2 + 1)` = 0.667
 -   `Recall` = `2 / (2 + 1)` = 0.667
--   `F-beta_Score (beta=0.5)` = `(1 + 0.5²) * (0.667 * 0.667) / ((0.5² * 0.667) + 0.667)` = `1.25 * 0.444 / (0.167 + 0.667)` = `0.555 / 0.834` = 0.665
+-   `F-beta_Score (beta=0.5)` = `(1 + 0.5²) * (0.667 * 0.667) / ((0.5² * 0.667) + 0.667)` = `1.25 * 0.444 / (0.167 + 0.667)` = 0.665
 -   Scaled to 100 points, `F-beta_Score` = **66.5**
 
 #### Step 4: Calculate Final Overall Score
 
 -   `Overall Score` = `(Avg_Match_Quality * 0.5) + (F-beta_Score * 0.5)`
--   `Overall Score` = `(93.25 * 0.5) + (66.5 * 0.5)`
--   `Overall Score` = `46.625 + 33.25` = **79.875**
--   **Final Rounded Score: 80**
+-   `Overall Score` = `(87.5 * 0.5) + (66.5 * 0.5)`
+-   `Overall Score` = `43.75 + 33.25` = **77.0**
+-   **Final Rounded Score: 77**
 
-This final score provides a much more accurate picture of the student's performance, as it correctly penalizes for the missed annotation and the extra annotation, which a simple average of match quality would have ignored.
+This final score provides a much more accurate picture of the student's performance, as it correctly penalizes for the missed annotation and the extra annotation, which a simple average of match quality would have ignored. The re-weighting also ensures the label and attribute mistakes in Match 2 create a significant penalty.
