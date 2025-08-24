@@ -58,7 +58,7 @@ To handle intensive computations without freezing the user interface, the applic
         *   First, it attempts to match GT and student annotations using the `matchKey` if provided.
         *   For any remaining unmatched annotations, it falls back to a bipartite matching algorithm based on IoU (Intersection over Union) to find the most optimal pairs.
     *   For each student file processed, it sends a `progress` message back to the main thread.
-6.  **Scoring and Results Generation**: For each matched pair, the engine calculates IoU, label accuracy, and attribute similarity. It also identifies all missed (unmatched GT) and extra (unmatched student) annotations. These metrics are aggregated to compute a final score for each student file. The entire result is compiled into an `EvaluationResult` object.
+6.  **Scoring and Results Generation**: For each matched pair, the engine calculates IoU, label accuracy, and attribute similarity. It also identifies all missed (unmatched GT) and extra (unmatched student) annotations. These metrics are aggregated to compute a final score for each student. The entire result is compiled into an `EvaluationResult` object.
 7.  **Display Results & Handle Overrides**: Once the worker finishes, it sends the final `EvaluationResult[]` back to the main thread.
     *   The `ResultsDashboard` component displays a summary table and a detailed breakdown.
     *   If a trainer edits a score, the change is saved to `localStorage`, and the student's overall score is instantly recalculated.

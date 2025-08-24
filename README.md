@@ -1,6 +1,7 @@
+
 # Annotator AI: Business Overview & Recent Enhancements
 
-## 1\. Purpose of the Tool
+## 1. Purpose of the Tool
 
 Annotator AI was built to **save trainers’ time** by automating the evaluation of student annotations.
 
@@ -9,7 +10,7 @@ Annotator AI was built to **save trainers’ time** by automating the evaluation
 
 ---
 
-## 2\. Key Business Improvements
+## 2. Key Business Improvements
 
 ### ✅ Faster & More Reliable
 
@@ -36,7 +37,7 @@ Annotator AI was built to **save trainers’ time** by automating the evaluation
 
 ---
 
-## 3\. How Scores Are Calculated (High Level)
+## 3. How Scores Are Calculated (High Level)
 
 1. **Annotation Matching**  
    * System matches each GT annotation with the student’s best attempt.  
@@ -55,7 +56,7 @@ Annotator AI was built to **save trainers’ time** by automating the evaluation
 
 # 📘 How the Evaluation & Scoring Works (Easy Version)
 
-### 1\. What the tool does
+### 1. What the tool does
 
 * Trainers upload the **Ground Truth (GT)**.
 * Students upload their annotations.
@@ -63,14 +64,14 @@ Annotator AI was built to **save trainers’ time** by automating the evaluation
 
 ---
 
-### 2\. How the matching works
+### 2. How the matching works
 
 **Step 1: ID Matching** → if IDs exist, match directly.  
 **Step 2: Smart Matching** → system compares all boxes (IoU) and finds the best overall matches.
 
 ---
 
-### 3\. How scoring works
+### 3. How scoring works
 
 * **50 points → IoU (overlap quality)**
 * **30 points → Label match**
@@ -80,7 +81,7 @@ Trainer can override scores any time.
 
 ---
 
-### 4\. Final Student Score
+### 4. Final Student Score
 
 Overall Score = **Quality (50%) + Completeness (50%)**
 
@@ -89,14 +90,14 @@ Overall Score = **Quality (50%) + Completeness (50%)**
 
 ---
 
-### 5\. Why we stopped using the old Greedy algorithm
+### 5. Why we stopped using the old Greedy algorithm
 
 Old Greedy = unfair, one-by-one matches.  
 New Algorithm = looks at the **whole picture**, ensures fair results.
 
 ---
 
-## 4\. Why This Matters for the Organization
+## 4. Why This Matters for the Organization
 
 * **Efficiency:** Saves trainers hours of manual work.
 * **Scalability:** Handles thousands of annotations.
@@ -106,7 +107,7 @@ New Algorithm = looks at the **whole picture**, ensures fair results.
 
 ---
 
-## 5\. Next Steps
+## 5. Next Steps
 
 * Expand support to **polygons and skeletons**.
 * Add **multi-trainer collaboration features**.
@@ -114,7 +115,7 @@ New Algorithm = looks at the **whole picture**, ensures fair results.
 
 ---
 
-## 6\. Flow Diagram: How Annotator AI Works
+## 6. Flow Diagram: How Annotator AI Works
 
 flowchart TD
     A[Trainer uploads GT file] --> B[Students upload their annotations]
@@ -127,8 +128,3 @@ flowchart TD
     G --> H[System calculates overall student score]
     H --> I[Trainer reviews & can override scores]
     I --> J[Final Results + Reports Export]
-
-
-
-
-    
