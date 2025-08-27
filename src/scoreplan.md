@@ -1,4 +1,3 @@
-
 # Annotator AI: Scoring Plan & Methodology
 
 **Version:** 1.0
