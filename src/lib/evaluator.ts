@@ -1,5 +1,4 @@
 
-
 import type { EvaluationResult, CocoJson, BboxAnnotation, LabelAccuracy, AttributeAccuracy, Match, ImageEvaluationResult, SkeletonEvaluationResult, PolygonAnnotation, ScoreOverrides, AttributeScoreDetail } from './types';
 import type { EvalSchema } from './types';
 import munkres from 'munkres-js';
@@ -182,6 +181,7 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
     let totalIou = 0;
     let totalLabelSimilarity = 0;
     let totalAttributeSimilaritySum = 0;
+    let attributeComparisonsCount = 0;
 
     // Group annotations by image ID
     const gtAnnsByImage = allGtAnnotations.reduce((acc, ann) => {
@@ -204,24 +204,26 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
         
         let pairAttributeSimilarity = 1.0;
         let attributeScores: AttributeScoreDetail[] = [];
-        const labelSchema = schema.labels.find(l => l.name === gtLabel);
         
-        if (labelSchema && labelSchema.attributes.length > 0) {
-            let currentPairSimilaritySum = 0;
-            let currentPairAttributeCount = 0;
-            const attributesToCompare = labelSchema.attributes.filter(a => a.toLowerCase() !== matchKey?.toLowerCase() && a.toLowerCase() !== 'label');
+        // --- Start of Fix ---
+        // Proactively find all attributes present in the GT annotation to check them,
+        // rather than relying only on the AI-generated schema.
+        const gtAttributes = gt.attributes ? Object.keys(gt.attributes) : [];
+        const attributesToCompare = gtAttributes.filter(
+            a => a.toLowerCase() !== matchKey?.toLowerCase() && a.toLowerCase() !== 'label'
+        );
+        // --- End of Fix ---
 
+        if (attributesToCompare.length > 0) {
+            let currentPairSimilaritySum = 0;
             for (const attrName of attributesToCompare) {
                 const gtValue = getAnnotationAttribute(gt, attrName) || '';
                 const studentValue = getAnnotationAttribute(student, attrName) || '';
                 const similarity = getStringSimilarity(gtValue, studentValue);
                 attributeScores.push({ name: attrName, gtValue, studentValue, similarity });
                 currentPairSimilaritySum += similarity;
-                currentPairAttributeCount++;
             }
-            if (currentPairAttributeCount > 0) {
-                pairAttributeSimilarity = currentPairSimilaritySum / currentPairAttributeCount;
-            }
+            pairAttributeSimilarity = currentPairSimilaritySum / attributesToCompare.length;
         }
 
         const originalScore = calculateMatchScore(iou, labelSimilarity, pairAttributeSimilarity);
@@ -318,7 +320,10 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
     final_matched.forEach(m => {
         totalIou += m.iou;
         totalLabelSimilarity += m.labelSimilarity;
-        totalAttributeSimilaritySum += m.attributeSimilarity;
+        if (m.attributeScores.length > 0) {
+            totalAttributeSimilaritySum += m.attributeSimilarity;
+            attributeComparisonsCount++;
+        }
     });
     
     const label_accuracy: LabelAccuracy = {
@@ -328,8 +333,8 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
     };
 
     const attribute_accuracy: AttributeAccuracy = {
-        average_similarity: final_matched.length > 0 ? (totalAttributeSimilaritySum / final_matched.length) * 100 : 100,
-        total: final_matched.length, // Each match is an attribute comparison opportunity
+        average_similarity: attributeComparisonsCount > 0 ? (totalAttributeSimilaritySum / attributeComparisonsCount) * 100 : 100,
+        total: attributeComparisonsCount,
     };
     
     const averageMatchScore = final_matched.length > 0 ? final_matched.reduce((acc, m) => acc + m.originalScore, 0) / final_matched.length : 0;
@@ -356,7 +361,7 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
     if (mislabeledCount > 0.5) feedback.push(`Found approximately ${Math.round(mislabeledCount)} mislabeled or poorly labeled annotations.`);
     
     feedback.push(`Average IoU for matched items is ${((final_matched.length > 0 ? totalIou / final_matched.length : 0) * 100).toFixed(1)}%.`);
-    if(final_matched.length > 0) feedback.push(`Attribute text accuracy for matched items is ${attribute_accuracy.average_similarity.toFixed(1)}%.`);
+    if(attribute_accuracy.total > 0) feedback.push(`Attribute text accuracy for matched items is ${attribute_accuracy.average_similarity.toFixed(1)}%.`);
 
     const critical_issues: string[] = [];
     if (recall < 0.5 && totalGtAnnotations > 5) critical_issues.push(`High number of missed annotations (${final_missed.length}). Review the GT carefully.`);
@@ -490,3 +495,5 @@ export function evaluateSkeletons(gtJson: CocoJson, studentJson: CocoJson): Omit
         extra
     };
 }
+
+    
