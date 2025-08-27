@@ -207,7 +207,7 @@ export function AnnotationViewer({ imageUrl, imageResult, selectedAnnotation, fe
           </div>
           <div className="flex items-center gap-2">
               <Checkbox id="student-check" checked={visibility.student} onCheckedChange={(checked) => handleVisibilityChange('student', !!checked)} />
-              <Label htmlFor='student-check' className="flex items-center gap-2"><div className="w-4 h-4 rounded-sm" style={{ border: '2px solid rgba(255, 0, 0, 1)' }}></div>Student (Matched)</Label>
+              <Label htmlFor='student-check' className="flex items-center gap-2"><div className="w-4 h-4 rounded-sm" style={{ border: '2px solid rgba(0, 0, 255, 0.7)' }}></div>Student (Matched)</Label>
           </div>
            <div className="flex items-center gap-2">
               <Checkbox id="missed-check" checked={visibility.missed} onCheckedChange={(checked) => handleVisibilityChange('missed', !!checked)} />
