@@ -150,20 +150,22 @@ The final score is a carefully balanced blend of quality and completeness.
 
 The score for a single matched annotation pair is calculated using a weighted formula:
 
-`Match Score = (Localization_Score * 0.70) + (Label_Score * 0.15) + (Attribute_Score * 0.15)`
+`Match Score = (Localization_Score * 0.50) + (Label_Score * 0.25) + (Attribute_Score * 0.25)`
 
 -   **Localization_Score:** The raw IoU or OKS value, scaled to 100.
 -   **Label_Score:** The string similarity of the labels, scaled to 100.
 -   **Attribute_Score:** The average string similarity of the attributes, scaled to 100.
 
+This 50/25/25 weighting ensures that while geometric accuracy (IoU) is the most important factor, significant mistakes in either the label or the attributes will result in a substantial and noticeable penalty to the score for that specific match.
+
 ### 4.2 Overall Submission Score
 
 The final grade for an entire student submission is a 50/50 blend of two key metrics:
 
-`Overall Score = (Average_Match_Quality * 0.5) + (F-beta_Score * 0.5)`
+`Overall Score = (Average_Match_Quality * 0.5) + (Completeness_Score * 0.5)`
 
 -   **Average Match Quality (50%):** The average of all individual `Match Score` values. This answers: *"How well did the student annotate the items they found?"*
--   **F-beta Score (50%):** A score that balances precision and recall to measure completeness. This answers: *"Did the student find everything they were supposed to, without adding extra annotations?"*
+-   **Completeness Score (F-beta Score, 50%):** A score that balances precision and recall to measure completeness. This answers: *"Did the student find everything they were supposed to, without adding extra annotations?"*
     -   `Precision = Matched / (Matched + Extra)`
     -   `Recall = Matched / (Matched + Missed)`
     -   The `beta` value is set to **0.5**, which weighs precision more heavily than recall. This is a deliberate choice to discourage students from guessing or creating many low-quality annotations.
@@ -183,17 +185,17 @@ Let's walk through an example for a single image evaluation.
 -   IoU: `0.95` (Localization Score = 95)
 -   Label: "Car" vs "Car" (Label Score = 100)
 -   Attribute `color`: "red" vs "red" (Attribute Score = 100)
--   **Match 1 Score** = `(95 * 0.7) + (100 * 0.15) + (100 * 0.15)` = `66.5 + 15 + 15` = **96.5**
+-   **Match 1 Score** = `(95 * 0.5) + (100 * 0.25) + (100 * 0.25)` = `47.5 + 25 + 25` = **97.5**
 
 **Match 2:**
 -   IoU: `0.92` (Localization Score = 92)
--   Label: "Person" vs "person" (Label Score = 100 due to string similarity)
+-   Label: "Person" vs "persn" (Label Score = 83 due to typo)
 -   Attribute `occluded`: "true" vs "false" (Attribute Score = 0)
--   **Match 2 Score** = `(92 * 0.7) + (100 * 0.15) + (0 * 0.15)` = `64.4 + 15 + 0` = **79.4**
+-   **Match 2 Score** = `(92 * 0.5) + (83 * 0.25) + (0 * 0.25)` = `46 + 20.75 + 0` = **66.75**
 
 ### Step 2: Calculate Average Match Quality
 
--   `Avg_Match_Quality` = `(96.5 + 79.4) / 2` = **87.95**
+-   `Avg_Match_Quality` = `(97.5 + 66.75) / 2` = **82.13**
 
 ### Step 3: Calculate F-beta Score (Completeness)
 
@@ -205,9 +207,9 @@ Let's walk through an example for a single image evaluation.
 
 ### Step 4: Calculate Final Overall Score
 
--   `Overall Score` = `(87.95 * 0.5) + (66.5 * 0.5)`
--   `Overall Score` = `43.975 + 33.25` = **77.225**
--   The student's final rounded score for this submission is **77**.
+-   `Overall Score` = `(82.13 * 0.5) + (66.5 * 0.5)`
+-   `Overall Score` = `41.07 + 33.25` = **74.32**
+-   The student's final rounded score for this submission is **74**.
 
 ---
 
@@ -222,13 +224,13 @@ mindmap
   root((Final Score))
     Average Match Quality (50%)
       Match 1 Score
-        IoU (70%)
-        Label (15%)
-        Attributes (15%)
+        IoU (50%)
+        Label (25%)
+        Attributes (25%)
       Match 2 Score
-        IoU (70%)
-        Label (15%)
-        Attributes (15%)
+        IoU (50%)
+        Label (25%)
+        Attributes (25%)
       ...
     F-beta Score (50%)
       Precision
@@ -246,7 +248,7 @@ mindmap
 -   **"Why is my score low if my boxes were almost perfect?"**
     -   Your **Average Match Quality** might be high, but a low **Completeness Score** is likely pulling down your final grade. This happens if you miss several required annotations or add many extra ones.
 -   **"I got the label wrong but my score only dropped a little."**
-    -   This is by design. The weighted system correctly penalizes the label mistake (15% weight) but still gives you significant credit for the high-quality box placement (70% weight).
+    -   This is by design. The weighted system correctly penalizes the label mistake (25% weight) but still gives you significant credit for the high-quality box placement (50% weight).
 -   **"Why are scores for two students so different if their IoU is similar?"**
     -   Check the `Label Accuracy` and `Attribute Accuracy` columns. One student may have made more mistakes in these areas. Additionally, check the `missed` and `extra` counts, as this heavily impacts the F-beta (completeness) part of the score.
 
