@@ -98,12 +98,20 @@ export interface AttributeAccuracy {
     total: number;
 }
 
+export interface AttributeScoreDetail {
+    name: string;
+    gtValue?: string;
+    studentValue?: string;
+    similarity: number; // 0 to 1
+}
+
 export interface Match {
     gt: BboxAnnotation;
     student: BboxAnnotation;
     iou: number;
     labelSimilarity: number;
-    attributeSimilarity: number;
+    attributeSimilarity: number; // This is the average
+    attributeScores: AttributeScoreDetail[]; // This is the new detailed breakdown
     originalScore: number;
     overrideScore?: number | null;
 }

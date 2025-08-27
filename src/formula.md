@@ -39,7 +39,7 @@ For each `Matched` pair, an **Original Score** (0-100) is calculated using a wei
 
 -   **IoU Score (50% weight)**: The raw Intersection over Union value, scaled to 100. A perfect overlap (IoU=1.0) contributes 50 points. This is the primary measure of geometric accuracy.
 -   **Label Score (25% weight)**: A similarity score (0 to 100) based on Levenshtein distance to check if the class labels match (e.g., 'car' vs 'Car'). A perfect match contributes 25 points.
--   **Attribute Score (25% weight)**: The average similarity of all defined attributes for that label (e.g., 'color', 'occluded'), calculated using Levenshtein distance for robust string comparison. An average similarity of 100% contributes 25 points.
+-   **Attribute Score (25% weight)**: The average similarity of all defined attributes for that label (e.g., 'color', 'occluded'), calculated using Levenshtein distance for robust string comparison. An average similarity of 100% contributes 25 points. A detailed breakdown of each attribute's contribution is also stored.
 
 ### Overall Submission Score
 

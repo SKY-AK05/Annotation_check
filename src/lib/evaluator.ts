@@ -1,6 +1,6 @@
 
 
-import type { EvaluationResult, CocoJson, BboxAnnotation, LabelAccuracy, AttributeAccuracy, Match, ImageEvaluationResult, SkeletonEvaluationResult, PolygonAnnotation, ScoreOverrides } from './types';
+import type { EvaluationResult, CocoJson, BboxAnnotation, LabelAccuracy, AttributeAccuracy, Match, ImageEvaluationResult, SkeletonEvaluationResult, PolygonAnnotation, ScoreOverrides, AttributeScoreDetail } from './types';
 import type { EvalSchema } from './types';
 import munkres from 'munkres-js';
 
@@ -182,7 +182,6 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
     let totalIou = 0;
     let totalLabelSimilarity = 0;
     let totalAttributeSimilaritySum = 0;
-    let attributeComparisonsCount = 0;
 
     // Group annotations by image ID
     const gtAnnsByImage = allGtAnnotations.reduce((acc, ann) => {
@@ -197,6 +196,47 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
     
     const imageIds = Object.keys(gtAnnsByImage).map(Number);
     const image_results: ImageEvaluationResult[] = [];
+
+    const createMatchResult = (gt: BboxAnnotation, student: BboxAnnotation, iou: number): Match => {
+        const gtLabel = gtCategories.get(gt.category_id) || '';
+        const studentLabel = studentCategories.get(student.category_id) || '';
+        const labelSimilarity = getStringSimilarity(gtLabel, studentLabel);
+        
+        let pairAttributeSimilarity = 1.0;
+        let attributeScores: AttributeScoreDetail[] = [];
+        const labelSchema = schema.labels.find(l => l.name === gtLabel);
+        
+        if (labelSchema && labelSchema.attributes.length > 0) {
+            let currentPairSimilaritySum = 0;
+            let currentPairAttributeCount = 0;
+            const attributesToCompare = labelSchema.attributes.filter(a => a.toLowerCase() !== matchKey?.toLowerCase() && a.toLowerCase() !== 'label');
+
+            for (const attrName of attributesToCompare) {
+                const gtValue = getAnnotationAttribute(gt, attrName) || '';
+                const studentValue = getAnnotationAttribute(student, attrName) || '';
+                const similarity = getStringSimilarity(gtValue, studentValue);
+                attributeScores.push({ name: attrName, gtValue, studentValue, similarity });
+                currentPairSimilaritySum += similarity;
+                currentPairAttributeCount++;
+            }
+            if (currentPairAttributeCount > 0) {
+                pairAttributeSimilarity = currentPairSimilaritySum / currentPairAttributeCount;
+            }
+        }
+
+        const originalScore = calculateMatchScore(iou, labelSimilarity, pairAttributeSimilarity);
+        
+        return { 
+            gt, 
+            student, 
+            iou, 
+            labelSimilarity, 
+            attributeSimilarity: pairAttributeSimilarity, 
+            attributeScores,
+            originalScore, 
+            overrideScore: null 
+        };
+    };
 
 
     for (const imageId of imageIds) {
@@ -226,31 +266,7 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
                     imageUsedStudentIds.add(student.id);
 
                     const iou = calculateIoU(gt.bbox, student.bbox);
-                    
-                    const gtLabel = gtCategories.get(gt.category_id) || '';
-                    const studentLabel = studentCategories.get(student.category_id) || '';
-                    const labelSimilarity = getStringSimilarity(gtLabel, studentLabel);
-                    
-                    let pairAttributeSimilarity = 1.0; // Default to 100%
-                    const labelSchema = schema.labels.find(l => l.name === gtLabel);
-                    if (labelSchema && labelSchema.attributes.length > 0) {
-                        let currentPairSimilaritySum = 0;
-                        let currentPairAttributeCount = 0;
-                        const attributesToCompare = labelSchema.attributes.filter(a => a.toLowerCase() !== matchKey.toLowerCase() && a.toLowerCase() !== 'label');
-
-                        for (const attrName of attributesToCompare) {
-                            const gtAttr = getAnnotationAttribute(gt, attrName) || '';
-                            const studentAttr = getAnnotationAttribute(student, attrName) || '';
-                            currentPairSimilaritySum += getStringSimilarity(gtAttr, studentAttr);
-                            currentPairAttributeCount++;
-                        }
-                        if (currentPairAttributeCount > 0) {
-                            pairAttributeSimilarity = currentPairSimilaritySum / currentPairAttributeCount;
-                        }
-                    }
-
-                    const originalScore = calculateMatchScore(iou, labelSimilarity, pairAttributeSimilarity);
-                    const matchResult = { gt, student, iou, labelSimilarity, attributeSimilarity: pairAttributeSimilarity, originalScore, overrideScore: null };
+                    const matchResult = createMatchResult(gt, student, iou);
                     imageMatched.push(matchResult);
                     studentMap.delete(key);
                 }
@@ -271,31 +287,7 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
             studentMatchedIds.add(student.id);
             imageUsedStudentIds.add(student.id);
 
-            const gtLabel = gtCategories.get(gt.category_id) || '';
-            const studentLabel = studentCategories.get(student.category_id) || '';
-            const labelSimilarity = getStringSimilarity(gtLabel, studentLabel);
-            
-            let pairAttributeSimilarity = 1.0;
-            const labelSchema = schema.labels.find(l => l.name === gtLabel);
-
-            if (labelSchema && labelSchema.attributes.length > 0) {
-                let currentPairSimilaritySum = 0;
-                let currentPairAttributeCount = 0;
-                const attributesToCompare = labelSchema.attributes.filter(a => matchKey ? a.toLowerCase() !== matchKey.toLowerCase() : true && a.toLowerCase() !== 'label');
-
-                for (const attrName of attributesToCompare) {
-                    const gtAttr = getAnnotationAttribute(gt, attrName) || '';
-                    const studentAttr = getAnnotationAttribute(student, attrName) || '';
-                    currentPairSimilaritySum += getStringSimilarity(gtAttr, studentAttr);
-                    currentPairAttributeCount++;
-                }
-                if (currentPairAttributeCount > 0) {
-                    pairAttributeSimilarity = currentPairSimilaritySum / currentPairAttributeCount;
-                }
-            }
-
-            const originalScore = calculateMatchScore(iou, labelSimilarity, pairAttributeSimilarity);
-            const matchResult = { gt, student, iou, labelSimilarity, attributeSimilarity: pairAttributeSimilarity, originalScore, overrideScore: null };
+            const matchResult = createMatchResult(gt, student, iou);
             imageMatched.push(matchResult);
         }
         
@@ -466,6 +458,7 @@ export function evaluateSkeletons(gtJson: CocoJson, studentJson: CocoJson): Omit
                 oks,
                 labelSimilarity: 1,
                 attributeSimilarity: 1,
+                attributeScores: [],
                 originalScore
             });
         }

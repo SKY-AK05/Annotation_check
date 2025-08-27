@@ -8,16 +8,17 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { ScoreCard } from "@/components/ScoreCard";
-import type { BboxAnnotation, EvaluationResult, ImageEvaluationResult, SelectedAnnotation, Feedback, FeedbackIssue } from "@/lib/types";
+import type { BboxAnnotation, EvaluationResult, ImageEvaluationResult, SelectedAnnotation, Feedback, FeedbackIssue, Match } from "@/lib/types";
 import type { FormValues } from '@/lib/types';
 import type { EvalSchema } from "@/ai/flows/extract-eval-schema";
 import { AnnotationViewer } from "@/components/AnnotationViewer";
-import { AlertCircle, CheckCircle, Download, FileQuestion, FileText, ImageIcon, MessageSquare, ShieldAlert, User, FileCog, Code2, XCircle, Lightbulb, Pencil } from "lucide-react";
+import { AlertCircle, CheckCircle, Download, FileQuestion, FileText, ImageIcon, MessageSquare, ShieldAlert, User, FileCog, Code2, XCircle, Lightbulb, Pencil, Award } from "lucide-react";
 import { Badge } from "./ui/badge";
 import { EvaluationForm } from "./EvaluationForm";
 import { RuleConfiguration } from "./RuleConfiguration";
 import { cn } from '@/lib/utils';
 import { EditableScoreCell } from './EditableScoreCell';
+import { ScoreBreakdown } from './ScoreBreakdown';
 
 interface ResultsDashboardProps {
   results: EvaluationResult[] | null;
@@ -49,7 +50,7 @@ const FeedbackPanel = ({ feedback }: { feedback: Feedback | null }) => {
             <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
                     <Lightbulb className="h-5 w-5" />
-                    Rule-Based Feedback
+                    Geometric Feedback
                 </CardTitle>
             </CardHeader>
             <CardContent>
@@ -295,6 +296,14 @@ const ImageResultDisplay = ({ studentFilename, imageResult, imageUrl, selectedAn
         return selectedAnnotation.imageId === imageResult.imageId && selectedAnnotation.annotationId === annId && selectedAnnotation.type === type;
     }
 
+    const selectedMatch = React.useMemo(() => {
+        if (selectedAnnotation?.type === 'match' && selectedAnnotation.imageId === imageResult.imageId) {
+            return imageResult.matched.find(m => m.gt.id === selectedAnnotation.annotationId);
+        }
+        return undefined;
+    }, [selectedAnnotation, imageResult]);
+
+
     return (
         <Card>
             <CardHeader className="p-4 flex flex-row items-center justify-between">
@@ -309,11 +318,8 @@ const ImageResultDisplay = ({ studentFilename, imageResult, imageUrl, selectedAn
                     </Button>
                 )}
             </CardHeader>
-            <CardContent className="p-4 pt-0 grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className={cn(
-                    "transition-all duration-300",
-                    feedback ? "md:col-span-2" : "md:col-span-3"
-                )}>
+            <CardContent className="p-4 pt-0 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="w-full">
                     {imageUrl ? (
                         <AnnotationViewer
                             imageUrl={imageUrl}
@@ -328,13 +334,21 @@ const ImageResultDisplay = ({ studentFilename, imageResult, imageUrl, selectedAn
                         </div>
                     )}
                 </div>
-                <div className={cn(
-                    "transition-all duration-300",
-                    feedback ? "md:col-span-1" : "md:col-span-0 hidden"
-                )}>
-                    <FeedbackPanel feedback={feedback} />
+                <div className="w-full space-y-4">
+                   {selectedMatch ? (
+                    <>
+                      <ScoreBreakdown match={selectedMatch} />
+                      <FeedbackPanel feedback={feedback} />
+                    </>
+                   ) : (
+                    <div className="flex flex-col items-center justify-center text-center p-8 h-full border-dashed border-2 rounded-md bg-card/50">
+                        <Award className="h-12 w-12 text-muted-foreground mb-4" />
+                        <h3 className="text-lg font-bold text-foreground">Select a matched annotation</h3>
+                        <p className="text-muted-foreground mt-1 text-sm">Click a row in the 'Matched' table to see its detailed score breakdown.</p>
+                    </div>
+                   )}
                 </div>
-                 <div className="md:col-span-3 grid grid-cols-1 gap-4">
+                 <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
                     <Card>
                         <CardHeader className="pb-2"><CardTitle className="text-lg">{imageResult.matched.length} Matched</CardTitle></CardHeader>
                         <CardContent>
@@ -452,7 +466,7 @@ const SingleResultDisplay = ({ result, imageUrls, selectedAnnotation, onAnnotati
                 </Card>
                 <Card>
                     <CardHeader><CardTitle>Label Accuracy</CardTitle></CardHeader>
-                    <CardContent className="text-3xl font-bold">{result.label_accuracy.accuracy.toFixed(0)}% <span className="text-sm font-normal text-muted-foreground">({result.label_accuracy.correct}/{result.label_accuracy.total} correct)</span></CardContent>
+                    <CardContent className="text-3xl font-bold">{result.label_accuracy.accuracy.toFixed(0)}% <span className="text-sm font-normal text-muted-foreground">({result.label_accuracy.correct.toFixed(1)}/{result.label_accuracy.total} correct)</span></CardContent>
                 </Card>
                     <Card>
                     <CardHeader><CardTitle>Attribute Accuracy</CardTitle></CardHeader>
