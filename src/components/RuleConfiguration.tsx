@@ -4,12 +4,13 @@
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Code2, FileJson, Sparkles, Wand2 } from "lucide-react";
+import { Code2, FileJson, Sparkles, Wand2, Info } from "lucide-react";
 import type { EvalSchema } from "@/ai/flows/extract-eval-schema";
 import { Badge } from "./ui/badge";
 import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
 import { Button } from './ui/button';
+import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 
 interface RuleConfigurationProps {
   schema: EvalSchema | null;
@@ -74,6 +75,14 @@ export function RuleConfiguration({ schema, loading, onRuleChange }: RuleConfigu
   return (
     <Card>
         <CardContent className="space-y-6 pt-6">
+            <Alert>
+                <Info className="h-4 w-4" />
+                <AlertTitle>New Scoring System Active!</AlertTitle>
+                <AlertDescription>
+                    The final score is now a 90/10 blend of annotation quality and completeness. Custom weights have been removed. See the documentation for details.
+                </AlertDescription>
+            </Alert>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                 <div className="space-y-6">
                     <div className="space-y-2">

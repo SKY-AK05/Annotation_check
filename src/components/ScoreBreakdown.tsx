@@ -22,10 +22,9 @@ const getScoreColor = (score: number, maxScore: number) => {
 export function ScoreBreakdown({ match }: ScoreBreakdownProps) {
     const { iou, labelSimilarity, attributeScores, originalScore, overrideScore } = match;
 
-    const iouScore = iou * 50;
-    const labelScore = labelSimilarity * 25;
-    
-    const totalPossibleAttrScore = attributeScores.length > 0 ? 25 : 0;
+    const iouScore = iou * 100;
+    const labelScore = labelSimilarity * 100;
+    const attrScore = match.attributeSimilarity * 100;
 
     return (
         <Card>
@@ -41,15 +40,15 @@ export function ScoreBreakdown({ match }: ScoreBreakdownProps) {
                         <TableRow>
                             <TableHead>Component</TableHead>
                             <TableHead>Value (GT vs Student)</TableHead>
-                            <TableHead className="text-right">Score</TableHead>
+                            <TableHead className="text-right">Component Score</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         <TableRow>
                             <TableCell className="font-medium">IoU</TableCell>
                             <TableCell>{iou.toFixed(3)}</TableCell>
-                            <TableCell className={`text-right font-mono ${getScoreColor(iouScore, 50)}`}>
-                                {iouScore.toFixed(1)} / 50.0
+                            <TableCell className={`text-right font-mono ${getScoreColor(iouScore, 100)}`}>
+                                {iouScore.toFixed(1)} / 100.0
                             </TableCell>
                         </TableRow>
                         <TableRow>
@@ -58,27 +57,33 @@ export function ScoreBreakdown({ match }: ScoreBreakdownProps) {
                                 {labelSimilarity === 1 ? <CheckCircle2 className="h-4 w-4 text-green-500" /> : <XCircle className="h-4 w-4 text-red-500" />}
                                 <span>{match.student.attributes?.label ?? 'N/A'}</span>
                             </TableCell>
-                             <TableCell className={`text-right font-mono ${getScoreColor(labelScore, 25)}`}>
-                                {labelScore.toFixed(1)} / 25.0
+                             <TableCell className={`text-right font-mono ${getScoreColor(labelScore, 100)}`}>
+                                {labelScore.toFixed(1)} / 100.0
                             </TableCell>
                         </TableRow>
-                        {attributeScores.map(attr => {
-                             const attrScoreValue = attr.similarity * (totalPossibleAttrScore / (attributeScores.length || 1));
-                             return (
-                                <TableRow key={attr.name}>
-                                    <TableCell className="font-medium pl-6 text-muted-foreground">Attribute: {attr.name}</TableCell>
-                                    <TableCell className="flex items-center gap-2">
-                                        {attr.similarity === 1 ? <CheckCircle2 className="h-4 w-4 text-green-500" /> : <XCircle className="h-4 w-4 text-red-500" />}
-                                        <span>{attr.gtValue ?? 'N/A'} vs {attr.studentValue ?? 'N/A'}</span>
-                                    </TableCell>
-                                    <TableCell className={`text-right font-mono ${getScoreColor(attrScoreValue, (totalPossibleAttrScore / (attributeScores.length || 1)))}`}>
-                                        {attrScoreValue.toFixed(1)} / {(totalPossibleAttrScore / (attributeScores.length || 1)).toFixed(1)}
-                                    </TableCell>
-                                </TableRow>
-                             )
-                        })}
+                        <TableRow>
+                            <TableCell className="font-medium">Attributes</TableCell>
+                            <TableCell>
+                                {attributeScores.length === 0 ? "No attributes to compare" : `${attributeScores.length} checked`}
+                            </TableCell>
+                            <TableCell className={`text-right font-mono ${getScoreColor(attrScore, 100)}`}>
+                                {attrScore.toFixed(1)} / 100.0
+                            </TableCell>
+                        </TableRow>
+                        {attributeScores.map(attr => (
+                            <TableRow key={attr.name}>
+                                <TableCell className="font-medium pl-6 text-muted-foreground text-xs">{attr.name}</TableCell>
+                                <TableCell className="flex items-center gap-2 text-xs">
+                                    {attr.similarity === 1 ? <CheckCircle2 className="h-3 w-3 text-green-500" /> : <XCircle className="h-3 w-3 text-red-500" />}
+                                    <span>"{attr.gtValue ?? ''}" vs "{attr.studentValue ?? ''}"</span>
+                                </TableCell>
+                                <TableCell className={`text-right font-mono text-xs ${getScoreColor(attr.similarity * 100, 100)}`}>
+                                    {(attr.similarity*100).toFixed(0)}
+                                </TableCell>
+                            </TableRow>
+                        ))}
                         <TableRow className="font-bold bg-muted/50">
-                            <TableCell>Final Score</TableCell>
+                            <TableCell>Match Quality</TableCell>
                             <TableCell></TableCell>
                             <TableCell className="text-right font-mono">
                                 {isFinite(overrideScore ?? -1) && overrideScore !== null ? (

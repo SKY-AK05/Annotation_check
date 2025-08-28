@@ -1,6 +1,6 @@
 # Annotator AI: The Evaluation & Scoring Engine
 
-This document provides a detailed technical explanation of the annotation matching and scoring algorithms used in Annotator AI. It covers the current two-pass system, the formulas used for scoring, and the rationale for the weighted scoring model.
+This document provides a detailed technical explanation of the annotation matching and scoring algorithms used in Annotator AI. It covers the two-pass matching system, the formulas used for scoring, and the rationale for the final weighted scoring model.
 
 ---
 
@@ -27,72 +27,34 @@ To ensure the most fair and accurate pairing of annotations, the system uses a *
 
 ---
 
-## 2. Scoring Method
+## 2. Scoring Method (New Framework: 90% Quality / 10% Completeness)
 
-The scoring system is designed to provide a holistic view of annotation quality, balancing localization, classification, and attribute accuracy.
+The scoring system is designed to provide a holistic view of annotation quality, heavily favoring the quality of performed work while still penalizing for incompleteness.
 
-### Individual Match Score
+### Individual Match "Quality" Score
 
-For each `Matched` pair, an **Original Score** (0-100) is calculated using a weighted formula designed to provide a fair distribution of scores.
+For each `Matched` pair, an **Original Score** (0-100) is calculated. This score represents the overall quality of that specific annotation. It's an equal-parts blend of the three core metrics.
 
-`Match Score = (IoU_Score * 50%) + (Label_Score * 25%) + (Attribute_Score * 25%)`
+`Match Quality Score = (IoU% + Label% + Attribute%) / 3`
 
--   **IoU Score (50% weight)**: The raw Intersection over Union value, scaled to 100. A perfect overlap (IoU=1.0) contributes 50 points. This is the primary measure of geometric accuracy.
--   **Label Score (25% weight)**: A similarity score (0 to 100) based on Levenshtein distance to check if the class labels match (e.g., 'car' vs 'Car'). A perfect match contributes 25 points.
--   **Attribute Score (25% weight)**: The average similarity of all defined attributes for that label (e.g., 'color', 'occluded'), calculated using Levenshtein distance for robust string comparison. An average similarity of 100% contributes 25 points. A detailed breakdown of each attribute's contribution is also stored.
+-   **IoU Score (IoU%)**: The raw Intersection over Union value, scaled to 100. This is the primary measure of geometric accuracy.
+-   **Label Score (Label%)**: A similarity score (0 to 100) based on Levenshtein distance to check if the class labels match (e.g., 'car' vs 'Car').
+-   **Attribute Score (Attribute%)**: The average similarity of all defined attributes for that label, calculated using Levenshtein distance.
+
+This score is what appears in the results table and can be overridden by a trainer.
 
 ### Overall Submission Score
 
-The final grade for the entire submission is a 50/50 blend of **quality** and **completeness**:
+The final grade for the entire submission is a **90/10 blend** of overall annotation **Quality** and submission **Completeness**.
 
-`Overall Score = (Avg_Match_Quality * 0.5) + (F-beta_Score * 0.5)`
+`Final Score = (Average_Match_Quality * 0.90) + (Completeness_Score * 0.10)`
 
--   **Average Match Quality (50% weight)**: This is the simple average of all **Final Scores** (including any manual overrides from the trainer) for every matched annotation. It answers the question: "How good was the work the student actually did?"
--   **F-beta Score (50% weight)**: This is a standard industry metric that balances precision and recall to measure how complete the student's work was. It penalizes for missed and extra annotations.
+-   **Average Match Quality (90% weight)**: This is the simple average of all **Final Scores** (including any manual overrides from the trainer) for every matched annotation. It answers the question: "What was the average quality of the work the student actually performed?"
+-   **Completeness Score (10% weight)**: This is a score from 0-100 derived from the **F-beta score**. It measures how complete the student's work was by penalizing for missed and extra annotations.
     -   `Precision = Matched / (Matched + Extra)`
     -   `Recall = Matched / (Matched + Missed)`
-    - We use a beta value of `0.5`, which weighs **precision higher than recall**. This is a deliberate choice to discourage users from "guessing" by creating many low-quality annotations to try and improve their score.
+    - We use a beta value of `0.5`, which weighs **precision higher than recall**. This is a deliberate choice to discourage users from "guessing" by creating many low-quality annotations.
+    - `F-beta = (1 + β²) * (Precision * Recall) / (β² * Precision + Recall)`
+    - `Completeness Score = F-beta * 100`
 
----
-
-## 3. Walkthrough Example
-
-Let's assume a student submission has the following results:
-
--   **Matched Annotations**: 2
--   **Missed Annotations**: 1
--   **Extra Annotations**: 1
-
-#### Step 1: Calculate Individual Match Scores (with new 50/25/25 weights)
-
--   **Match 1**:
-    -   IoU = 0.95 -> IoU_Score = 95
-    -   Label Similarity = 1.0 -> Label_Score = 100 (Perfect match)
-    -   Attribute Similarity = 1.0 -> Attribute_Score = 100 (Perfect match)
-    -   **Score 1** = `(95 * 0.5) + (100 * 0.25) + (100 * 0.25)` = `47.5 + 25 + 25` = **97.5**
-
--   **Match 2**:
-    -   IoU = 0.90 -> IoU_Score = 90
-    -   Label Similarity = 0.80 -> Label_Score = 80 (e.g., "Person" vs "Persn")
-    -   Attribute Similarity = 0.50 -> Attribute_Score = 50 (e.g., "red" vs "blue")
-    -   **Score 2** = `(90 * 0.5) + (80 * 0.25) + (50 * 0.25)` = `45 + 20 + 12.5` = **77.5**
-
-#### Step 2: Calculate Average Match Quality
-
--   `Avg_Match_Quality` = `(97.5 + 77.5) / 2` = **87.5**
-
-#### Step 3: Calculate Completeness (F-beta Score)
-
--   `Precision` = `2 / (2 + 1)` = 0.667
--   `Recall` = `2 / (2 + 1)` = 0.667
--   `F-beta_Score (beta=0.5)` = `(1 + 0.5²) * (0.667 * 0.667) / ((0.5² * 0.667) + 0.667)` = `1.25 * 0.444 / (0.167 + 0.667)` = 0.665
--   Scaled to 100 points, `F-beta_Score` = **66.5**
-
-#### Step 4: Calculate Final Overall Score
-
--   `Overall Score` = `(Avg_Match_Quality * 0.5) + (F-beta_Score * 0.5)`
--   `Overall Score` = `(87.5 * 0.5) + (66.5 * 0.5)`
--   `Overall Score` = `43.75 + 33.25` = **77.0**
--   **Final Rounded Score: 77**
-
-This final score provides a much more accurate picture of the student's performance, as it correctly penalizes for the missed annotation and the extra annotation, which a simple average of match quality would have ignored. The re-weighting also ensures the label and attribute mistakes in Match 2 create a significant penalty.
+This framework ensures that high-quality work is the primary driver of the final score, while still applying a meaningful, but not overpowering, penalty for incomplete submissions.

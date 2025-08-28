@@ -107,27 +107,22 @@ function findOptimalMatches(
 }
 
 
-function calculateMatchScore(iou: number, labelSimilarity: number, attributeSimilarity: number): number {
-    const iouWeight = 0.50;
-    const labelWeight = 0.25;
-    const attrWeight = 0.25;
-
+// This function now calculates the "Quality" score for a single match
+function calculateMatchQuality(iou: number, labelSimilarity: number, attributeSimilarity: number): number {
     const iouScore = iou * 100;
     const labelScore = labelSimilarity * 100;
     const attrScore = attributeSimilarity * 100;
-
-    return (iouScore * iouWeight) + (labelScore * labelWeight) + (attrScore * attrWeight);
+    // Equal weighting as per the new framework
+    return (iouScore + labelScore + attrScore) / 3;
 }
 
 
 export function recalculateOverallScore(results: EvaluationResult, overrides: ScoreOverrides): EvaluationResult {
     const studentOverrides = overrides[results.studentFilename] || {};
-    let totalScoreFromMatches = 0;
     
     // Deep clone to avoid direct state mutation
     const newResults = JSON.parse(JSON.stringify(results)) as EvaluationResult;
-    let matchedCount = 0;
-
+    
     newResults.image_results.forEach(ir => {
         ir.matched.forEach(match => {
             const override = studentOverrides[ir.imageId]?.[match.gt.id];
@@ -136,27 +131,33 @@ export function recalculateOverallScore(results: EvaluationResult, overrides: Sc
             } else {
                 match.overrideScore = null; // Ensure it's reset if override is removed
             }
-            totalScoreFromMatches += match.overrideScore ?? match.originalScore;
-            matchedCount++;
         });
     });
 
-    const averageMatchScore = matchedCount > 0 ? totalScoreFromMatches / matchedCount : 0;
-
-    const totalGtAnnotations = newResults.matched.length + newResults.missed.length;
-    const totalStudentAnnotations = newResults.matched.length + newResults.extra.length;
-    
-    const precision = totalStudentAnnotations > 0 ? newResults.matched.length / totalStudentAnnotations : 0;
-    const recall = totalGtAnnotations > 0 ? newResults.matched.length / totalGtAnnotations : 0;
-    
-    // F-beta score with beta=0.5 to weigh precision higher than recall
-    const beta = 0.5;
-    const fbetaScore = (precision > 0 || recall > 0)
-        ? (1 + beta**2) * (precision * recall) / ((beta**2 * precision) + recall) * 100
+    const allMatches = newResults.image_results.flatMap(ir => ir.matched);
+    const averageQuality = allMatches.length > 0
+        ? allMatches.reduce((sum, match) => sum + (match.overrideScore ?? match.originalScore), 0) / allMatches.length
         : 0;
 
-    // The final score is a 50/50 blend of quality (average match score) and completeness (F-beta score).
-    newResults.score = Math.round((averageMatchScore * 0.5) + (fbetaScore * 0.5));
+    const matchedCount = allMatches.length;
+    const missedCount = newResults.missed.length;
+    const extraCount = newResults.extra.length;
+
+    const totalGtAnnotations = matchedCount + missedCount;
+    const totalStudentAnnotations = matchedCount + extraCount;
+    
+    const precision = totalStudentAnnotations > 0 ? matchedCount / totalStudentAnnotations : 0;
+    const recall = totalGtAnnotations > 0 ? matchedCount / totalGtAnnotations : 0;
+    
+    const beta = 0.5;
+    const fbetaScore = (precision > 0 || recall > 0)
+        ? (1 + beta**2) * (precision * recall) / ((beta**2 * precision) + recall)
+        : 0;
+
+    const completenessScore = fbetaScore * 100;
+
+    // The final score is a 90/10 blend of Quality and Completeness.
+    newResults.score = Math.round((averageQuality * 0.90) + (completenessScore * 0.10));
     
     return newResults;
 }
@@ -178,11 +179,6 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
     const studentMatchedIds = new Set<number>();
     const gtMatchedIds = new Set<number>();
     
-    let totalIou = 0;
-    let totalLabelSimilarity = 0;
-    let totalAttributeSimilaritySum = 0;
-    let attributeComparisonsCount = 0;
-
     // Group annotations by image ID
     const gtAnnsByImage = allGtAnnotations.reduce((acc, ann) => {
         (acc[ann.image_id] = acc[ann.image_id] || []).push(ann);
@@ -205,14 +201,10 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
         let pairAttributeSimilarity = 1.0;
         let attributeScores: AttributeScoreDetail[] = [];
         
-        // --- Start of Fix ---
-        // Proactively find all attributes present in the GT annotation to check them,
-        // rather than relying only on the AI-generated schema.
         const gtAttributes = gt.attributes ? Object.keys(gt.attributes) : [];
         const attributesToCompare = gtAttributes.filter(
             a => a.toLowerCase() !== matchKey?.toLowerCase() && a.toLowerCase() !== 'label'
         );
-        // --- End of Fix ---
 
         if (attributesToCompare.length > 0) {
             let currentPairSimilaritySum = 0;
@@ -226,7 +218,7 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
             pairAttributeSimilarity = currentPairSimilaritySum / attributesToCompare.length;
         }
 
-        const originalScore = calculateMatchScore(iou, labelSimilarity, pairAttributeSimilarity);
+        const originalScore = calculateMatchQuality(iou, labelSimilarity, pairAttributeSimilarity);
         
         return { 
             gt, 
@@ -316,28 +308,27 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
     const final_matched = image_results.flatMap(ir => ir.matched);
     const final_missed = image_results.flatMap(ir => ir.missed);
     const final_extra = image_results.flatMap(ir => ir.extra);
-
-    final_matched.forEach(m => {
-        totalIou += m.iou;
-        totalLabelSimilarity += m.labelSimilarity;
-        if (m.attributeScores.length > 0) {
-            totalAttributeSimilaritySum += m.attributeSimilarity;
-            attributeComparisonsCount++;
-        }
-    });
     
+    const averageQuality = final_matched.length > 0
+        ? final_matched.reduce((sum, m) => sum + m.originalScore, 0) / final_matched.length
+        : 0;
+
+    const averageIou = final_matched.length > 0 ? final_matched.reduce((acc, m) => acc + m.iou, 0) / final_matched.length : 0;
+    const totalLabelSimilarity = final_matched.reduce((acc, m) => acc + m.labelSimilarity, 0);
+
+    const attributeScores = final_matched.map(m => m.attributeSimilarity);
+    const averageAttributeSimilarity = attributeScores.length > 0 ? attributeScores.reduce((acc, s) => acc + s, 0) / attributeScores.length : 1;
+
     const label_accuracy: LabelAccuracy = {
-        correct: totalLabelSimilarity, // Can be fractional now
+        correct: totalLabelSimilarity,
         total: final_matched.length,
         accuracy: final_matched.length > 0 ? (totalLabelSimilarity / final_matched.length) * 100 : 100,
     };
 
     const attribute_accuracy: AttributeAccuracy = {
-        average_similarity: attributeComparisonsCount > 0 ? (totalAttributeSimilaritySum / attributeComparisonsCount) * 100 : 100,
-        total: attributeComparisonsCount,
+        average_similarity: averageAttributeSimilarity * 100,
+        total: attributeScores.length,
     };
-    
-    const averageMatchScore = final_matched.length > 0 ? final_matched.reduce((acc, m) => acc + m.originalScore, 0) / final_matched.length : 0;
     
     const totalGtAnnotations = final_matched.length + final_missed.length;
     const totalStudentAnnotations = final_matched.length + final_extra.length;
@@ -347,21 +338,21 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
     
     const beta = 0.5;
     const fbetaScore = (precision > 0 || recall > 0)
-        ? (1 + beta**2) * (precision * recall) / ((beta**2 * precision) + recall) * 100
+        ? (1 + beta**2) * (precision * recall) / ((beta**2 * precision) + recall)
         : 0;
 
-    const finalScore = Math.round((averageMatchScore * 0.5) + (fbetaScore * 0.5));
+    const completenessScore = fbetaScore * 100;
+
+    // The final score is a 90/10 blend of Quality and Completeness.
+    const finalScore = Math.round((averageQuality * 0.90) + (completenessScore * 0.10));
     
     const feedback: string[] = [];
-    feedback.push(`Detected ${final_matched.length} out of ${totalGtAnnotations} ground truth annotations.`);
-    if (final_missed.length > 0) feedback.push(`You missed ${final_missed.length} annotations.`);
-    if (final_extra.length > 0) feedback.push(`You added ${final_extra.length} extra annotations.`);
+    feedback.push(`The final score is a blend of annotation Quality (90%) and submission Completeness (10%).`);
+    if (final_missed.length > 0) feedback.push(`You missed ${final_missed.length} annotations, which lowered your Completeness score.`);
+    if (final_extra.length > 0) feedback.push(`You added ${final_extra.length} extra annotations, which lowered your Completeness score.`);
     
     const mislabeledCount = final_matched.length - totalLabelSimilarity;
     if (mislabeledCount > 0.5) feedback.push(`Found approximately ${Math.round(mislabeledCount)} mislabeled or poorly labeled annotations.`);
-    
-    feedback.push(`Average IoU for matched items is ${((final_matched.length > 0 ? totalIou / final_matched.length : 0) * 100).toFixed(1)}%.`);
-    if(attribute_accuracy.total > 0) feedback.push(`Attribute text accuracy for matched items is ${attribute_accuracy.average_similarity.toFixed(1)}%.`);
 
     const critical_issues: string[] = [];
     if (recall < 0.5 && totalGtAnnotations > 5) critical_issues.push(`High number of missed annotations (${final_missed.length}). Review the GT carefully.`);
@@ -376,7 +367,7 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
         matched: final_matched,
         missed: final_missed,
         extra: final_extra,
-        average_iou: final_matched.length > 0 ? totalIou / final_matched.length : 0,
+        average_iou: averageIou,
         label_accuracy,
         attribute_accuracy,
         critical_issues,
@@ -455,7 +446,7 @@ export function evaluateSkeletons(gtJson: CocoJson, studentJson: CocoJson): Omit
             const oks = calculateOKS(gt, bestMatch.student, sigmas);
             totalOks += oks;
             
-            const originalScore = calculateMatchScore(bestMatch.iou, 1, 1); // Simplified for skeletons
+            const originalScore = calculateMatchQuality(bestMatch.iou, 1, 1); // Simplified for skeletons
             matched.push({
                 gt,
                 student: bestMatch.student,
@@ -495,5 +486,3 @@ export function evaluateSkeletons(gtJson: CocoJson, studentJson: CocoJson): Omit
         extra
     };
 }
-
-    
