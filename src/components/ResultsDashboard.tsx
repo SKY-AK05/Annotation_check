@@ -466,7 +466,7 @@ const SingleResultDisplay = ({ result, imageUrls, selectedAnnotation, onAnnotati
                 </Card>
                 <Card>
                     <CardHeader><CardTitle>Label Accuracy</CardTitle></CardHeader>
-                    <CardContent className="text-3xl font-bold">{result.label_accuracy.accuracy.toFixed(0)}% <span className="text-sm font-normal text-muted-foreground">({result.label_accuracy.correct.toFixed(1)}/{result.label_accuracy.total} correct)</span></CardContent>
+                    <CardContent className="text-3xl font-bold">{result.label_accuracy.accuracy.toFixed(0)}% <span className="text-sm font-normal text-muted-foreground">({result.label_accuracy.correct}/{result.label_accuracy.total} correct)</span></CardContent>
                 </Card>
                     <Card>
                     <CardHeader><CardTitle>Attribute Accuracy</CardTitle></CardHeader>

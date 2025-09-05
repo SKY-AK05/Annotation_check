@@ -201,9 +201,9 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
         let pairAttributeSimilarity = 1.0;
         let attributeScores: AttributeScoreDetail[] = [];
         
-        const gtAttributes = gt.attributes ? Object.keys(gt.attributes) : [];
-        const attributesToCompare = gtAttributes.filter(
-            a => a.toLowerCase() !== matchKey?.toLowerCase() && a.toLowerCase() !== 'label'
+        const gtAttributeKeys = gt.attributes ? Object.keys(gt.attributes) : [];
+        const attributesToCompare = gtAttributeKeys.filter(
+            a => a.toLowerCase() !== 'label' && (!matchKey || a.toLowerCase() !== matchKey.toLowerCase())
         );
 
         if (attributesToCompare.length > 0) {
@@ -316,8 +316,10 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
     const averageIou = final_matched.length > 0 ? final_matched.reduce((acc, m) => acc + m.iou, 0) / final_matched.length : 0;
     const totalLabelSimilarity = final_matched.reduce((acc, m) => acc + m.labelSimilarity, 0);
 
-    const attributeScores = final_matched.map(m => m.attributeSimilarity);
-    const averageAttributeSimilarity = attributeScores.length > 0 ? attributeScores.reduce((acc, s) => acc + s, 0) / attributeScores.length : 1;
+    const allAttributeScores = final_matched.flatMap(m => m.attributeScores);
+    const averageAttributeSimilarity = allAttributeScores.length > 0
+        ? allAttributeScores.reduce((acc, s) => acc + s.similarity, 0) / allAttributeScores.length
+        : 1;
 
     const label_accuracy: LabelAccuracy = {
         correct: totalLabelSimilarity,
@@ -327,7 +329,7 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
 
     const attribute_accuracy: AttributeAccuracy = {
         average_similarity: averageAttributeSimilarity * 100,
-        total: attributeScores.length,
+        total: allAttributeScores.length,
     };
     
     const totalGtAnnotations = final_matched.length + final_missed.length;
