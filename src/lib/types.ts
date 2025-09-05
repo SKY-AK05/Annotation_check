@@ -7,14 +7,25 @@ const EvalLabelSchema = z.object({
     attributes: z.array(z.string()).describe("A list of attributes associated with this label, e.g., ['Mask', 'Age group']. If no attributes exist, return an empty array."),
 });
 
+const ScoringWeightsSchema = z.object({
+    quality: z.number().min(0).max(100).default(90).describe("The overall weight of the Quality score in the final calculation (0-100)."),
+    completeness: z.number().min(0).max(100).default(10).describe("The overall weight of the Completeness score (F-beta) in the final calculation (0-100)."),
+    iou: z.number().min(0).max(100).default(50).describe("The weight of the IoU score within the Quality calculation (0-100)."),
+    label: z.number().min(0).max(100).default(25).describe("The weight of the Label score within the Quality calculation (0-100)."),
+    attribute: z.number().min(0).max(100).default(25).describe("The weight of the Attribute score within the Quality calculation (0-100).")
+});
+
 const EvalSchemaSchema = z.object({
     labels: z.array(EvalLabelSchema).describe("A list of all unique object labels found in the ground truth file and their associated attributes."),
     matchKey: z.string().optional().describe("The specific attribute name that should be used as a unique key to match annotations between the GT and student files. This is often 'Annotation No' or a similar unique identifier. If no clear key exists, this can be omitted."),
     pseudoCode: z.string().describe("Human-readable pseudocode that summarizes the evaluation logic derived from the ground truth file schema. This should be editable by a user to adjust the evaluation logic."),
     biDirectionalMatching: z.boolean().optional().describe("Whether to use bi-directional bipartite matching for the fallback evaluation."),
+    weights: ScoringWeightsSchema.optional().describe("The user-configurable weights for different aspects of the score calculation."),
 });
 
 export type EvalSchema = z.infer<typeof EvalSchemaSchema>;
+export type ScoringWeights = z.infer<typeof ScoringWeightsSchema>;
+
 
 const EvalSchemaInputSchema = z.object({
   gtFileContent: z

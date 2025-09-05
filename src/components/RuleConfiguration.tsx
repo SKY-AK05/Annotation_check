@@ -4,18 +4,19 @@
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Code2, FileJson, Sparkles, Wand2, Info } from "lucide-react";
-import type { EvalSchema } from "@/ai/flows/extract-eval-schema";
+import { Code2, FileJson, Sparkles, Wand2, Info, Percent, Weight, Shapes, Check, Scale } from "lucide-react";
+import type { EvalSchema, ScoringWeights } from "@/lib/types";
 import { Badge } from "./ui/badge";
 import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
 import { Button } from './ui/button';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
+import { Slider } from './ui/slider';
 
 interface RuleConfigurationProps {
   schema: EvalSchema | null;
   loading: boolean;
-  onRuleChange: (instructions: { pseudoCode?: string; userInstructions?: string }) => void;
+  onRuleChange: (instructions: { pseudoCode?: string; userInstructions?: string, weights?: ScoringWeights }) => void;
 }
 
 const Placeholder = () => (
@@ -43,15 +44,33 @@ const SkeletonCard = () => (
     </div>
   );
 
+const defaultWeights: ScoringWeights = {
+    quality: 90,
+    completeness: 10,
+    iou: 50,
+    label: 25,
+    attribute: 25
+};
+
 export function RuleConfiguration({ schema, loading, onRuleChange }: RuleConfigurationProps) {
   const [userInstructions, setUserInstructions] = React.useState('');
   const [editedPseudoCode, setEditedPseudoCode] = React.useState('');
+  const [weights, setWeights] = React.useState<ScoringWeights>(schema?.weights || defaultWeights);
+  
+  const weightsRef = React.useRef(weights);
 
   React.useEffect(() => {
     if (schema?.pseudoCode) {
       setEditedPseudoCode(schema.pseudoCode);
     }
-  }, [schema?.pseudoCode]);
+    if (schema?.weights) {
+        setWeights(schema.weights);
+        weightsRef.current = schema.weights;
+    } else {
+        setWeights(defaultWeights);
+        weightsRef.current = defaultWeights;
+    }
+  }, [schema]);
   
   const handleRegenerateFromInstructions = () => {
     onRuleChange({
@@ -66,33 +85,116 @@ export function RuleConfiguration({ schema, loading, onRuleChange }: RuleConfigu
     });
   };
 
-  const hasInstructions = userInstructions.trim().length > 0;
-  const hasPseudoCodeChanged = schema?.pseudoCode?.trim() !== editedPseudoCode.trim();
+  const handleWeightChange = (key: keyof ScoringWeights, value: number[]) => {
+    const newWeights = { ...weightsRef.current, [key]: value[0] };
+    weightsRef.current = newWeights;
+    setWeights(newWeights);
+  };
+  
+  const handleFinalWeightChange = () => {
+    onRuleChange({ weights: weightsRef.current });
+  };
+
 
   if (loading && !schema) return <SkeletonCard />;
   if (!schema) return <Placeholder />;
+  
+  const currentWeights = schema.weights || defaultWeights;
 
   return (
     <Card>
         <CardContent className="space-y-6 pt-6">
-            <Alert>
-                <Info className="h-4 w-4" />
-                <AlertTitle>How Scores Are Calculated</AlertTitle>
-                <AlertDescription>
-                    <p>The final score is a blend of two components:</p>
-                    <ul className="list-disc pl-5 mt-2 space-y-1">
-                        <li><strong>Quality (90% weight):</strong> The average score of all matched annotations. Each match score is an equal blend of IoU, Label, and Attribute accuracy.</li>
-                        <li><strong>Completeness (10% weight):</strong> Measures how many required annotations were found versus how many were missed or added.</li>
-                    </ul>
-                    <p className="mt-2">This system cannot be changed via instructions, but you can still customize which attributes are checked by editing the pseudocode.</p>
-                </AlertDescription>
-            </Alert>
+             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+               <div className="space-y-6">
+                 <h4 className="font-bold text-lg flex items-center gap-2">
+                    <Percent className="h-5 w-5"/>
+                    Scoring Weights
+                 </h4>
+                 <div className="space-y-4">
+                     <div className="space-y-2">
+                         <Label htmlFor='quality-weight' className="flex items-center justify-between">
+                            <span className='flex items-center gap-2'><Weight className="h-4 w-4"/>Quality</span>
+                            <span>{currentWeights.quality}%</span>
+                         </Label>
+                         <Slider 
+                            id="quality-weight" 
+                            value={[currentWeights.quality]} 
+                            max={100} 
+                            step={5} 
+                            onValueChange={(v) => handleWeightChange('quality', v)}
+                            onValueCommit={handleFinalWeightChange}
+                        />
+                     </div>
+                     <div className="space-y-2">
+                         <Label htmlFor='completeness-weight' className="flex items-center justify-between">
+                            <span className='flex items-center gap-2'><Check className="h-4 w-4"/>Completeness</span>
+                            <span>{currentWeights.completeness}%</span>
+                         </Label>
+                         <Slider 
+                            id="completeness-weight" 
+                            value={[currentWeights.completeness]} 
+                            max={100} 
+                            step={5} 
+                            onValueChange={(v) => handleWeightChange('completeness', v)}
+                            onValueCommit={handleFinalWeightChange}
+                        />
+                     </div>
+                 </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                 <h4 className="font-bold text-lg flex items-center gap-2 mt-4">
+                    <Scale className="h-5 w-5"/>
+                    Quality Score Breakdown
+                 </h4>
+                 <div className="space-y-4">
+                     <div className="space-y-2">
+                         <Label htmlFor='iou-weight' className="flex items-center justify-between">
+                            <span className='flex items-center gap-2'><Shapes className="h-4 w-4"/>IoU</span>
+                            <span>{currentWeights.iou}%</span>
+                         </Label>
+                         <Slider 
+                            id="iou-weight" 
+                            value={[currentWeights.iou]} 
+                            max={100} 
+                            step={5} 
+                            onValueChange={(v) => handleWeightChange('iou', v)}
+                            onValueCommit={handleFinalWeightChange}
+                        />
+                     </div>
+                     <div className="space-y-2">
+                         <Label htmlFor='label-weight' className="flex items-center justify-between">
+                            <span className='flex items-center gap-2'><Badge className="h-4 w-4 p-0"/>Label</span>
+                            <span>{currentWeights.label}%</span>
+                         </Label>
+                         <Slider 
+                            id="label-weight" 
+                            value={[currentWeights.label]} 
+                            max={100} 
+                            step={5} 
+                            onValueChange={(v) => handleWeightChange('label', v)}
+                            onValueCommit={handleFinalWeightChange}
+                        />
+                     </div>
+                     <div className="space-y-2">
+                         <Label htmlFor='attribute-weight' className="flex items-center justify-between">
+                            <span className='flex items-center gap-2'><Info className="h-4 w-4"/>Attribute</span>
+                            <span>{currentWeights.attribute}%</span>
+                         </Label>
+                         <Slider 
+                            id="attribute-weight" 
+                            value={[currentWeights.attribute]} 
+                            max={100} 
+                            step={5} 
+                            onValueChange={(v) => handleWeightChange('attribute', v)}
+                            onValueCommit={handleFinalWeightChange}
+                        />
+                     </div>
+                 </div>
+               </div>
+
                 <div className="space-y-6">
-                    <div className="space-y-2">
+                    <div>
                         <h4 className="font-bold text-lg">Labels & Attributes</h4>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-2 mt-2">
                         {schema.labels.map(label => (
                             <Badge key={label.name} variant="secondary" className="border-2 border-foreground shadow-hard">
                                 {label.name}
@@ -101,47 +203,24 @@ export function RuleConfiguration({ schema, loading, onRuleChange }: RuleConfigu
                         ))}
                         </div>
                     </div>
-                    <div className="space-y-2">
+                    <div>
                         <h4 className="font-bold text-lg">Matching Key</h4>
-                        <Badge variant="outline" className="border-2 border-foreground shadow-hard">{schema.matchKey || 'IoU + Label'}</Badge>
+                        <Badge variant="outline" className="border-2 border-foreground shadow-hard mt-2">{schema.matchKey || 'IoU + Label'}</Badge>
                     </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="plain-english-instructions" className="text-lg font-bold flex items-center gap-2">
-                            <Wand2 className="w-4 h-4" />
-                            Plain English Instructions
-                        </Label>
+                    <div>
+                        <Label htmlFor="pseudocode" className="text-lg font-bold">Logic Pseudocode</Label>
                         <Textarea 
-                            id="plain-english-instructions"
-                            className="bg-card p-2 rounded-lg text-sm h-24 shadow-hard"
-                            placeholder="e.g., 'Ignore the color attribute for cars.' or 'Only check pedestrians for IoU.'"
-                            value={userInstructions}
-                            onChange={(e) => setUserInstructions(e.target.value)}
+                            id="pseudocode"
+                            className="p-4 rounded-lg text-xs text-muted-foreground overflow-x-auto font-mono h-48 bg-card shadow-hard mt-2"
+                            value={editedPseudoCode}
+                            onChange={(e) => setEditedPseudoCode(e.target.value)}
                             disabled={loading}
                         />
-                         <Button onClick={handleRegenerateFromInstructions} disabled={loading || !hasInstructions} size="sm">
-                            {loading && hasInstructions ? 'Applying...' : 'Apply Instructions'}
+                        <Button onClick={handleRegenerateFromPseudoCode} disabled={loading || schema.pseudoCode === editedPseudoCode} size="sm" className="mt-2">
+                            {loading && schema.pseudoCode !== editedPseudoCode ? 'Applying...' : 'Apply Pseudocode Changes'}
                         </Button>
                     </div>
                 </div>
-                <div className="space-y-2">
-                    <Label htmlFor="pseudocode" className="text-lg font-bold">Logic Pseudocode (Editable)</Label>
-                    <Textarea 
-                        id="pseudocode"
-                        className="p-4 rounded-lg text-xs text-muted-foreground overflow-x-auto font-mono h-64 bg-card shadow-hard"
-                        value={editedPseudoCode}
-                        onChange={(e) => setEditedPseudoCode(e.target.value)}
-                        disabled={loading}
-                    />
-                    <Button onClick={handleRegenerateFromPseudoCode} disabled={loading || !hasPseudoCodeChanged} size="sm">
-                         {loading && hasPseudoCodeChanged ? 'Applying...' : 'Apply Pseudocode Changes'}
-                    </Button>
-                </div>
-            </div>
-            <div className="w-full flex justify-center border-t pt-4 mt-4">
-                <Button onClick={() => hasInstructions ? handleRegenerateFromInstructions() : handleRegenerateFromPseudoCode() } disabled={loading || (!hasInstructions && !hasPseudoCodeChanged)} className="w-full md:w-auto">
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    Regenerate Rules
-                </Button>
             </div>
         </CardContent>
     </Card>

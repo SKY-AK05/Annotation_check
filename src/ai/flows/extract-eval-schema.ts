@@ -19,11 +19,20 @@ const EvalLabelSchema = z.object({
     attributes: z.array(z.string()).describe("A list of attributes associated with this label, e.g., ['Mask', 'Age group']. If no attributes exist, return an empty array."),
 });
 
+const ScoringWeightsSchema = z.object({
+    quality: z.number().min(0).max(100).default(90).describe("The overall weight of the Quality score in the final calculation (0-100)."),
+    completeness: z.number().min(0).max(100).default(10).describe("The overall weight of the Completeness score (F-beta) in the final calculation (0-100)."),
+    iou: z.number().min(0).max(100).default(50).describe("The weight of the IoU score within the Quality calculation (0-100)."),
+    label: z.number().min(0).max(100).default(25).describe("The weight of the Label score within the Quality calculation (0-100)."),
+    attribute: z.number().min(0).max(100).default(25).describe("The weight of the Attribute score within the Quality calculation (0-100).")
+});
+
 const EvalSchemaSchema = z.object({
     labels: z.array(EvalLabelSchema).describe("A list of all unique object labels found in the ground truth file and their associated attributes."),
     matchKey: z.string().optional().describe("The specific attribute name that should be used as a unique key to match annotations between the GT and student files. This is often 'Annotation No' or a similar unique identifier. If no clear key exists, this can be omitted."),
     pseudoCode: z.string().describe("Human-readable pseudocode that summarizes the evaluation logic derived from the ground truth file schema. This should be editable by a user to adjust the evaluation logic."),
     biDirectionalMatching: z.boolean().optional().describe("Whether to use bi-directional bipartite matching for the fallback evaluation."),
+    weights: ScoringWeightsSchema.optional().describe("The user-configurable weights for different aspects of the score calculation."),
 });
 
 const EvalSchemaInputSchema = z.object({
@@ -42,7 +51,15 @@ const extractEvalSchemaPrompt = ai.definePrompt({
   output: {schema: EvalSchemaSchema},
   prompt: `You are an expert at analyzing annotation files (like COCO JSON or CVAT XML) and user instructions to create a structured evaluation schema for student assessments.
 
-Your goal is to generate a valid JSON object matching the requested schema.
+Your goal is to generate a valid JSON object matching the requested schema. This includes defining default scoring weights.
+
+The default scoring weights should be:
+- quality: 90
+- completeness: 10
+- iou: 50
+- label: 25
+- attribute: 25
+You MUST include these default 'weights' in your output.
 
 If user instructions are provided, they are the HIGHEST priority.
 If user-edited pseudocode is provided (and instructions are not), that is the second highest priority.
@@ -53,7 +70,7 @@ Follow these steps:
 1.  **Analyze Inputs**: Review the provided GT file content, and check for any overriding user instructions or edited pseudocode.
 
 2.  **Determine Logic Source**:
-    *   **If 'userInstructions' exists**: Generate the entire schema (labels, attributes, matchKey, and a NEW pseudocode) based *strictly* on these instructions. The GT file is only for context. Example: If the user says "ignore color", you must remove the 'color' attribute and update the pseudocode.
+    *   **If 'userInstructions' exists**: Generate the entire schema (labels, attributes, matchKey, and a NEW pseudocode) based *strictly* on these instructions. The GT file is only for context. Example: If the user says "ignore color", you must remove the 'color' attribute and update the pseudocode. If they mention changing scoring weights, update the 'weights' object.
     *   **Else if 'pseudoCode' exists**: The user has edited the pseudocode. Your task is to reverse-engineer it. Parse this pseudocode to create the structured 'labels', 'attributes', and 'matchKey'. The provided pseudocode becomes the canonical source. The original GT file content should be ignored.
     *   **Else**: Derive the schema directly from the GT file content. Identify all unique labels, their attributes, a possible 'matchKey' (like "Annotation No"), and generate a clear, human-readable Python-like pseudocode describing the evaluation steps. For datasets with dense or overlapping annotations where a match key is absent, set 'biDirectionalMatching' to true.
 
@@ -66,7 +83,7 @@ This entire process is for the purpose of a temporary student evaluation ('evalu
 PRIMARY INSTRUCTIONS (HIGHEST PRIORITY):
 The user has provided specific plain-text instructions. These MUST be followed and override all other logic.
 User Instructions: "{{userInstructions}}"
-You must re-generate the entire schema (labels, attributes, matchKey, and pseudocode) to reflect these instructions.
+You must re-generate the entire schema (labels, attributes, matchKey, pseudocode, and weights) to reflect these instructions.
 ----------------
 {{else if pseudoCode}}
 ----------------

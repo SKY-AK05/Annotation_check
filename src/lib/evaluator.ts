@@ -1,6 +1,5 @@
 
-import type { EvaluationResult, CocoJson, BboxAnnotation, LabelAccuracy, AttributeAccuracy, Match, ImageEvaluationResult, SkeletonEvaluationResult, PolygonAnnotation, ScoreOverrides, AttributeScoreDetail } from './types';
-import type { EvalSchema } from './types';
+import type { EvaluationResult, CocoJson, BboxAnnotation, LabelAccuracy, AttributeAccuracy, Match, ImageEvaluationResult, SkeletonEvaluationResult, PolygonAnnotation, ScoreOverrides, AttributeScoreDetail, ScoringWeights, EvalSchema } from './types';
 import munkres from 'munkres-js';
 
 
@@ -108,23 +107,35 @@ function findOptimalMatches(
 
 
 // This function now calculates the "Quality" score for a single match
-function calculateMatchQuality(iou: number, labelSimilarity: number, attributeSimilarity: number): number {
+function calculateMatchQuality(iou: number, labelSimilarity: number, attributeSimilarity: number, weights: ScoringWeights): number {
     const iouScore = iou * 100;
     const labelScore = labelSimilarity * 100;
     const attrScore = attributeSimilarity * 100;
-    // Equal weighting as per the new framework
-    return (iouScore + labelScore + attrScore) / 3;
+    
+    const totalWeight = weights.iou + weights.label + weights.attribute;
+    if (totalWeight === 0) return 100; // Avoid division by zero, assume perfect if all weights are zero
+
+    const weightedScore = 
+        (iouScore * weights.iou) + 
+        (labelScore * weights.label) + 
+        (attrScore * weights.attribute);
+
+    return weightedScore / totalWeight;
 }
 
 
-export function recalculateOverallScore(results: EvaluationResult, overrides: ScoreOverrides): EvaluationResult {
+export function recalculateOverallScore(results: EvaluationResult, overrides: ScoreOverrides, schema: EvalSchema): EvaluationResult {
     const studentOverrides = overrides[results.studentFilename] || {};
+    const weights = schema.weights || { quality: 90, completeness: 10, iou: 50, label: 25, attribute: 25 };
     
     // Deep clone to avoid direct state mutation
     const newResults = JSON.parse(JSON.stringify(results)) as EvaluationResult;
     
     newResults.image_results.forEach(ir => {
         ir.matched.forEach(match => {
+            // Recalculate original score based on current weights first
+            match.originalScore = calculateMatchQuality(match.iou, match.labelSimilarity, match.attributeSimilarity, weights);
+
             const override = studentOverrides[ir.imageId]?.[match.gt.id];
             if (override !== undefined && override !== null) {
                 match.overrideScore = override;
@@ -137,7 +148,7 @@ export function recalculateOverallScore(results: EvaluationResult, overrides: Sc
     const allMatches = newResults.image_results.flatMap(ir => ir.matched);
     const averageQuality = allMatches.length > 0
         ? allMatches.reduce((sum, match) => sum + (match.overrideScore ?? match.originalScore), 0) / allMatches.length
-        : 0;
+        : 100; // Default to 100 if no matches to avoid penalizing empty images
 
     const matchedCount = allMatches.length;
     const missedCount = newResults.missed.length;
@@ -155,9 +166,14 @@ export function recalculateOverallScore(results: EvaluationResult, overrides: Sc
         : 0;
 
     const completenessScore = fbetaScore * 100;
-
-    // The final score is a 90/10 blend of Quality and Completeness.
-    newResults.score = Math.round((averageQuality * 0.90) + (completenessScore * 0.10));
+    
+    const totalWeight = weights.quality + weights.completeness;
+    if (totalWeight === 0) {
+        newResults.score = 100; // Or some other default, if all weights are 0
+    } else {
+        const weightedScore = (averageQuality * weights.quality) + (completenessScore * weights.completeness);
+        newResults.score = Math.round(weightedScore / totalWeight);
+    }
     
     return newResults;
 }
@@ -166,6 +182,7 @@ export function recalculateOverallScore(results: EvaluationResult, overrides: Sc
 export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studentJson: CocoJson): Omit<EvaluationResult, 'studentFilename'> {
     const IOU_THRESHOLD = 0.5;
     const matchKey = schema.matchKey;
+    const weights = schema.weights || { quality: 90, completeness: 10, iou: 50, label: 25, attribute: 25 };
 
     const allGtAnnotations = gtJson.annotations as BboxAnnotation[];
     const allStudentAnnotations = studentJson.annotations as BboxAnnotation[];
@@ -174,8 +191,6 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
     const studentCategories = new Map((studentJson.categories || []).map(c => [c.id, c.name]));
     const gtImages = new Map((gtJson.images || []).map(i => [i.id, i.file_name.split('/').pop()!]));
 
-    const matched: Match[] = [];
-    
     const studentMatchedIds = new Set<number>();
     const gtMatchedIds = new Set<number>();
     
@@ -218,7 +233,7 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
             pairAttributeSimilarity = currentPairSimilaritySum / attributesToCompare.length;
         }
 
-        const originalScore = calculateMatchQuality(iou, labelSimilarity, pairAttributeSimilarity);
+        const originalScore = calculateMatchQuality(iou, labelSimilarity, pairAttributeSimilarity, weights);
         
         return { 
             gt, 
@@ -311,7 +326,7 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
     
     const averageQuality = final_matched.length > 0
         ? final_matched.reduce((sum, m) => sum + m.originalScore, 0) / final_matched.length
-        : 0;
+        : 100; // Default to 100 if no matches to avoid penalizing empty images
 
     const averageIou = final_matched.length > 0 ? final_matched.reduce((acc, m) => acc + m.iou, 0) / final_matched.length : 0;
     const totalLabelSimilarity = final_matched.reduce((acc, m) => acc + m.labelSimilarity, 0);
@@ -345,11 +360,15 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
 
     const completenessScore = fbetaScore * 100;
 
-    // The final score is a 90/10 blend of Quality and Completeness.
-    const finalScore = Math.round((averageQuality * 0.90) + (completenessScore * 0.10));
+    const totalWeight = weights.quality + weights.completeness;
+    let finalScore = 100;
+    if (totalWeight > 0) {
+        const weightedScore = (averageQuality * weights.quality) + (completenessScore * weights.completeness);
+        finalScore = Math.round(weightedScore / totalWeight);
+    }
     
     const feedback: string[] = [];
-    feedback.push(`The final score is a blend of annotation Quality (90%) and submission Completeness (10%).`);
+    feedback.push(`The final score is a blend of annotation Quality (${weights.quality}%) and submission Completeness (${weights.completeness}%).`);
     if (final_missed.length > 0) feedback.push(`You missed ${final_missed.length} annotations, which lowered your Completeness score.`);
     if (final_extra.length > 0) feedback.push(`You added ${final_extra.length} extra annotations, which lowered your Completeness score.`);
     
@@ -448,7 +467,7 @@ export function evaluateSkeletons(gtJson: CocoJson, studentJson: CocoJson): Omit
             const oks = calculateOKS(gt, bestMatch.student, sigmas);
             totalOks += oks;
             
-            const originalScore = calculateMatchQuality(bestMatch.iou, 1, 1); // Simplified for skeletons
+            const originalScore = calculateMatchQuality(bestMatch.iou, 1, 1, {iou: 50, label: 25, attribute: 25, quality: 90, completeness: 10}); // Simplified for skeletons
             matched.push({
                 gt,
                 student: bestMatch.student,

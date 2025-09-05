@@ -7,7 +7,7 @@ import JSZip from 'jszip';
 import { useToast } from "@/hooks/use-toast";
 import { ResultsDashboard } from '@/components/ResultsDashboard';
 import { AnnotatorAiLogo } from '@/components/AnnotatorAiLogo';
-import type { EvaluationResult, FormValues, CocoJson, SelectedAnnotation, Feedback, ScoreOverrides } from '@/lib/types';
+import type { EvaluationResult, FormValues, CocoJson, SelectedAnnotation, Feedback, ScoreOverrides, ScoringWeights } from '@/lib/types';
 import { evaluateAnnotations, recalculateOverallScore } from '@/lib/evaluator';
 import { parseCvatXml } from '@/lib/cvat-xml-parser';
 import { extractEvalSchema } from '@/ai/flows/extract-eval-schema';
@@ -48,14 +48,14 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (results) {
+    if (results && evalSchema) {
       handleRecalculate();
     }
-  }, [scoreOverrides]);
+  }, [scoreOverrides, evalSchema?.weights]);
 
   const handleRecalculate = () => {
-    if (!results) return;
-    const newResults = results.map(res => recalculateOverallScore(res, scoreOverrides));
+    if (!results || !evalSchema) return;
+    const newResults = results.map(res => recalculateOverallScore(res, scoreOverrides, evalSchema));
     setResults(newResults);
   };
   
@@ -352,7 +352,7 @@ export default function Home() {
             const finalResult = recalculateOverallScore({
                  ...initialResult,
                 studentFilename: studentFile.name,
-            }, scoreOverrides);
+            }, scoreOverrides, evalSchema);
 
             batchResults.push(finalResult);
         }
@@ -380,8 +380,8 @@ export default function Home() {
     }
   };
 
-  const handleRuleChange = async (instructions: { pseudoCode?: string; userInstructions?: string }) => {
-    if (!gtFileContent) {
+  const handleRuleChange = async (instructions: { pseudoCode?: string; userInstructions?: string, weights?: ScoringWeights }) => {
+    if (!gtFileContent && !instructions.weights) {
         toast({
             title: "Ground Truth File Missing",
             description: "Cannot regenerate rules without the original GT file.",
@@ -391,24 +391,33 @@ export default function Home() {
     }
     setIsGeneratingRules(true);
     try {
-        const input: EvalSchemaInput = { gtFileContent };
-        // User instructions take precedence over pseudocode editing
-        if (instructions.userInstructions) {
-            input.userInstructions = instructions.userInstructions;
-        } else if (instructions.pseudoCode) {
-            input.pseudoCode = instructions.pseudoCode;
+        if (instructions.weights) {
+            const newSchema = {
+                ...evalSchema!,
+                weights: instructions.weights,
+            };
+            setEvalSchema(newSchema);
+        } else {
+            const input: EvalSchemaInput = { gtFileContent: gtFileContent! };
+            // User instructions take precedence over pseudocode editing
+            if (instructions.userInstructions) {
+                input.userInstructions = instructions.userInstructions;
+            } else if (instructions.pseudoCode) {
+                input.pseudoCode = instructions.pseudoCode;
+            }
+            
+            const newSchema = await extractEvalSchema(input);
+            setEvalSchema(newSchema);
         }
-        
-        const newSchema = await extractEvalSchema(input);
-        setEvalSchema(newSchema);
+
         toast({
-            title: "Rules Regenerated",
+            title: "Rules Updated",
             description: "The evaluation schema has been updated based on your input.",
         });
     } catch (e: any) {
         console.error(e);
         toast({
-            title: "Error Regenerating Rules",
+            title: "Error Updating Rules",
             description: `Failed to update rules: ${e.message}`,
             variant: "destructive",
         });
