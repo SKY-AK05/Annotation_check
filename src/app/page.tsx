@@ -163,7 +163,9 @@ export default function Home() {
         fileContent = await file.text();
       }
       
-      const gtAnnotations = file.name.endsWith('.xml') ? parseCvatXml(fileContent) : JSON.parse(fileContent) as CocoJson;
+      const isXmlFile = fileContent.trim().startsWith('<?xml');
+      const gtAnnotations = isXmlFile ? parseCvatXml(fileContent) : JSON.parse(fileContent) as CocoJson;
+
       const groupedAnns = (gtAnnotations.annotations as BboxAnnotation[]).reduce((acc, ann) => {
           (acc[ann.image_id] = acc[ann.image_id] || []).push(ann);
           return acc;
@@ -336,7 +338,7 @@ export default function Home() {
         let gtAnnotations: CocoJson;
         const isXmlFile = (content: string) => content.trim().startsWith('<?xml');
 
-        if (data.toolType === 'cvat_xml' || isXmlFile(gtFileContent)) {
+        if (isXmlFile(gtFileContent)) {
             gtAnnotations = parseCvatXml(gtFileContent);
         } else {
             gtAnnotations = JSON.parse(gtFileContent);
@@ -350,7 +352,7 @@ export default function Home() {
             const studentFileContent = studentFile.content;
             let studentAnnotations: CocoJson;
 
-            if (data.toolType === 'cvat_xml' || isXmlFile(studentFileContent)) {
+            if (isXmlFile(studentFileContent)) {
                 studentAnnotations = parseCvatXml(studentFileContent);
             } else {
                 studentAnnotations = JSON.parse(studentFileContent);
