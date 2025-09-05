@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Code2, FileJson, Sparkles, Wand2, Info, Percent, Weight, Shapes, Check, Scale } from "lucide-react";
+import { Code2, FileJson, Sparkles, Wand2, Info, Percent, Weight, Shapes, Check, Scale, MessageSquare } from "lucide-react";
 import type { EvalSchema, ScoringWeights } from "@/lib/types";
 import { Badge } from "./ui/badge";
 import { Textarea } from './ui/textarea';
@@ -56,22 +56,18 @@ export function RuleConfiguration({ schema, loading, onRuleChange }: RuleConfigu
   const [userInstructions, setUserInstructions] = React.useState('');
   const [editedPseudoCode, setEditedPseudoCode] = React.useState('');
   const [weights, setWeights] = React.useState<ScoringWeights>(schema?.weights || defaultWeights);
-  
+
   const weightsRef = React.useRef(weights);
 
   React.useEffect(() => {
     if (schema?.pseudoCode) {
       setEditedPseudoCode(schema.pseudoCode);
     }
-    if (schema?.weights) {
-        setWeights(schema.weights);
-        weightsRef.current = schema.weights;
-    } else {
-        setWeights(defaultWeights);
-        weightsRef.current = defaultWeights;
-    }
+    const newWeights = schema?.weights || defaultWeights;
+    setWeights(newWeights);
+    weightsRef.current = newWeights;
   }, [schema]);
-  
+
   const handleRegenerateFromInstructions = () => {
     onRuleChange({
         userInstructions: userInstructions,
@@ -84,13 +80,15 @@ export function RuleConfiguration({ schema, loading, onRuleChange }: RuleConfigu
         pseudoCode: editedPseudoCode,
     });
   };
-
+  
+  // This is called on every tiny slide movement
   const handleWeightChange = (key: keyof ScoringWeights, value: number[]) => {
     const newWeights = { ...weightsRef.current, [key]: value[0] };
     weightsRef.current = newWeights;
-    setWeights(newWeights);
+    setWeights(newWeights); // Update local state to move the slider thumb
   };
   
+  // This is called only when the user releases the slider
   const handleFinalWeightChange = () => {
     onRuleChange({ weights: weightsRef.current });
   };
@@ -114,11 +112,11 @@ export function RuleConfiguration({ schema, loading, onRuleChange }: RuleConfigu
                      <div className="space-y-2">
                          <Label htmlFor='quality-weight' className="flex items-center justify-between">
                             <span className='flex items-center gap-2'><Weight className="h-4 w-4"/>Quality</span>
-                            <span>{currentWeights.quality}%</span>
+                            <span>{weights.quality}%</span>
                          </Label>
                          <Slider 
                             id="quality-weight" 
-                            value={[currentWeights.quality]} 
+                            value={[weights.quality]} 
                             max={100} 
                             step={5} 
                             onValueChange={(v) => handleWeightChange('quality', v)}
@@ -128,11 +126,11 @@ export function RuleConfiguration({ schema, loading, onRuleChange }: RuleConfigu
                      <div className="space-y-2">
                          <Label htmlFor='completeness-weight' className="flex items-center justify-between">
                             <span className='flex items-center gap-2'><Check className="h-4 w-4"/>Completeness</span>
-                            <span>{currentWeights.completeness}%</span>
+                            <span>{weights.completeness}%</span>
                          </Label>
                          <Slider 
                             id="completeness-weight" 
-                            value={[currentWeights.completeness]} 
+                            value={[weights.completeness]} 
                             max={100} 
                             step={5} 
                             onValueChange={(v) => handleWeightChange('completeness', v)}
@@ -149,11 +147,11 @@ export function RuleConfiguration({ schema, loading, onRuleChange }: RuleConfigu
                      <div className="space-y-2">
                          <Label htmlFor='iou-weight' className="flex items-center justify-between">
                             <span className='flex items-center gap-2'><Shapes className="h-4 w-4"/>IoU</span>
-                            <span>{currentWeights.iou}%</span>
+                            <span>{weights.iou}%</span>
                          </Label>
                          <Slider 
                             id="iou-weight" 
-                            value={[currentWeights.iou]} 
+                            value={[weights.iou]} 
                             max={100} 
                             step={5} 
                             onValueChange={(v) => handleWeightChange('iou', v)}
@@ -163,11 +161,11 @@ export function RuleConfiguration({ schema, loading, onRuleChange }: RuleConfigu
                      <div className="space-y-2">
                          <Label htmlFor='label-weight' className="flex items-center justify-between">
                             <span className='flex items-center gap-2'><Badge className="h-4 w-4 p-0"/>Label</span>
-                            <span>{currentWeights.label}%</span>
+                            <span>{weights.label}%</span>
                          </Label>
                          <Slider 
                             id="label-weight" 
-                            value={[currentWeights.label]} 
+                            value={[weights.label]} 
                             max={100} 
                             step={5} 
                             onValueChange={(v) => handleWeightChange('label', v)}
@@ -177,11 +175,11 @@ export function RuleConfiguration({ schema, loading, onRuleChange }: RuleConfigu
                      <div className="space-y-2">
                          <Label htmlFor='attribute-weight' className="flex items-center justify-between">
                             <span className='flex items-center gap-2'><Info className="h-4 w-4"/>Attribute</span>
-                            <span>{currentWeights.attribute}%</span>
+                            <span>{weights.attribute}%</span>
                          </Label>
                          <Slider 
                             id="attribute-weight" 
-                            value={[currentWeights.attribute]} 
+                            value={[weights.attribute]} 
                             max={100} 
                             step={5} 
                             onValueChange={(v) => handleWeightChange('attribute', v)}
@@ -193,20 +191,20 @@ export function RuleConfiguration({ schema, loading, onRuleChange }: RuleConfigu
 
                 <div className="space-y-6">
                     <div>
-                        <h4 className="font-bold text-lg">Labels & Attributes</h4>
-                        <div className="flex flex-wrap gap-2 mt-2">
-                        {schema.labels.map(label => (
-                            <Badge key={label.name} variant="secondary" className="border-2 border-foreground shadow-hard">
-                                {label.name}
-                                {label.attributes.length > 0 && ` (${label.attributes.join(', ')})`}
-                            </Badge>
-                        ))}
-                        </div>
+                        <Label htmlFor="instructions" className="text-lg font-bold flex items-center gap-2"><MessageSquare className="h-5 w-5" /> Plain Language Instructions</Label>
+                        <Textarea
+                            id="instructions"
+                            placeholder='e.g., "Ignore the color attribute and make label accuracy twice as important as IoU."'
+                            value={userInstructions}
+                            onChange={(e) => setUserInstructions(e.target.value)}
+                            disabled={loading}
+                            className="mt-2"
+                        />
+                         <Button onClick={handleRegenerateFromInstructions} disabled={loading || !userInstructions} size="sm" className="mt-2">
+                            {loading && userInstructions ? 'Applying...' : 'Regenerate with Instructions'}
+                        </Button>
                     </div>
-                    <div>
-                        <h4 className="font-bold text-lg">Matching Key</h4>
-                        <Badge variant="outline" className="border-2 border-foreground shadow-hard mt-2">{schema.matchKey || 'IoU + Label'}</Badge>
-                    </div>
+
                     <div>
                         <Label htmlFor="pseudocode" className="text-lg font-bold">Logic Pseudocode</Label>
                         <Textarea 
@@ -222,6 +220,13 @@ export function RuleConfiguration({ schema, loading, onRuleChange }: RuleConfigu
                     </div>
                 </div>
             </div>
+             <Alert className="mt-6">
+                <Info className="h-4 w-4" />
+                <AlertTitle>How Scoring Works</AlertTitle>
+                <AlertDescription>
+                    The final score is a blend of **Quality** (how accurate the annotations are) and **Completeness** (checking for missed/extra items). You can adjust the weights for each component using the sliders above.
+                </AlertDescription>
+            </Alert>
         </CardContent>
     </Card>
   );
