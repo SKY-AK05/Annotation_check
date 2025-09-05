@@ -107,11 +107,26 @@ function findOptimalMatches(
 
 
 // This function now calculates the "Quality" score for a single match
-function calculateMatchQuality(iou: number, labelSimilarity: number, attributeSimilarity: number, weights: ScoringWeights): number {
+function calculateMatchQuality(
+    iou: number, 
+    labelSimilarity: number, 
+    attributeSimilarity: number, 
+    weights: ScoringWeights,
+    scoringMethod: 'full' | 'no_label'
+): number {
     const iouScore = iou * 100;
     const labelScore = labelSimilarity * 100;
     const attrScore = attributeSimilarity * 100;
     
+    // If scoring method is 'no_label', we ignore the label weight and score
+    if (scoringMethod === 'no_label') {
+        const totalWeight = weights.iou + weights.attribute;
+        if (totalWeight === 0) return 100;
+        const weightedScore = (iouScore * weights.iou) + (attrScore * weights.attribute);
+        return weightedScore / totalWeight;
+    }
+
+    // Otherwise, use the full formula
     const totalWeight = weights.iou + weights.label + weights.attribute;
     if (totalWeight === 0) return 100; // Avoid division by zero, assume perfect if all weights are zero
 
@@ -124,7 +139,7 @@ function calculateMatchQuality(iou: number, labelSimilarity: number, attributeSi
 }
 
 
-export function recalculateOverallScore(results: EvaluationResult, overrides: ScoreOverrides, schema: EvalSchema): EvaluationResult {
+export function recalculateOverallScore(results: EvaluationResult, overrides: ScoreOverrides, schema: EvalSchema, gtAnnsByImage: Record<number, BboxAnnotation[]>): EvaluationResult {
     const studentOverrides = overrides[results.studentFilename] || {};
     const weights = schema.weights || { quality: 90, completeness: 10, iou: 50, label: 25, attribute: 25 };
     
@@ -132,9 +147,13 @@ export function recalculateOverallScore(results: EvaluationResult, overrides: Sc
     const newResults = JSON.parse(JSON.stringify(results)) as EvaluationResult;
     
     newResults.image_results.forEach(ir => {
+        const gtAnnotationCountForImage = gtAnnsByImage[ir.imageId]?.length || 0;
+        const scoringMethod = gtAnnotationCountForImage === 1 ? 'no_label' : 'full';
+
         ir.matched.forEach(match => {
             // Recalculate original score based on current weights first
-            match.originalScore = calculateMatchQuality(match.iou, match.labelSimilarity, match.attributeSimilarity, weights);
+            match.scoringMethod = scoringMethod;
+            match.originalScore = calculateMatchQuality(match.iou, match.labelSimilarity, match.attributeSimilarity, weights, scoringMethod);
 
             const override = studentOverrides[ir.imageId]?.[match.gt.id];
             if (override !== undefined && override !== null) {
@@ -208,7 +227,7 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
     const imageIds = Object.keys(gtAnnsByImage).map(Number);
     const image_results: ImageEvaluationResult[] = [];
 
-    const createMatchResult = (gt: BboxAnnotation, student: BboxAnnotation, iou: number): Match => {
+    const createMatchResult = (gt: BboxAnnotation, student: BboxAnnotation, iou: number, gtAnnotationCountForImage: number): Match => {
         const gtLabel = gtCategories.get(gt.category_id) || '';
         const studentLabel = studentCategories.get(student.category_id) || '';
         const labelSimilarity = getStringSimilarity(gtLabel, studentLabel);
@@ -232,8 +251,9 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
             }
             pairAttributeSimilarity = currentPairSimilaritySum / attributesToCompare.length;
         }
-
-        const originalScore = calculateMatchQuality(iou, labelSimilarity, pairAttributeSimilarity, weights);
+        
+        const scoringMethod = gtAnnotationCountForImage === 1 ? 'no_label' : 'full';
+        const originalScore = calculateMatchQuality(iou, labelSimilarity, pairAttributeSimilarity, weights, scoringMethod);
         
         return { 
             gt, 
@@ -243,7 +263,8 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
             attributeSimilarity: pairAttributeSimilarity, 
             attributeScores,
             originalScore, 
-            overrideScore: null 
+            overrideScore: null,
+            scoringMethod,
         };
     };
 
@@ -254,6 +275,7 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
         const imageUsedStudentIds = new Set<number>();
 
         const imageMatched: Match[] = [];
+        const gtAnnotationCountForImage = gtAnnotations.length;
 
         // First pass: Match using the unique key if it exists
         if (matchKey) {
@@ -275,7 +297,7 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
                     imageUsedStudentIds.add(student.id);
 
                     const iou = calculateIoU(gt.bbox, student.bbox);
-                    const matchResult = createMatchResult(gt, student, iou);
+                    const matchResult = createMatchResult(gt, student, iou, gtAnnotationCountForImage);
                     imageMatched.push(matchResult);
                     studentMap.delete(key);
                 }
@@ -296,7 +318,7 @@ export function evaluateAnnotations(gtJson: CocoJson, schema: EvalSchema, studen
             studentMatchedIds.add(student.id);
             imageUsedStudentIds.add(student.id);
 
-            const matchResult = createMatchResult(gt, student, iou);
+            const matchResult = createMatchResult(gt, student, iou, gtAnnotationCountForImage);
             imageMatched.push(matchResult);
         }
         
@@ -467,7 +489,7 @@ export function evaluateSkeletons(gtJson: CocoJson, studentJson: CocoJson): Omit
             const oks = calculateOKS(gt, bestMatch.student, sigmas);
             totalOks += oks;
             
-            const originalScore = calculateMatchQuality(bestMatch.iou, 1, 1, {iou: 50, label: 25, attribute: 25, quality: 90, completeness: 10}); // Simplified for skeletons
+            const originalScore = calculateMatchQuality(bestMatch.iou, 1, 1, {iou: 50, label: 25, attribute: 25, quality: 90, completeness: 10}, 'full'); // Simplified for skeletons
             matched.push({
                 gt,
                 student: bestMatch.student,
@@ -476,7 +498,8 @@ export function evaluateSkeletons(gtJson: CocoJson, studentJson: CocoJson): Omit
                 labelSimilarity: 1,
                 attributeSimilarity: 1,
                 attributeScores: [],
-                originalScore
+                originalScore,
+                scoringMethod: 'full'
             });
         }
     }
@@ -507,3 +530,5 @@ export function evaluateSkeletons(gtJson: CocoJson, studentJson: CocoJson): Omit
         extra
     };
 }
+
+    

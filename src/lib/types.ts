@@ -125,6 +125,7 @@ export interface Match {
     attributeScores: AttributeScoreDetail[]; // This is the new detailed breakdown
     originalScore: number;
     overrideScore?: number | null;
+    scoringMethod: 'full' | 'no_label';
 }
 
 export interface SelectedAnnotation {
@@ -209,3 +210,5 @@ export interface Feedback {
 }
 
 export type ScoreOverrides = Record<string, Record<string, Record<string, number>>>;
+
+    

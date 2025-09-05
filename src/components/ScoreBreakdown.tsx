@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { CheckCircle2, XCircle, Award } from 'lucide-react';
 import { Badge } from './ui/badge';
+import { cn } from '@/lib/utils';
 
 interface ScoreBreakdownProps {
     match: Match;
@@ -20,11 +21,13 @@ const getScoreColor = (score: number, maxScore: number) => {
 }
 
 export function ScoreBreakdown({ match }: ScoreBreakdownProps) {
-    const { iou, labelSimilarity, attributeScores, originalScore, overrideScore } = match;
+    const { iou, labelSimilarity, attributeScores, originalScore, overrideScore, scoringMethod } = match;
 
     const iouScore = iou * 100;
     const labelScore = labelSimilarity * 100;
     const attrScore = match.attributeSimilarity * 100;
+    
+    const isLabelScored = scoringMethod === 'full';
 
     return (
         <Card>
@@ -51,14 +54,17 @@ export function ScoreBreakdown({ match }: ScoreBreakdownProps) {
                                 {iouScore.toFixed(1)} / 100.0
                             </TableCell>
                         </TableRow>
-                        <TableRow>
-                            <TableCell className="font-medium">Label</TableCell>
+                        <TableRow className={cn(!isLabelScored && "text-muted-foreground opacity-60")}>
+                            <TableCell className="font-medium">
+                                Label
+                                {!isLabelScored && <Badge variant="outline" className="ml-2 text-xs">Not Scored</Badge>}
+                            </TableCell>
                             <TableCell className="flex items-center gap-2">
                                 {labelSimilarity === 1 ? <CheckCircle2 className="h-4 w-4 text-green-500" /> : <XCircle className="h-4 w-4 text-red-500" />}
                                 <span>{match.student.attributes?.label ?? 'N/A'}</span>
                             </TableCell>
                              <TableCell className={`text-right font-mono ${getScoreColor(labelScore, 100)}`}>
-                                {labelScore.toFixed(1)} / 100.0
+                                {isLabelScored ? `${labelScore.toFixed(1)} / 100.0` : 'N/A'}
                             </TableCell>
                         </TableRow>
                         <TableRow>
@@ -102,3 +108,5 @@ export function ScoreBreakdown({ match }: ScoreBreakdownProps) {
         </Card>
     );
 }
+
+    

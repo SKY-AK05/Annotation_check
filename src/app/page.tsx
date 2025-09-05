@@ -2,12 +2,12 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import JSZip from 'jszip';
 import { useToast } from "@/hooks/use-toast";
 import { ResultsDashboard } from '@/components/ResultsDashboard';
 import { AnnotatorAiLogo } from '@/components/AnnotatorAiLogo';
-import type { EvaluationResult, FormValues, CocoJson, SelectedAnnotation, Feedback, ScoreOverrides, ScoringWeights } from '@/lib/types';
+import type { EvaluationResult, FormValues, CocoJson, SelectedAnnotation, Feedback, ScoreOverrides, ScoringWeights, BboxAnnotation } from '@/lib/types';
 import { evaluateAnnotations, recalculateOverallScore } from '@/lib/evaluator';
 import { parseCvatXml } from '@/lib/cvat-xml-parser';
 import { extractEvalSchema } from '@/ai/flows/extract-eval-schema';
@@ -34,6 +34,7 @@ export default function Home() {
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [feedbackCache, setFeedbackCache] = useState<Map<string, Feedback>>(new Map());
   const [scoreOverrides, setScoreOverrides] = useState<ScoreOverrides>({});
+  const [gtAnnsByImage, setGtAnnsByImage] = useState<Record<number, BboxAnnotation[]>>({});
   const { toast } = useToast();
 
   useEffect(() => {
@@ -46,18 +47,19 @@ export default function Home() {
         console.error("Could not load score overrides from localStorage", error);
     }
   }, []);
-
+  
+  const handleRecalculate = () => {
+    if (!results || !evalSchema || Object.keys(gtAnnsByImage).length === 0) return;
+    const newResults = results.map(res => recalculateOverallScore(res, scoreOverrides, evalSchema, gtAnnsByImage));
+    setResults(newResults);
+  };
+  
   useEffect(() => {
     if (results && evalSchema) {
       handleRecalculate();
     }
   }, [scoreOverrides, evalSchema?.weights]);
 
-  const handleRecalculate = () => {
-    if (!results || !evalSchema) return;
-    const newResults = results.map(res => recalculateOverallScore(res, scoreOverrides, evalSchema));
-    setResults(newResults);
-  };
   
   const handleScoreOverride = (studentFilename: string, imageId: number, annotationId: number, newScore: number | null) => {
     if (!results) return;
@@ -112,6 +114,7 @@ export default function Home() {
       setEvalSchema(null);
       setGtFileContent(null);
       setImageUrls(new Map());
+      setGtAnnsByImage({});
       return;
     }
     
@@ -120,6 +123,7 @@ export default function Home() {
     setEvalSchema(null);
     setGtFileContent(null);
     setImageUrls(new Map());
+    setGtAnnsByImage({});
     setSelectedAnnotation(null);
     setFeedback(null);
     setFeedbackCache(new Map());
@@ -158,6 +162,14 @@ export default function Home() {
       } else {
         fileContent = await file.text();
       }
+      
+      const gtAnnotations = file.name.endsWith('.xml') ? parseCvatXml(fileContent) : JSON.parse(fileContent) as CocoJson;
+      const groupedAnns = (gtAnnotations.annotations as BboxAnnotation[]).reduce((acc, ann) => {
+          (acc[ann.image_id] = acc[ann.image_id] || []).push(ann);
+          return acc;
+      }, {} as Record<number, BboxAnnotation[]>);
+      setGtAnnsByImage(groupedAnns);
+
 
       setGtFileContent(fileContent);
       setImageUrls(newImageUrls); // Set images extracted from GT zip
@@ -352,7 +364,7 @@ export default function Home() {
             const finalResult = recalculateOverallScore({
                  ...initialResult,
                 studentFilename: studentFile.name,
-            }, scoreOverrides, evalSchema);
+            }, scoreOverrides, evalSchema, gtAnnsByImage);
 
             batchResults.push(finalResult);
         }
@@ -540,3 +552,5 @@ export default function Home() {
     </div>
   );
 }
+
+    
