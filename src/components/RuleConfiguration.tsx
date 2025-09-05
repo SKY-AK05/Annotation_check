@@ -77,9 +77,14 @@ export function RuleConfiguration({ schema, loading, onRuleChange }: RuleConfigu
         <CardContent className="space-y-6 pt-6">
             <Alert>
                 <Info className="h-4 w-4" />
-                <AlertTitle>New Scoring System Active!</AlertTitle>
+                <AlertTitle>How Scores Are Calculated</AlertTitle>
                 <AlertDescription>
-                    The final score is now a 90/10 blend of annotation quality and completeness. Custom weights have been removed. See the documentation for details.
+                    <p>The final score is a blend of two components:</p>
+                    <ul className="list-disc pl-5 mt-2 space-y-1">
+                        <li><strong>Quality (90% weight):</strong> The average score of all matched annotations. Each match score is an equal blend of IoU, Label, and Attribute accuracy.</li>
+                        <li><strong>Completeness (10% weight):</strong> Measures how many required annotations were found versus how many were missed or added.</li>
+                    </ul>
+                    <p className="mt-2">This system cannot be changed via instructions, but you can still customize which attributes are checked by editing the pseudocode.</p>
                 </AlertDescription>
             </Alert>
 
