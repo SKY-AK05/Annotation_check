@@ -58,7 +58,7 @@ export default function Home() {
     if (results && evalSchema) {
       handleRecalculate();
     }
-  }, [scoreOverrides, evalSchema?.weights]);
+  }, [scoreOverrides, evalSchema]);
 
   
   const handleScoreOverride = (studentFilename: string, imageId: number, annotationId: number, newScore: number | null) => {
@@ -405,11 +405,9 @@ export default function Home() {
     }
     setIsGeneratingRules(true);
     try {
+        const newSchema = { ...evalSchema! };
         if (instructions.weights) {
-            const newSchema = {
-                ...evalSchema!,
-                weights: instructions.weights,
-            };
+            newSchema.weights = instructions.weights;
             setEvalSchema(newSchema);
         } else {
             const input: EvalSchemaInput = { gtFileContent: gtFileContent! };
@@ -420,8 +418,8 @@ export default function Home() {
                 input.pseudoCode = instructions.pseudoCode;
             }
             
-            const newSchema = await extractEvalSchema(input);
-            setEvalSchema(newSchema);
+            const updatedSchema = await extractEvalSchema(input);
+            setEvalSchema(updatedSchema);
         }
 
         toast({
@@ -554,5 +552,3 @@ export default function Home() {
     </div>
   );
 }
-
-    
